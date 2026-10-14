@@ -2,37 +2,41 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.data_loader import get_device, get_model, load_models
+from app.data_loader import get_device
 from app.db import repository as repo
-from app.engine.evaluator import evaluate
+from app.engine.evaluator import evaluate, matches
 from app.engine.optimise import baseline_config, optimise
-from app.schemas.model import ModelProfile
 from app.schemas.project import ProjectSpec
 from app.schemas.results import Config, EvaluationResult, OptimisationResult
-
-
-def resolve_model(db: Session, model_id: str) -> ModelProfile:
-    custom = repo.get_custom_model(db, model_id)
-    if custom is not None:
-        return custom
-    if model_id in load_models():
-        return get_model(model_id)
-    raise KeyError(f"unknown model '{model_id}'")
+from app.services import measurement_service as ms
+from app.services.model_lookup import resolve_model
 
 
 def evaluate_project(
     db: Session, project_id: int, spec: ProjectSpec, config: Config | None
 ) -> EvaluationResult:
     model, hw = resolve_model(db, spec.model_id), get_device(spec.device_id)
-    cfg = config or baseline_config(hw, spec.cooling_id)
-    result = evaluate(model, hw, cfg, spec.workload, spec.constraints)
+    cfg = config or spec.baseline or baseline_config(hw, spec.cooling_id)
+    cals = ms.active_calibrations(db, hw.id)
+    meas = ms.measurements_for(db, hw.id, model.id)
+    ret = ms.measured_retention(db, model.id)
+    result = evaluate(
+        model, hw, cfg, spec.workload, spec.constraints, ret.get(cfg.precision),
+        calibration=cals.get(cfg.precision),
+        measured=next((m for m in meas if matches(m, hw, model.id, cfg)), None),
+    )  # fmt: skip
     repo.save_run(db, project_id, "evaluate", result.engine_version, result.model_dump(mode="json"))
     return result
 
 
 def optimise_project(db: Session, project_id: int, spec: ProjectSpec) -> OptimisationResult:
     model, hw = resolve_model(db, spec.model_id), get_device(spec.device_id)
-    result = optimise(spec, model, hw)
+    result = optimise(
+        spec, model, hw,
+        measured=ms.measured_retention(db, model.id),
+        calibrations=ms.active_calibrations(db, hw.id),
+        measurements=ms.measurements_for(db, hw.id, model.id),
+    )  # fmt: skip
     repo.save_run(
         db, project_id, "optimise", result.baseline.engine_version, result.model_dump(mode="json")
     )

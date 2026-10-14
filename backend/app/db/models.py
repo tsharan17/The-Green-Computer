@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -43,4 +43,32 @@ class CustomModelRow(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(200))
     profile: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class MeasurementRow(Base):
+    __tablename__ = "measurements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(String(80), index=True)
+    model_id: Mapped[str] = mapped_column(String(80), index=True)
+    precision: Mapped[str] = mapped_column(String(10))
+    batch: Mapped[int] = mapped_column(Integer)
+    external_id: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True)
+    record: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class CalibrationRow(Base):
+    """Every refit is stored for audit; only accepted versions are ever applied."""
+
+    __tablename__ = "calibrations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(String(80), index=True)
+    precision: Mapped[str] = mapped_column(String(10))
+    version: Mapped[int] = mapped_column(Integer)
+    accepted: Mapped[bool] = mapped_column(Boolean)
+    calibration: Mapped[dict] = mapped_column(JSON)
+    report: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

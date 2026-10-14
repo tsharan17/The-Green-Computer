@@ -40,9 +40,9 @@ def test_pareto_points_are_non_dominated_and_eligible():
         for q in eligible:
             dominates = (
                 q.energy_mj <= p.energy_mj and q.latency_ms <= p.latency_ms
-                and q.memory_gb <= p.memory_gb and q.accuracy >= p.accuracy
+                and q.accuracy >= p.accuracy
                 and (q.energy_mj < p.energy_mj or q.latency_ms < p.latency_ms
-                     or q.memory_gb < p.memory_gb or q.accuracy > p.accuracy)
+                     or q.accuracy > p.accuracy)
             )  # fmt: skip
             assert not dominates
     assert sum(p.best for p in res.points) == 1

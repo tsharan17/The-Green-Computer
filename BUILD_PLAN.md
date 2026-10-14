@@ -9,8 +9,9 @@ Companion to the Implementation Plan (design and rationale). This is the executi
 | Day | State | Notes |
 |---|---|---|
 | 1 | Done (committed) | Thin slice. Nebius spikes still open: need API keys |
-| 2 | Done (uncommitted) | ONNX + manual models, coupled solver, corner-envelope uncertainty, 1,000+ candidate sweep, Pareto, co-design. Deferred: LLM prefill/decode, safetensors/Hugging Face input |
-| 3 to 6 | Not started | |
+| 2 | Done (committed) | ONNX + manual models, coupled solver, corner-envelope uncertainty, 1,000+ candidate sweep, Pareto, co-design. Deferred: LLM prefill/decode, safetensors/Hugging Face input |
+| 3 | Done, with gaps (uncommitted) | Measurement ingest, gated calibration, Verify screen, bench scripts, real CPU measurements on the dev machine. Gaps: no GPU/power measurement, Nebius Jobs launcher not implemented (needs credentials), FP16/INT8 export and accuracy scripts unrun |
+| 4 to 6 | Not started | |
 
 ## Principles
 

@@ -108,12 +108,72 @@ export interface OptimisationResult {
   message: string;
 }
 
+export interface Measurement {
+  id: number;
+  device_id: string;
+  model_id: string;
+  precision: "fp32" | "fp16" | "int8";
+  batch: number;
+  source: string;
+  hardware_label: string;
+  latency_ms_mean: number | null;
+  throughput_fps: number | null;
+  power_w_avg: number | null;
+  temperature_c_max: number | null;
+  accuracy_retention: number | null;
+  notes: string;
+}
+
+export interface VerifyRow {
+  measurement: Measurement;
+  predicted_ms: number;
+  predicted_cal_ms: number | null;
+  error_before: number | null;
+  error_after: number | null;
+  inside_band: boolean | null;
+}
+
+export interface VerifySummary {
+  device_id: string;
+  precision: string;
+  n: number;
+  mape_before: number | null;
+  mape_after: number | null;
+  coverage: number | null;
+  calibration_version: number | null;
+  calibration_active: boolean;
+  note: string;
+}
+
+export interface VerifyOut {
+  rows: VerifyRow[];
+  summaries: VerifySummary[];
+}
+
+export interface CalibrationHistoryItem {
+  device_id: string;
+  precision: string;
+  version: number;
+  accepted: boolean;
+  created_at: string;
+  latency: { n: number; error_before: number | null; error_after: number | null; accepted: boolean; reason: string };
+  power: { n: number; accepted: boolean; reason: string };
+}
+
+export interface BenchmarkStatus {
+  jobs_configured: boolean;
+  detail: string;
+  replay_available: boolean;
+  import_formats: string[];
+}
+
 export interface Workload {
   fps: number;
   ambient_c: number;
   hours_per_day: number;
   price_per_kwh: number;
   grid_gco2_per_kwh: number;
+  streaming: boolean;
 }
 
 export interface Constraints {
@@ -130,6 +190,7 @@ export interface ProjectSpec {
   model_id: string;
   device_id: string;
   cooling_id: string | null;
+  baseline: Config | null;
   workload: Workload;
   constraints: Constraints;
 }
@@ -165,5 +226,7 @@ export interface HardwareProfile {
   kind: string;
   role: string;
   cooling_options: { id: string; name: string }[];
+  power_modes: { id: string; name: string; cap_w: number }[];
+  peak_tflops: Record<string, number>;
   default_cooling: string;
 }

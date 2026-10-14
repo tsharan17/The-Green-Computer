@@ -4,8 +4,10 @@ import CodesignTable from "./components/CodesignTable";
 import ModelPanel from "./components/ModelPanel";
 import ParetoChart from "./components/ParetoChart";
 import ThermalChart from "./components/ThermalChart";
+import VerifyPanel from "./components/VerifyPanel";
 import { Checks, Chip, MetricTable, configLabel, fmt } from "./components/common";
 import type {
+  Config,
   Constraints,
   EvaluationResult,
   HardwareProfile,
@@ -15,7 +17,7 @@ import type {
   Workload,
 } from "./types";
 
-type Tab = "setup" | "thermal" | "lab";
+type Tab = "setup" | "thermal" | "lab" | "verify";
 
 function Num(props: {
   label: string;
@@ -95,6 +97,23 @@ export default function App() {
   if (error && !spec) return <div className="page"><p className="error">Could not reach the API: {error}</p></div>;
   if (!spec || projectId === null) return <div className="page"><p>Loading…</p></div>;
 
+  const setBaselineField = (patch: Partial<Config>) => {
+    const d = device;
+    if (!d) return;
+    const top = [...d.power_modes].sort((a, b) => b.cap_w - a.cap_w)[0];
+    const cur: Config = spec.baseline ?? {
+      precision: (d.peak_tflops.fp32 ?? 0) > 0 ? "fp32" : "fp16",
+      batch: 1,
+      power_mode_id: top.id,
+      cooling_id: spec.cooling_id ?? d.default_cooling,
+      resolution_scale: 1,
+      clock_trim: 1,
+    };
+    const next = { ...cur, ...patch };
+    if (!next.power_mode_id) next.power_mode_id = top.id;
+    next.cooling_id = spec.cooling_id ?? d.default_cooling;
+    setSpec({ ...spec, baseline: next });
+  };
   const setWorkload = (patch: Partial<Workload>) => setSpec({ ...spec, workload: { ...spec.workload, ...patch } });
   const setConstraints = (patch: Partial<Constraints>) =>
     setSpec({ ...spec, constraints: { ...spec.constraints, ...patch } });
@@ -131,7 +150,7 @@ export default function App() {
           <h1>The Green Computer</h1>
           <p className="tag">Predict. Optimise. Verify. Make every computation count.</p>
         </div>
-        <span className="pill">Day 2 · coupled thermal solver, ONNX, co-design search</span>
+        <span className="pill">Day 3 · measurements and gated calibration</span>
       </header>
 
       <div className="layout">
@@ -166,7 +185,7 @@ export default function App() {
               value={spec.device_id}
               onChange={(e) => {
                 const d = devices.find((x) => x.id === e.target.value);
-                setSpec({ ...spec, device_id: e.target.value, cooling_id: d?.default_cooling ?? null });
+                setSpec({ ...spec, device_id: e.target.value, cooling_id: d?.default_cooling ?? null, baseline: null });
               }}
             >
               {devices.map((d) => (
@@ -188,6 +207,34 @@ export default function App() {
             </select>
           </label>
 
+          <details className="model-panel">
+            <summary>What you run today (baseline)</summary>
+            <p className="hint">Defaults to FP32, batch 1, the highest power mode. Set your real deployment so the comparison is honest.</p>
+            {device && (
+              <div className="grid2">
+                <label className="field"><span>Precision</span>
+                  <select
+                    value={spec.baseline?.precision ?? ""}
+                    onChange={(e) => setBaselineField({ precision: e.target.value as "fp32" | "fp16" | "int8" })}
+                  >
+                    <option value="">default</option>
+                    {(["fp32", "fp16", "int8"] as const).filter((p) => (device.peak_tflops[p] ?? 0) > 0).map((p) => (
+                      <option key={p} value={p}>{p.toUpperCase()}</option>
+                    ))}
+                  </select></label>
+                <label className="field"><span>Batch</span>
+                  <input type="number" min={1} value={spec.baseline?.batch ?? 1} onChange={(e) => setBaselineField({ batch: Math.max(1, Number(e.target.value) || 1) })} /></label>
+                <label className="field"><span>Power mode</span>
+                  <select value={spec.baseline?.power_mode_id ?? ""} onChange={(e) => setBaselineField({ power_mode_id: e.target.value })}>
+                    <option value="">default (highest)</option>
+                    {device.power_modes.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select></label>
+                <div className="field"><span>&nbsp;</span>
+                  <button onClick={() => setSpec({ ...spec, baseline: null })}>Reset to default</button></div>
+              </div>
+            )}
+          </details>
+
           <h3>Workload</h3>
           <div className="grid2">
             <Num label="Frames per second" value={spec.workload.fps} onChange={(v) => setWorkload({ fps: v ?? 1 })} />
@@ -195,6 +242,15 @@ export default function App() {
             <Num label="Hours per day" value={spec.workload.hours_per_day} onChange={(v) => setWorkload({ hours_per_day: v ?? 24 })} />
             <Num label="Price per kWh" step={0.01} value={spec.workload.price_per_kwh} onChange={(v) => setWorkload({ price_per_kwh: v ?? 0 })} />
           </div>
+
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={spec.workload.streaming}
+              onChange={(e) => setWorkload({ streaming: e.target.checked })}
+            />
+            Real-time stream (a batch waits for its frames)
+          </label>
 
           <h3>Hard constraints</h3>
           <div className="grid2">
@@ -240,6 +296,7 @@ export default function App() {
                 ["setup", "Evaluation"],
                 ["thermal", "Energy & Thermal"],
                 ["lab", "Optimisation Lab"],
+                ["verify", "Verify"],
               ] as [Tab, string][]
             ).map(([k, label]) => (
               <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "tab on" : "tab"} onClick={() => setTab(k)}>
@@ -288,6 +345,10 @@ export default function App() {
             ) : (
               <div className="panel empty">Run an evaluation first.</div>
             ))}
+
+          {tab === "verify" && (
+            <VerifyPanel devices={devices} models={models} onChanged={() => { setOpt(null); setBaseline(null); }} />
+          )}
 
           {tab === "lab" &&
             (opt ? (

@@ -4,7 +4,7 @@ Every value here is an ASSUMPTION until calibrated against measurements (Day 3).
 They are documented in docs/assumptions.md and surfaced with provenance "assumed".
 """
 
-ENGINE_VERSION = "0.2.0-l0"
+ENGINE_VERSION = "0.3.0-l0"
 
 BYTES_PER_ELEM = {"fp32": 4.0, "fp16": 2.0, "int8": 1.0}
 
@@ -54,3 +54,12 @@ ACCURACY_RETENTION_PRIOR = {
 }
 # Precisions whose accuracy effect must be measured before they can be called feasible.
 UNMEASURED_CAPPED_PRECISIONS = {"int8"}
+
+# Calibration (engine/calibration.py).
+CALIB_MIN_POINTS = 3  # leave-one-out needs at least this many measurements
+CALIB_SHRINK_K = 1.0  # factor = exp(mean_log * n / (n + K)): few points pull weakly from 1.0
+CALIB_ACCEPT_RATIO = 0.9  # accept only if leave-one-out error falls to <= 90% of uncalibrated
+CALIB_WIDTH_MARGIN = 1.15  # empirical band half-width = max LOO error x margin
+CALIB_WIDTH_MIN = 0.03
+CALIB_WIDTH_MAX = 0.60
+ETA_SOLVE_MIN, ETA_SOLVE_MAX = 0.05, 3.0

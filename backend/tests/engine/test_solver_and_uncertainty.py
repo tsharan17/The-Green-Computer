@@ -120,3 +120,25 @@ def test_evaluation_reports_time_to_throttle_when_throttled():
     ok = evaluate(M, HW, cfg(power_mode_id="10W", cooling_id="fan_heatsink"), Workload(),
                   Constraints())  # fmt: skip
     assert not ok.solver.throttled and ok.time_to_throttle_s is None
+
+
+def test_streaming_batch_adds_assembly_wait_to_latency():
+    one = evaluate(M, HW, cfg(power_mode_id="25W", cooling_id="fan_heatsink"),
+                   Workload(fps=30), Constraints())  # fmt: skip
+    eight = evaluate(M, HW, cfg(power_mode_id="25W", cooling_id="fan_heatsink", batch=8),
+                     Workload(fps=30), Constraints())  # fmt: skip
+    wait = 7 / 30 * 1e3
+    assert eight.metrics["latency"].value == pytest.approx(
+        eight.metrics["batch_time"].value + wait)  # fmt: skip
+    assert one.metrics["latency"].value == pytest.approx(one.metrics["batch_time"].value)
+    offline = evaluate(M, HW, cfg(power_mode_id="25W", cooling_id="fan_heatsink", batch=8),
+                       Workload(fps=30, streaming=False), Constraints())  # fmt: skip
+    assert offline.metrics["latency"].value == pytest.approx(offline.metrics["batch_time"].value)
+
+
+def test_latency_limit_rejects_big_batches_on_a_stream():
+    cons = Constraints(max_latency_ms=100)
+    big = evaluate(M, HW, cfg(power_mode_id="25W", cooling_id="fan_heatsink", batch=16),
+                   Workload(fps=30), cons)  # fmt: skip
+    lat = next(c for c in big.checks if c.name == "latency")
+    assert lat.status == "fail"  # 15 frames at 30 fps is already 500 ms

@@ -10,3 +10,6 @@ frontend/dist/
 backend/app/static/
 *.egg-info/
 .claude/
+bench/models/
+bench/variants/
+bench/*.json

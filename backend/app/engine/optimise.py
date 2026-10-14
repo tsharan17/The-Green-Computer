@@ -17,9 +17,10 @@ from itertools import product
 
 import numpy as np
 
-from app.engine.evaluator import evaluate
+from app.engine.evaluator import evaluate, matches
 from app.engine.roofline import supports
 from app.schemas.hardware import HardwareProfile
+from app.schemas.measurement import Calibration, MeasurementIn
 from app.schemas.metrics import Feasibility
 from app.schemas.model import ModelProfile
 from app.schemas.project import Constraints, ProjectSpec, Workload
@@ -118,7 +119,9 @@ def _fmt_changes(base: Config, cand: Config) -> list[str]:
     return out
 
 
-def _recommendation(base: EvaluationResult, best: EvaluationResult) -> Recommendation:
+def _recommendation(
+    base: EvaluationResult, best: EvaluationResult, spec: ProjectSpec
+) -> Recommendation:
     changes = _fmt_changes(base.config, best.config) or ["Keep the baseline configuration"]
     bm, nm = base.metrics, best.metrics
     summary = (
@@ -129,6 +132,14 @@ def _recommendation(base: EvaluationResult, best: EvaluationResult) -> Recommend
         f"capacity {bm['capacity_fps'].value:.0f} → {nm['capacity_fps'].value:.0f} fps."
     )
     caveats = list(best.notes)
+    lat = nm["latency"].value
+    frame_ms = 1e3 / spec.workload.fps
+    if spec.constraints.max_latency_ms is None and lat > 2 * frame_ms:
+        caveats.append(
+            f"No latency limit is set, and this configuration has a worst-case frame latency of "
+            f"{lat:.0f} ms ({lat / frame_ms:.1f} frame periods). Set a latency limit if the "
+            "application is real-time."
+        )
     caveats.append("All values are analytical predictions with stated bands, not measurements.")
     return Recommendation(
         title="Lowest-energy configuration that meets your hard constraints",
@@ -218,6 +229,8 @@ def optimise(
     hw: HardwareProfile,
     measured: dict[str, float] | None = None,
     top_n: int = 10,
+    calibrations: dict[str, Calibration] | None = None,
+    measurements: list[MeasurementIn] | None = None,
     configs: Iterable[Config] | None = None,
     on_result: Callable[[EvaluationResult], None] | None = None,
 ) -> OptimisationResult:
@@ -225,10 +238,17 @@ def optimise(
     measured = measured or {}
     wl: Workload = spec.workload
     cons: Constraints = spec.constraints
-    base_cfg = baseline_config(hw, spec.cooling_id)
+    base_cfg = spec.baseline or baseline_config(hw, spec.cooling_id)
+
+    calibrations = calibrations or {}
+    measurements = measurements or []
 
     def ev(cfg: Config) -> EvaluationResult:
-        return evaluate(model, hw, cfg, wl, cons, measured.get(cfg.precision))
+        exact = next((m for m in measurements if matches(m, hw, model.id, cfg)), None)
+        return evaluate(
+            model, hw, cfg, wl, cons, measured.get(cfg.precision),
+            calibration=calibrations.get(cfg.precision), measured=exact,
+        )  # fmt: skip
 
     baseline = ev(base_cfg)
     results = [ev(c) for c in (configs if configs is not None else search_space(model, hw))]
@@ -243,7 +263,8 @@ def optimise(
     eligible = sorted((r for r in results if _eligible(r)), key=_rank_key)
     best = eligible[0] if eligible else None
 
-    # Pareto frontier over eligible candidates: energy, latency, memory down; accuracy up.
+    # Pareto set over eligible candidates: energy and latency down, accuracy up. Memory is a
+    # hard constraint, not a trade-off axis, so it is not an objective here.
     pareto_ids: set[int] = set()
     if eligible:
         obj = np.array(
@@ -251,7 +272,6 @@ def optimise(
                 [
                     r.metrics["energy_per_inference"].value,
                     r.metrics["latency"].value,
-                    r.metrics["memory"].value,
                     -r.metrics["accuracy"].value,
                 ]
                 for r in eligible
@@ -284,7 +304,7 @@ def optimise(
             baseline=baseline,
             best=best,
             top=eligible[:top_n],
-            recommendation=_recommendation(baseline, best),
+            recommendation=_recommendation(baseline, best, spec),
             codesign=codesign,
             points=points,
             evaluated=len(results),

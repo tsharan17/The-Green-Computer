@@ -38,6 +38,14 @@ def _validate_refs(db: Session, spec: ProjectSpec) -> None:
     hw = devices[spec.device_id]
     if spec.cooling_id and spec.cooling_id not in {c.id for c in hw.cooling_options}:
         raise HTTPException(422, f"unknown cooling '{spec.cooling_id}' for {hw.id}")
+    b = spec.baseline
+    if b is not None:
+        if b.power_mode_id not in {m.id for m in hw.power_modes}:
+            raise HTTPException(422, f"unknown power mode '{b.power_mode_id}' for {hw.id}")
+        if b.cooling_id not in {c.id for c in hw.cooling_options}:
+            raise HTTPException(422, f"unknown cooling '{b.cooling_id}' for {hw.id}")
+        if hw.peak_tflops.get(b.precision, 0) <= 0:
+            raise HTTPException(422, f"{hw.id} does not support {b.precision}")
 
 
 def _project(db: Session, project_id: int) -> ProjectOut:
@@ -49,7 +57,14 @@ def _project(db: Session, project_id: int) -> ProjectOut:
 
 @router.get("/health")
 def health() -> dict:
-    return {"status": "ok", "agent": "disabled (Day 4)", "jobs": "disabled (Day 3)"}
+    from app.integrations.jobs import status as jobs_status
+
+    jobs = jobs_status()
+    return {
+        "status": "ok",
+        "agent": "disabled (Day 4)",
+        "jobs": {"configured": jobs.configured, "detail": jobs.reason},
+    }
 
 
 @router.get(

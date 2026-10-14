@@ -9,7 +9,8 @@ export const STATE_LABEL: Record<Feasibility, string> = {
 };
 
 export const METRIC_ROWS: [string, string][] = [
-  ["latency", "Latency (per batch)"],
+  ["latency", "Latency (worst frame, end to end)"],
+  ["batch_time", "Time per batch"],
   ["capacity_fps", "Throughput capacity"],
   ["power_avg", "Average power"],
   ["power_peak", "Peak power"],

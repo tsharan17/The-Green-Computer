@@ -15,18 +15,38 @@ from app.engine.constraints import certify, check
 from app.engine.solver import Sim, corners, simulate
 from app.engine.thermal import time_to_limit, warmup_trace
 from app.schemas.hardware import HardwareProfile
+from app.schemas.measurement import Calibration, MeasurementIn
 from app.schemas.metrics import Feasibility, Metric, Provenance
 from app.schemas.model import ModelProfile
 from app.schemas.project import Constraints, Workload
 from app.schemas.results import Config, ConstraintCheck, EvaluationResult, SolverInfo
 
 AN = Provenance.ANALYTICAL
+CAL = Provenance.CALIBRATED
 
 
-def _band(sims: list[Sim], unit: str, get: Callable[[Sim], float]) -> Metric:
+def _band(
+    sims: list[Sim], unit: str, get: Callable[[Sim], float], prov: Provenance = AN
+) -> Metric:
     """sims = [optimistic, nominal, pessimistic]; band is the min/max over the corners."""
     vals = [get(s) for s in sims]
-    return Metric(value=vals[1], unit=unit, low=min(vals), high=max(vals), provenance=AN)
+    return Metric(value=vals[1], unit=unit, low=min(vals), high=max(vals), provenance=prov)
+
+
+def matches(m: MeasurementIn, hw: HardwareProfile, model_id: str, cfg: Config) -> bool:
+    """A measurement is the same operating point as `cfg` (clock trim 1.0 only)."""
+    top = max(hw.power_modes, key=lambda p: p.cap_w).id
+    return (
+        m.device_id == hw.id
+        and m.model_id == model_id
+        and m.precision == cfg.precision
+        and m.batch == cfg.batch
+        and m.resolution_scale == cfg.resolution_scale
+        and cfg.clock_trim == 1.0
+        and (m.power_mode_id or top) == cfg.power_mode_id
+        and (m.cooling_id is None or m.cooling_id == cfg.cooling_id)
+        and m.batch_latency_ms is not None
+    )
 
 
 def evaluate(
@@ -36,16 +56,28 @@ def evaluate(
     workload: Workload,
     constraints: Constraints,
     measured_retention: float | None = None,
+    calibration: Calibration | None = None,
+    measured: MeasurementIn | None = None,
 ) -> EvaluationResult:
+    """`calibration` re-centres and re-bands the model from measurements; `measured` (an exact
+    match for this operating point) replaces batch time, capacity and active power with the
+    measured values, labelled as such."""
     cooling = hw.cooling(config.cooling_id)
-    sims = [simulate(model, hw, config, workload, c) for c in corners(model)]
+    sims = [simulate(model, hw, config, workload, c) for c in corners(model, calibration)]
     nom = sims[1]
+    lat_prov = CAL if calibration and calibration.latency_calibrated else AN
+    pw_prov = CAL if calibration and calibration.power_calibrated else AN
+    en_prov = CAL if lat_prov == CAL and pw_prov == CAL else AN
 
-    latency = _band(sims, "ms", lambda s: s.rf.t_batch_s * 1e3)
-    capacity = _band(sims, "fps", lambda s: s.pw.capacity_fps)
-    p_avg = _band(sims, "W", lambda s: s.pw.p_avg_w)
-    p_peak = _band(sims, "W", lambda s: s.pw.p_active_w)
-    energy = _band(sims, "mJ/inference", lambda s: s.pw.energy_per_inf_mj)
+    # Worst-case frame latency. For a real-time stream the first frame of a batch also waits
+    # for the other B-1 frames to arrive.
+    wait_ms = (config.batch - 1) / workload.fps * 1e3 if workload.streaming else 0.0
+    latency = _band(sims, "ms", lambda s: s.rf.t_batch_s * 1e3 + wait_ms, lat_prov)
+    batch_time = _band(sims, "ms", lambda s: s.rf.t_batch_s * 1e3, lat_prov)
+    capacity = _band(sims, "fps", lambda s: s.pw.capacity_fps, lat_prov)
+    p_avg = _band(sims, "W", lambda s: s.pw.p_avg_w, pw_prov)
+    p_peak = _band(sims, "W", lambda s: s.pw.p_active_w, pw_prov)
+    energy = _band(sims, "mJ/inference", lambda s: s.pw.energy_per_inf_mj, en_prov)
     mem = _band(sims, "GB", lambda s: s.rf.mem_gb)
     temp = _band(sims, "°C", lambda s: s.temp_c)
     temp_free = _band(sims, "°C", lambda s: s.temp_unthrottled_c)
@@ -77,6 +109,26 @@ def evaluate(
         model, config.precision, constraints, measured_retention, config.resolution_scale
     )
 
+    if measured is not None and measured.batch_latency_ms is not None:
+        mean = measured.batch_latency_ms
+        lo = min(measured.latency_ms_p50 or mean, mean)
+        hi = max(measured.latency_ms_p95 or mean, mean)
+        MS = Provenance.MEASURED
+        batch_time = Metric(value=mean, unit="ms", low=lo, high=hi, provenance=MS)
+        latency = Metric(
+            value=mean + wait_ms, unit="ms", low=lo + wait_ms, high=hi + wait_ms, provenance=MS
+        )
+        b = config.batch * 1e3
+        capacity = Metric(value=b / mean, unit="fps", low=b / hi, high=b / lo, provenance=MS)
+        if measured.power_w_avg is not None:
+            p_peak = Metric(
+                value=measured.power_w_avg,
+                unit="W",
+                low=measured.power_w_avg,
+                high=max(measured.power_w_peak or 0.0, measured.power_w_avg),
+                provenance=MS,
+            )
+
     if temp_free.low >= hw.t_throttle_c:
         throttle_risk = "high"
     elif temp_free.high >= hw.t_throttle_c:
@@ -96,7 +148,9 @@ def evaluate(
     checks: list[tuple[ConstraintCheck, Provenance]] = [
         (check("power (average)", "<=", constraints.max_power_w, p_avg), AN),
         (check("accuracy", ">=", constraints.min_accuracy, acc, note=acc_note), acc.provenance),
-        (check("throughput", ">=", workload.fps, capacity, note="after any throttling"), AN),
+        (check("throughput", ">=", workload.fps, capacity, note="after any throttling"),
+            capacity.provenance,
+        ),
         (
             check(
                 "memory fit",
@@ -112,7 +166,16 @@ def evaluate(
         ),
     ]  # fmt: skip
     if constraints.max_latency_ms is not None:
-        checks.append((check("latency", "<=", constraints.max_latency_ms, latency), AN))
+        checks.append((check(
+                    "latency",
+                    "<=",
+                    constraints.max_latency_ms,
+                    latency,
+                    note="worst-case frame, incl. batch wait" if wait_ms else "",
+                ),
+                latency.provenance,
+            )
+        )
     if constraints.max_memory_gb is not None:
         checks.append((check("memory limit", "<=", constraints.max_memory_gb, mem), AN))
     if constraints.forbid_throttling:
@@ -163,6 +226,7 @@ def evaluate(
 
     metrics = {
         "latency": latency,
+        "batch_time": batch_time,
         "capacity_fps": capacity,
         "power_avg": p_avg,
         "power_peak": p_peak,

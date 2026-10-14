@@ -79,8 +79,10 @@ def roofline_at(
     bpe = A.BYTES_PER_ELEM[precision]
     s2 = resolution_scale**2
 
-    eta_c = min(0.95, A.ETA_COMPUTE[precision] * eta_scale)
-    eta_m = min(0.95, A.ETA_MEMORY * eta_scale)
+    # No upper cap: a calibrated scale above 1 legitimately says the profile's peak numbers are
+    # conservative for this device (e.g. caches lift effective bandwidth above the DRAM roof).
+    eta_c = A.ETA_COMPUTE[precision] * eta_scale
+    eta_m = A.ETA_MEMORY * eta_scale
     peak = hw.peak_tflops[precision] * 1e12 * freq_scale
     bw = hw.mem_bw_gbs * 1e9 * mem_scale
 

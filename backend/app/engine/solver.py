@@ -18,6 +18,7 @@ from app.engine import assumptions as A
 from app.engine.power import PowerResult, power
 from app.engine.roofline import RooflineResult, roofline_at
 from app.schemas.hardware import HardwareProfile
+from app.schemas.measurement import Calibration
 from app.schemas.model import ModelProfile
 from app.schemas.project import Workload
 from app.schemas.results import Config
@@ -35,14 +36,25 @@ class Corner:
 NOMINAL = Corner()
 
 
-def corners(model: ModelProfile) -> tuple[Corner, Corner, Corner]:
-    """(optimistic, nominal, pessimistic) corners, widened for low-information models."""
+def corners(
+    model: ModelProfile, calib: Calibration | None = None
+) -> tuple[Corner, Corner, Corner]:
+    """(optimistic, nominal, pessimistic) corners.
+
+    Uncalibrated, the widths are the stated priors (widened for low-information models). With a
+    calibration the centre moves to the fitted factors and the width to the empirical
+    leave-one-out error, so bands shrink only when measurements justify it.
+    """
     w = A.FIDELITY_WIDEN[model.fidelity]
-    e, p, r = A.CORNER_ETA * w, A.CORNER_POWER * w, A.CORNER_RTH * w
+    eta_c = calib.eta_scale if calib else 1.0
+    pw_c = calib.power_scale if calib else 1.0
+    e = calib.eta_width if calib and calib.eta_width is not None else A.CORNER_ETA * w
+    p = calib.power_width if calib and calib.power_width is not None else A.CORNER_POWER * w
+    r = A.CORNER_RTH * w
     return (
-        Corner(eta=1 + e, power=1 - p, rth=1 - r),
-        NOMINAL,
-        Corner(eta=1 - e, power=1 + p, rth=1 + r),
+        Corner(eta=eta_c * (1 + e), power=pw_c * (1 - p), rth=1 - r),
+        Corner(eta=eta_c, power=pw_c, rth=1.0),
+        Corner(eta=eta_c * max(1 - e, 0.05), power=pw_c * (1 + p), rth=1 + r),
     )
 
 
