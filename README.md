@@ -2,17 +2,19 @@
 
 Predict how an AI model will behave on a given hardware setup before anything is built, then recommend the software and hardware changes that meet the requirements on the least energy. Tagline: *Predict. Optimise. Verify. Make every computation count.*
 
-Status: **Day 1 of a 6-day build** (thin end-to-end slice). See [BUILD_PLAN.md](BUILD_PLAN.md) for the phased plan and [docs/assumptions.md](docs/assumptions.md) for every constant the simulator assumes.
+Status: **Day 2 of a 6-day build.** See [BUILD_PLAN.md](BUILD_PLAN.md) for the phased plan and [docs/assumptions.md](docs/assumptions.md) for every constant the simulator assumes.
 
 ## What works today
 
-- Library of 5 models (MobileNetV2, ResNet-50, YOLOv8 n/s/m) and 5 devices (Jetson Orin Nano/NX/AGX, plus L40S and H100 reference GPUs).
-- Analytical L0 simulator: roofline latency, power, energy, steady-state temperature, throttling risk, memory fit, cost and carbon. Every number carries a unit, uncertainty band and provenance label.
-- Five-state constraint certification using pessimistic bounds. Hard constraints (default 55 W, 90% accuracy) are never relaxed.
-- Search over precision, batch, power mode and cooling, ranked by certified feasibility then energy.
-- FastAPI backend (SQLite) and a React page. An example robotics project is seeded on start.
+- **Models:** 5 library models (MobileNetV2, ResNet-50, YOLOv8 n/s/m), **ONNX upload** (per-layer FLOPs, parameters and bytes from inferred shapes; pickle and `.pt` refused) and manual parameters.
+- **Hardware:** Jetson Orin Nano/NX/AGX plus L40S and H100 reference GPUs, with power modes and cooling options.
+- **Coupled solver:** power sets temperature, temperature sets leakage, and a thermal governor lowers the clock past the throttle point; latency and power are re-solved. Warm-up curve and time-to-throttle from a lumped RC model.
+- **Uncertainty:** every metric's band comes from re-solving the whole model at optimistic and pessimistic corners (an envelope, not a statistical interval). Every number carries a unit, band and provenance label.
+- **Certification:** five-state feasibility on pessimistic bounds; hard constraints (default 55 W, 90% accuracy) are never relaxed.
+- **Search:** about 1,000–1,600 configurations per device (precision, batch, resolution, power mode, clock, cooling) in under a second, a Pareto set, and a software-only / hardware-only / combined comparison with an interaction factor.
+- FastAPI backend (SQLite) and a React app with Evaluation, Energy & Thermal and Optimisation Lab views.
 
-Not yet: ONNX parsing, coupled thermal solver, real GPU measurements, the Nemotron agent, datasheet import. All edge numbers are **analytical predictions**, not measurements.
+Not yet: real GPU measurements and calibration, the Nemotron agent, datasheet import, constraint repair, LLM prefill/decode and safetensors input. All edge numbers are **analytical predictions**, not measurements.
 
 ## Run it
 

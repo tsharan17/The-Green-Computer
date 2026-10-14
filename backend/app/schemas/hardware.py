@@ -20,6 +20,8 @@ class CoolingOption(BaseModel):
     name: str
     r_th_k_per_w: float = Field(gt=0)
     fan_w: float = 0.0
+    # Lumped thermal capacitance, J/K (sets the warm-up time constant R*C).
+    c_th_j_per_k: float = Field(100.0, gt=0)
 
 
 class HardwareProfile(BaseModel):

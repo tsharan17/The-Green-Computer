@@ -3,7 +3,8 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import ProjectRow, RunRow
+from app.db.models import CustomModelRow, ProjectRow, RunRow
+from app.schemas.model import ModelProfile
 from app.schemas.project import ProjectOut, ProjectSpec
 
 
@@ -52,3 +53,31 @@ def latest_run(db: Session, project_id: int, kind: str) -> dict | None:
         .limit(1)
     ).first()
     return row.result if row else None
+
+
+CUSTOM_PREFIX = "custom-"
+
+
+def create_custom_model(db: Session, profile: ModelProfile) -> ModelProfile:
+    row = CustomModelRow(name=profile.name, profile={})
+    db.add(row)
+    db.flush()  # assigns the integer id
+    stored = profile.model_copy(update={"id": f"{CUSTOM_PREFIX}{row.id}"})
+    row.profile = stored.model_dump(mode="json")
+    db.commit()
+    return stored
+
+
+def list_custom_models(db: Session) -> list[ModelProfile]:
+    rows = db.scalars(select(CustomModelRow).order_by(CustomModelRow.id))
+    return [ModelProfile.model_validate(r.profile) for r in rows]
+
+
+def get_custom_model(db: Session, model_id: str) -> ModelProfile | None:
+    if not model_id.startswith(CUSTOM_PREFIX):
+        return None
+    try:
+        row = db.get(CustomModelRow, int(model_id[len(CUSTOM_PREFIX) :]))
+    except ValueError:
+        return None
+    return ModelProfile.model_validate(row.profile) if row else None

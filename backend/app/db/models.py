@@ -33,3 +33,14 @@ class RunRow(Base):
     engine_version: Mapped[str] = mapped_column(String(40))
     result: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class CustomModelRow(Base):
+    """User-supplied models (ONNX upload or manual parameters), including parsed layers."""
+
+    __tablename__ = "custom_models"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200))
+    profile: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

@@ -18,9 +18,9 @@ power_modes:
   - {id: 15W, name: 15 W, cap_w: 15, freq_scale: 0.70, mem_scale: 0.85}
   - {id: MAXN, name: MAXN (25 W), cap_w: 25, freq_scale: 1.0, mem_scale: 1.0}
 cooling_options:
-  - {id: passive_small, name: Small passive heatsink, r_th_k_per_w: 4.0, fan_w: 0.0}
-  - {id: passive_large, name: Large passive heatsink, r_th_k_per_w: 2.4, fan_w: 0.0}
-  - {id: fan_heatsink, name: Heatsink with fan, r_th_k_per_w: 1.4, fan_w: 1.0}
+  - {id: passive_small, name: Small passive heatsink, r_th_k_per_w: 4.0, fan_w: 0.0, c_th_j_per_k: 60}
+  - {id: passive_large, name: Large passive heatsink, r_th_k_per_w: 2.4, fan_w: 0.0, c_th_j_per_k: 140}
+  - {id: fan_heatsink, name: Heatsink with fan, r_th_k_per_w: 1.4, fan_w: 1.0, c_th_j_per_k: 140}
 default_cooling: passive_small
 sources:
   mem_bw_gbs: vendor_spec

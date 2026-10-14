@@ -16,7 +16,7 @@ t_shutdown_c: 95.0
 power_modes:
   - {id: stock, name: Stock (350 W TDP), cap_w: 350, freq_scale: 1.0, mem_scale: 1.0}
 cooling_options:
-  - {id: datacenter_air, name: Datacenter forced air, r_th_k_per_w: 0.12, fan_w: 0.0}
+  - {id: datacenter_air, name: Datacenter forced air, r_th_k_per_w: 0.12, fan_w: 0.0, c_th_j_per_k: 2500}
 default_cooling: datacenter_air
 sources:
   mem_bw_gbs: vendor_spec

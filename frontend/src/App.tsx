@@ -1,114 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
+import CodesignTable from "./components/CodesignTable";
+import ModelPanel from "./components/ModelPanel";
+import ParetoChart from "./components/ParetoChart";
+import ThermalChart from "./components/ThermalChart";
+import { Checks, Chip, MetricTable, configLabel, fmt } from "./components/common";
 import type {
   Constraints,
   EvaluationResult,
-  Feasibility,
   HardwareProfile,
-  Metric,
   ModelProfile,
   OptimisationResult,
   ProjectSpec,
   Workload,
 } from "./types";
 
-const STATE_LABEL: Record<Feasibility, string> = {
-  verified_feasible: "Verified feasible",
-  predicted_feasible: "Predicted feasible",
-  uncertain: "Uncertain",
-  infeasible: "Infeasible",
-  verified_infeasible: "Verified infeasible",
-};
-
-const METRIC_ROWS: [string, string][] = [
-  ["latency", "Latency (per batch)"],
-  ["capacity_fps", "Throughput capacity"],
-  ["power_avg", "Average power"],
-  ["power_peak", "Peak power"],
-  ["energy_per_inference", "Energy per inference"],
-  ["temperature", "Steady temperature"],
-  ["thermal_headroom", "Thermal headroom"],
-  ["memory", "Memory"],
-  ["accuracy", "Accuracy"],
-  ["cost_per_day", "Electricity cost"],
-  ["carbon_per_day", "Carbon"],
-];
-
-function fmt(n: number): string {
-  const a = Math.abs(n);
-  if (a >= 100) return n.toFixed(0);
-  if (a >= 10) return n.toFixed(1);
-  return n.toFixed(2);
-}
-
-function Chip({ state }: { state: Feasibility }) {
-  return <span className={`chip chip-${state}`}>{STATE_LABEL[state]}</span>;
-}
-
-function Badge({ p }: { p: Metric["provenance"] }) {
-  return <span className={`badge badge-${p}`}>{p.replace("_", " ")}</span>;
-}
-
-function MetricTable({ r }: { r: EvaluationResult }) {
-  return (
-    <table className="tbl">
-      <thead>
-        <tr>
-          <th>Metric</th>
-          <th>Value</th>
-          <th>Band (low – high)</th>
-          <th>Source</th>
-        </tr>
-      </thead>
-      <tbody>
-        {METRIC_ROWS.map(([k, label]) => {
-          const m = r.metrics[k];
-          if (!m) return null;
-          return (
-            <tr key={k}>
-              <td>{label}</td>
-              <td>
-                <strong>{fmt(m.value)}</strong> {m.unit}
-              </td>
-              <td className="muted">
-                {fmt(m.low)} – {fmt(m.high)}
-              </td>
-              <td>
-                <Badge p={m.provenance} />
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-function Checks({ r }: { r: EvaluationResult }) {
-  return (
-    <ul className="checks">
-      {r.checks.map((c) => (
-        <li key={c.name} className={`check check-${c.status}`}>
-          <span className="check-dot" />
-          <span>
-            <strong>{c.name}</strong> {c.sense} {fmt(c.limit)} {c.unit}
-            <span className="muted">
-              {" "}
-              — worst case {fmt(c.pessimistic)}, best case {fmt(c.optimistic)}
-              {c.note ? ` (${c.note})` : ""}
-            </span>
-          </span>
-          <span className="check-status">{c.status}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function configLabel(r: EvaluationResult): string {
-  const c = r.config;
-  return `${c.precision.toUpperCase()} · batch ${c.batch} · ${c.power_mode_id} · ${c.cooling_id}`;
-}
+type Tab = "setup" | "thermal" | "lab";
 
 function Num(props: {
   label: string;
@@ -134,6 +41,26 @@ function Num(props: {
   );
 }
 
+function BaselineSummary({ r, title }: { r: EvaluationResult; title: string }) {
+  return (
+    <section className="panel">
+      <div className="row">
+        <h2>{title}</h2>
+        <Chip state={r.feasibility} />
+      </div>
+      <p className="hint">
+        {configLabel(r.config)} · bottleneck: <strong>{r.bottleneck}</strong> · throttling risk:{" "}
+        <strong>{r.throttle_risk}</strong>
+      </p>
+      <Checks r={r} />
+      <MetricTable r={r} />
+      {r.notes.map((n) => (
+        <p key={n} className="note">{n}</p>
+      ))}
+    </section>
+  );
+}
+
 export default function App() {
   const [models, setModels] = useState<ModelProfile[]>([]);
   const [devices, setDevices] = useState<HardwareProfile[]>([]);
@@ -141,6 +68,8 @@ export default function App() {
   const [spec, setSpec] = useState<ProjectSpec | null>(null);
   const [baseline, setBaseline] = useState<EvaluationResult | null>(null);
   const [opt, setOpt] = useState<OptimisationResult | null>(null);
+  const [thermalView, setThermalView] = useState<"baseline" | "best">("baseline");
+  const [tab, setTab] = useState<Tab>("setup");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -179,10 +108,12 @@ export default function App() {
       if (kind === "evaluate") {
         setBaseline(await api.evaluate(projectId));
         setOpt(null);
+        setThermalView("baseline");
       } else {
         const r = await api.optimise(projectId);
         setOpt(r);
         setBaseline(r.baseline);
+        setTab("lab");
       }
     } catch (e) {
       setError(String(e));
@@ -191,7 +122,7 @@ export default function App() {
     }
   }
 
-  const shown = baseline;
+  const thermalResult = thermalView === "best" && opt?.best ? opt.best : baseline;
 
   return (
     <div className="page">
@@ -200,7 +131,7 @@ export default function App() {
           <h1>The Green Computer</h1>
           <p className="tag">Predict. Optimise. Verify. Make every computation count.</p>
         </div>
-        <span className="pill">Day 1 · analytical L0 simulator</span>
+        <span className="pill">Day 2 · coupled thermal solver, ONNX, co-design search</span>
       </header>
 
       <div className="layout">
@@ -212,15 +143,23 @@ export default function App() {
               {models.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}
+                  {m.fidelity !== "library" ? ` (${m.fidelity})` : ""}
                 </option>
               ))}
             </select>
           </label>
           {model && (
             <p className="hint">
-              {model.task} · baseline {model.accuracy_metric} {(model.baseline_accuracy * 100).toFixed(1)}%
+              {model.task} · {model.params_m.toFixed(1)} M params · {model.gflops.toFixed(1)} GFLOPs
+              {model.fidelity === "library" ? ` · baseline ${model.accuracy_metric} ${(model.baseline_accuracy * 100).toFixed(1)}%` : ""}
             </p>
           )}
+          <ModelPanel
+            onAdded={(m) => {
+              setModels((prev) => [...prev, m]);
+              setSpec((s) => (s ? { ...s, model_id: m.id } : s));
+            }}
+          />
           <label className="field">
             <span>Hardware</span>
             <select
@@ -295,99 +234,145 @@ export default function App() {
         </section>
 
         <main className="results">
-          {!shown && <div className="panel empty">Choose a model and hardware, then evaluate the baseline or search for the best configuration.</div>}
+          <nav className="tabs" role="tablist">
+            {(
+              [
+                ["setup", "Evaluation"],
+                ["thermal", "Energy & Thermal"],
+                ["lab", "Optimisation Lab"],
+              ] as [Tab, string][]
+            ).map(([k, label]) => (
+              <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "tab on" : "tab"} onClick={() => setTab(k)}>
+                {label}
+              </button>
+            ))}
+          </nav>
 
-          {shown && (
-            <section className="panel">
-              <div className="row">
-                <h2>Baseline</h2>
-                <Chip state={shown.feasibility} />
-              </div>
-              <p className="hint">
-                {configLabel(shown)} · bottleneck: <strong>{shown.bottleneck}</strong> · throttling risk:{" "}
-                <strong>{shown.throttle_risk}</strong>
-              </p>
-              <Checks r={shown} />
-              <MetricTable r={shown} />
-              {shown.notes.map((n) => (
-                <p key={n} className="note">{n}</p>
-              ))}
-            </section>
-          )}
+          {tab === "setup" &&
+            (baseline ? (
+              <BaselineSummary r={baseline} title="Baseline" />
+            ) : (
+              <div className="panel empty">Choose a model and hardware, then evaluate the baseline or search for the best configuration.</div>
+            ))}
 
-          {opt && (
-            <>
-              <section className="panel reco">
+          {tab === "thermal" &&
+            (thermalResult ? (
+              <section className="panel">
                 <div className="row">
-                  <h2>Recommendation</h2>
-                  {opt.best && <Chip state={opt.best.feasibility} />}
+                  <h2>Energy &amp; thermal twin</h2>
+                  {opt?.best && (
+                    <div className="seg">
+                      <button className={thermalView === "baseline" ? "on" : ""} onClick={() => setThermalView("baseline")}>Baseline</button>
+                      <button className={thermalView === "best" ? "on" : ""} onClick={() => setThermalView("best")}>Recommended</button>
+                    </div>
+                  )}
                 </div>
-                {opt.recommendation && opt.best ? (
-                  <>
-                    <p className="lead">{opt.recommendation.title}</p>
-                    <ul className="changes">
-                      {opt.recommendation.changes.map((c) => (
-                        <li key={c}>{c}</li>
-                      ))}
-                    </ul>
-                    <p>{opt.recommendation.summary}</p>
-                    {opt.recommendation.caveats.map((c) => (
-                      <p key={c} className="note">{c}</p>
-                    ))}
-                    <details>
-                      <summary>Checks and metrics for the recommended configuration</summary>
-                      <p className="hint">{configLabel(opt.best)}</p>
-                      <Checks r={opt.best} />
-                      <MetricTable r={opt.best} />
-                    </details>
-                  </>
-                ) : (
-                  <p className="error">{opt.message}</p>
-                )}
                 <p className="hint">
-                  Searched {opt.evaluated} configurations:{" "}
-                  {Object.entries(opt.counts)
-                    .map(([k, v]) => `${v} ${k.replace("_", " ")}`)
-                    .join(", ")}
-                  .
+                  {configLabel(thermalResult.config)} · ambient {fmt(spec.workload.ambient_c)} °C
+                </p>
+                <ThermalChart r={thermalResult} ambientC={spec.workload.ambient_c} />
+                <div className="facts">
+                  <div><span>Without governor</span><strong>{fmt(thermalResult.metrics.temperature_unthrottled.value)} °C</strong></div>
+                  <div><span>After governor</span><strong>{fmt(thermalResult.metrics.temperature.value)} °C</strong></div>
+                  <div><span>Clock factor</span><strong>{(thermalResult.solver.clock_factor * 100).toFixed(0)}%</strong></div>
+                  <div><span>Capacity</span><strong>{fmt(thermalResult.metrics.capacity_fps.value)} fps</strong></div>
+                  <div><span>Solver</span><strong>{thermalResult.solver.converged ? `converged (${thermalResult.solver.iterations} it)` : "did not converge"}</strong></div>
+                </div>
+                {thermalResult.notes.map((n) => (
+                  <p key={n} className="note">{n}</p>
+                ))}
+                <p className="hint">
+                  Warm-up curve at constant sustained load from a lumped RC model. Power feeds temperature, temperature feeds leakage, and the governor lowers the clock past the throttle point.
                 </p>
               </section>
+            ) : (
+              <div className="panel empty">Run an evaluation first.</div>
+            ))}
 
-              <section className="panel">
-                <h2>{opt.best ? "Top configurations (lowest energy first)" : "Closest configurations"}</h2>
-                <table className="tbl">
-                  <thead>
-                    <tr>
-                      <th>Configuration</th>
-                      <th>State</th>
-                      <th>Power</th>
-                      <th>Energy</th>
-                      <th>Latency</th>
-                      <th>Temp</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {opt.top.map((r, i) => (
-                      <tr key={i}>
-                        <td>{configLabel(r)}</td>
-                        <td>
-                          <Chip state={r.feasibility} />
-                        </td>
-                        <td>{fmt(r.metrics.power_avg.value)} W</td>
-                        <td>{fmt(r.metrics.energy_per_inference.value)} mJ</td>
-                        <td>{fmt(r.metrics.latency.value)} ms</td>
-                        <td>{fmt(r.metrics.temperature.value)} °C</td>
+          {tab === "lab" &&
+            (opt ? (
+              <>
+                <section className="panel reco">
+                  <div className="row">
+                    <h2>Recommendation</h2>
+                    {opt.best && <Chip state={opt.best.feasibility} />}
+                  </div>
+                  {opt.recommendation && opt.best ? (
+                    <>
+                      <p className="lead">{opt.recommendation.title}</p>
+                      <ul className="changes">
+                        {opt.recommendation.changes.map((c) => (
+                          <li key={c}>{c}</li>
+                        ))}
+                      </ul>
+                      <p>{opt.recommendation.summary}</p>
+                      {opt.recommendation.caveats.map((c) => (
+                        <p key={c} className="note">{c}</p>
+                      ))}
+                      <details>
+                        <summary>Checks and metrics for the recommended configuration</summary>
+                        <p className="hint">{configLabel(opt.best.config)}</p>
+                        <Checks r={opt.best} />
+                        <MetricTable r={opt.best} />
+                      </details>
+                    </>
+                  ) : (
+                    <p className="error">{opt.message}</p>
+                  )}
+                  <p className="hint">
+                    Searched {opt.evaluated} configurations in {opt.search_seconds.toFixed(2)} s:{" "}
+                    {Object.entries(opt.counts)
+                      .map(([k, v]) => `${v} ${k.replace("_", " ")}`)
+                      .join(", ")}
+                    .
+                  </p>
+                </section>
+
+                <section className="panel">
+                  <h2>Software vs hardware vs combined</h2>
+                  <CodesignTable cd={opt.codesign} />
+                </section>
+
+                <section className="panel">
+                  <h2>Trade-off frontier</h2>
+                  <ParetoChart points={opt.points} baseline={opt.baseline} />
+                </section>
+
+                <section className="panel">
+                  <h2>{opt.best ? "Top configurations" : "Closest configurations"}</h2>
+                  <table className="tbl">
+                    <thead>
+                      <tr>
+                        <th>Configuration</th>
+                        <th>State</th>
+                        <th>Power</th>
+                        <th>Energy</th>
+                        <th>Latency</th>
+                        <th>Temp</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-            </>
-          )}
+                    </thead>
+                    <tbody>
+                      {opt.top.map((r, i) => (
+                        <tr key={i}>
+                          <td>{configLabel(r.config)}</td>
+                          <td><Chip state={r.feasibility} /></td>
+                          <td>{fmt(r.metrics.power_avg.value)} W</td>
+                          <td>{fmt(r.metrics.energy_per_inference.value)} mJ</td>
+                          <td>{fmt(r.metrics.latency.value)} ms</td>
+                          <td>{fmt(r.metrics.temperature.value)} °C</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
+              </>
+            ) : (
+              <div className="panel empty">Run “Find best configuration” to explore the design space.</div>
+            ))}
         </main>
       </div>
       <footer className="foot">
-        Values are L0 analytical predictions with stated uncertainty. Nothing here is measured until a benchmark is linked.
+        Values are analytical predictions; bands are best/worst-case envelopes, not statistical intervals. Nothing here is measured until a benchmark is linked.
       </footer>
     </div>
   );

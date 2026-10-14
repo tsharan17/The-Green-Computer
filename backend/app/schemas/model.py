@@ -1,12 +1,24 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 from app.schemas.metrics import Provenance
 
 
+class Layer(BaseModel):
+    """One executable layer of the workload graph (per sample, before precision scaling)."""
+
+    name: str
+    op: str
+    flops: float  # FLOPs (2 x MACs)
+    params: float  # weight elements read by this layer
+    act_elems: float  # activation elements read + written (unfused traffic)
+
+
 class ModelProfile(BaseModel):
-    """Library entry for an AI model (Day 1: summary numbers; Day 2: per-layer graph)."""
+    """AI model summary. `layers` (ONNX) enables per-layer roofline; otherwise one aggregate."""
 
     id: str
     name: str
@@ -18,5 +30,10 @@ class ModelProfile(BaseModel):
     act_mb_fp32: float  # activation traffic per sample at fp32
     baseline_accuracy: float  # fraction 0..1
     accuracy_metric: str
+    # library: published numbers; graph: parsed from ONNX; manual: user-entered (wider bands)
+    fidelity: Literal["library", "graph", "manual"] = "library"
+    # Whether input resolution can be scaled (vision models).
+    resolution_scalable: bool = True
+    layers: list[Layer] | None = None
     sources: dict[str, Provenance] = {}
     notes: str = ""

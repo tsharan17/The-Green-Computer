@@ -4,6 +4,14 @@ Companion to the Implementation Plan (design and rationale). This is the executi
 
 **Assumption:** Day 1 = 14 Oct, Day 6 = 19 Oct. The submission deadline is 29 Oct (30 Oct 10:30 pm IST hard). The days from 20 Oct are a reserve for overflow, deployment hardening, the video, and the Devpost write-up. If the six days must instead end closer to the deadline, only the dates change.
 
+## Progress
+
+| Day | State | Notes |
+|---|---|---|
+| 1 | Done (committed) | Thin slice. Nebius spikes still open: need API keys |
+| 2 | Done (uncommitted) | ONNX + manual models, coupled solver, corner-envelope uncertainty, 1,000+ candidate sweep, Pareto, co-design. Deferred: LLM prefill/decode, safetensors/Hugging Face input |
+| 3 to 6 | Not started | |
+
 ## Principles
 
 1. **Always runnable.** At the end of every day the app starts, the demo scenario runs, and tests pass. A day never ends with a half-built layer.

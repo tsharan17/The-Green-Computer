@@ -29,6 +29,15 @@ export interface Config {
   batch: number;
   power_mode_id: string;
   cooling_id: string;
+  resolution_scale: number;
+  clock_trim: number;
+}
+
+export interface SolverInfo {
+  converged: boolean;
+  iterations: number;
+  throttled: boolean;
+  clock_factor: number;
 }
 
 export interface ConstraintCheck {
@@ -50,6 +59,9 @@ export interface EvaluationResult {
   feasibility: Feasibility;
   checks: ConstraintCheck[];
   notes: string[];
+  solver: SolverInfo;
+  time_to_throttle_s: number | null;
+  thermal_trace: [number, number][];
   engine_version: string;
 }
 
@@ -61,13 +73,38 @@ export interface Recommendation {
   caveats: string[];
 }
 
+export interface Point {
+  config: Config;
+  state: Feasibility;
+  energy_mj: number;
+  latency_ms: number;
+  accuracy: number;
+  power_w: number;
+  memory_gb: number;
+  temperature_c: number;
+  pareto: boolean;
+  best: boolean;
+}
+
+export interface CoDesign {
+  baseline: EvaluationResult;
+  software_only: EvaluationResult | null;
+  hardware_only: EvaluationResult | null;
+  combined: EvaluationResult | null;
+  interaction_factor: number | null;
+  interpretation: string;
+}
+
 export interface OptimisationResult {
   baseline: EvaluationResult;
   best: EvaluationResult | null;
   top: EvaluationResult[];
   recommendation: Recommendation | null;
+  codesign: CoDesign;
+  points: Point[];
   evaluated: number;
   counts: Record<string, number>;
+  search_seconds: number;
   message: string;
 }
 
@@ -106,8 +143,20 @@ export interface ModelProfile {
   id: string;
   name: string;
   task: string;
+  input_desc: string;
+  params_m: number;
+  gflops: number;
+  n_layers: number;
   accuracy_metric: string;
   baseline_accuracy: number;
+  fidelity: "library" | "graph" | "manual";
+  resolution_scalable: boolean;
+  notes: string;
+}
+
+export interface UploadOut {
+  profile: ModelProfile;
+  warnings: string[];
 }
 
 export interface HardwareProfile {
