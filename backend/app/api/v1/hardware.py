@@ -1,0 +1,106 @@
+"""Hardware import from datasheets (Tavily + Nemotron) with mandatory human confirmation."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from app.agent.client import LLMError
+from app.agent.datasheet import DatasheetError, clean_extraction
+from app.api.v1.agent import _llm, _models
+from app.api.v1.routes import get_db
+from app.integrations import tavily as tv
+from app.schemas.hardware import HardwareProfile
+from app.services import hardware_service as hw
+
+router = APIRouter()
+
+TAVILY_OFF = (
+    "Datasheet import needs a Tavily key (TAVILY_API_KEY in .env, free via the Nebius Builder "
+    "Program) and the Green Agent (TOKEN_FACTORY_API_KEY). You can also enter a device by hand."
+)
+
+
+def default_tavily_factory() -> tv.TavilyClient:
+    return tv.TavilyClient()
+
+
+class ImportIn(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+
+
+@router.post("/hardware/import", status_code=201)
+def import_hardware(
+    body: ImportIn, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    factory = getattr(request.app.state, "tavily_factory", default_tavily_factory)
+    try:
+        tavily = factory()
+        llm = _llm(request)
+        model_id = _models(request, llm).for_task("fast")
+        return hw.create_draft(db, body.name, tavily, llm, model_id)
+    except (tv.TavilyError, LLMError) as e:
+        raise HTTPException(503, f"{e}. {TAVILY_OFF}") from e
+    except DatasheetError as e:
+        raise HTTPException(422, str(e)) from e
+
+
+class ManualIn(BaseModel):
+    """Enter a device by hand (no LLM or search): goes through the same draft -> confirm gate."""
+
+    name: str = Field(min_length=2, max_length=120)
+    vendor: str | None = None
+    kind: str | None = None
+    peak_tflops: dict[str, float]
+    mem_bw_gbs: float = Field(gt=0)
+    mem_gb: float = Field(gt=0)
+    power_modes: list[dict[str, Any]] = []
+    tdp_w: float | None = None
+    t_throttle_c: float | None = None
+
+
+@router.post("/hardware/manual", status_code=201)
+def manual_draft(body: ManualIn, db: Session = Depends(get_db)) -> dict[str, Any]:
+    raw = body.model_dump(exclude_none=True)
+    ex = clean_extraction({**raw, "sources": {}}, set())
+    ex.evidence = [{"field": k, "value": v, "source_url": None} for k, v in ex.candidate.items()]
+    return hw.store_draft(db, body.name, ex, [])
+
+
+@router.get("/hardware/drafts")
+def drafts(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    return hw.list_drafts(db)
+
+
+@router.get("/hardware/drafts/{draft_id}")
+def draft(draft_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
+    d = hw.get_draft(db, draft_id)
+    if d is None:
+        raise HTTPException(404, "draft not found")
+    return d
+
+
+class ConfirmIn(BaseModel):
+    overrides: dict[str, Any] = {}
+
+
+@router.post("/hardware/drafts/{draft_id}/confirm", response_model=HardwareProfile)
+def confirm_draft(
+    draft_id: int, body: ConfirmIn, db: Session = Depends(get_db)
+) -> HardwareProfile:
+    """Only a person can confirm: the agent has no tool for this."""
+    try:
+        return hw.confirm(db, draft_id, body.overrides)
+    except DatasheetError as e:
+        raise HTTPException(422, str(e)) from e
+
+
+@router.post("/hardware/drafts/{draft_id}/reject")
+def reject_draft(draft_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return hw.reject(db, draft_id)
+    except DatasheetError as e:
+        raise HTTPException(404, str(e)) from e

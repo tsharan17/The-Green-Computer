@@ -2,23 +2,30 @@
 
 Predict how an AI model will behave on a given hardware setup before anything is built, then recommend the software and hardware changes that meet the requirements on the least energy. Tagline: *Predict. Optimise. Verify. Make every computation count.*
 
-Status: **Day 4 of a 6-day build.** See [BUILD_PLAN.md](BUILD_PLAN.md) for the phased plan and [docs/assumptions.md](docs/assumptions.md) for every constant the simulator assumes.
+Status: **Day 5 of a 6-day build.** See [BUILD_PLAN.md](BUILD_PLAN.md) for the phased plan and [docs/assumptions.md](docs/assumptions.md) for every constant the simulator assumes.
+
+## How to use it (3 steps)
+
+1. **Describe.** Pick the AI model, the hardware and what must be true (frames per second, watts, accuracy, delay, room temperature), or try an example, or just tell the Green Agent in words.
+2. **Results.** A plain-language verdict ("your current setup fails because it overheats and slows to 70%"), the cheapest fix, and recommendations at four levels: **change the AI model** (quantise, prune, smaller input, a lighter model), **change how you run it** (batching, power mode, clocks), **choose better hardware** (another board, better cooling) and **redesign the chip or board** (what-if ideas with how much each would help). Each recommendation says what it gains, why, what it costs, how sure we are and how to check it.
+3. **Export.** A shareable report (Markdown / web page / print to PDF) and a recipe: scripts to convert the model, build a TensorRT engine, set the Jetson power mode, measure on the board, plus design notes for hardware engineers.
+
+Two extra pages: **Technical details** (every number with its range and source, heat model, all options tried) and **Real measurements** (add measurements; predictions are re-checked and calibrated only if that helps).
 
 ## What works today
 
-- **Models:** 5 library models (MobileNetV2, ResNet-50, YOLOv8 n/s/m), **ONNX upload** (per-layer FLOPs, parameters and bytes from inferred shapes; pickle and `.pt` refused) and manual parameters.
-- **Hardware:** Jetson Orin Nano/NX/AGX plus L40S and H100 reference GPUs, with power modes and cooling options.
-- **Coupled solver:** power sets temperature, temperature sets leakage, and a thermal governor lowers the clock past the throttle point; latency and power are re-solved. Warm-up curve and time-to-throttle from a lumped RC model.
-- **Uncertainty:** every metric's band comes from re-solving the whole model at optimistic and pessimistic corners (an envelope, not a statistical interval). Every number carries a unit, band and provenance label.
-- **Certification:** five-state feasibility on pessimistic bounds; hard constraints (default 55 W, 90% accuracy) are never relaxed.
-- **Search:** about 1,000–1,600 configurations per device (precision, batch, resolution, power mode, clock, cooling) in under a second, a Pareto set, and a software-only / hardware-only / combined comparison with an interaction factor.
-- **Measurements and calibration:** import real runs (bench JSON, nvidia-smi, tegrastats) or enter them by hand; per-(device, precision) calibration is accepted only if it predicts held-out points better (leave-one-out). Exact-match measurements show as `measured`, calibrated predictions as `calibrated`. A measured accuracy retention lets INT8 be certified.
-- **Real data so far:** ResNet-50 and MobileNetV2 benchmarks on this development machine's CPU (latency only). **No GPU and no power measurement yet; Jetson results are still analytical.**
-- **Green Agent (Day 4):** Nemotron on Nebius Token Factory plans, calls the engine through tools and explains. It never computes a number: a guardrail rejects any figure not found in a tool result, and it cannot change your hard constraints. Disabled (with instructions) until `TOKEN_FACTORY_API_KEY` is set. **Not yet run against the real Token Factory** (no key was available); see [docs/connecting-nebius.md](docs/connecting-nebius.md).
-- **Nebius GPU benchmarks:** launches Serverless Jobs through the `nebius` CLI and imports the result. **Never run against a real account**; `scripts/check_nebius.py` verifies your connection first.
-- FastAPI backend (SQLite) and a React app with Agent, Evaluation, Energy & Thermal, Optimisation Lab and Verify views.
+- **Plain-language verdict and cheapest fix:** certified fixes ranked by engineering effort (not just energy); if nothing works it names the binding requirements and never relaxes them.
+- **Recommendations at four levels** with gain, reason, trade-offs, confidence, effort and validation steps. Model-level ideas: FP16/INT8, structured pruning, smaller input, and lighter models compared by their published accuracy. Hardware: other boards and cooling. Design what-ifs: memory bandwidth, compute, dynamic/idle/leakage power, heat path, each with its modelled effect and what limits the workload today.
+- **Hardware import from a datasheet:** Tavily finds the pages, Nemotron extracts values, you review and confirm (nothing is used until you do; the agent cannot confirm). Manual entry goes through the same gate.
+- **Report and recipe export** rendered from the stored analysis.
+- **Models:** 5 library models, ONNX upload (pickle refused) and manual parameters. **Hardware:** Jetson Orin Nano/NX/AGX, two reference GPUs, this computer, plus anything you import.
+- **Coupled solver and honest uncertainty:** power sets temperature, temperature sets leakage, a thermal governor slows the clock; every metric has a best-case to worst-case range and a source label.
+- **Measurements and calibration:** import real runs (bench JSON, nvidia-smi, tegrastats) or enter them; calibration is accepted only if it predicts held-out points better. A measured INT8 accuracy lets INT8 be certified.
+- **Green Agent:** Nemotron on Nebius Token Factory plans and explains through tools; a guardrail rejects figures not found in tool results; it cannot change your requirements. Disabled until `TOKEN_FACTORY_API_KEY` is set and **not yet run against the real service**.
+- **Nebius GPU benchmarks:** Serverless Jobs launcher via the `nebius` CLI. **Never run against a real account.**
+- **Real data so far:** ResNet-50 and MobileNetV2 benchmarks on this development machine CPU (latency only). **No GPU and no power measurement yet; Jetson results are analytical predictions.**
 
-Not yet: any GPU/Jetson measurement, live-verified Nebius/Nemotron calls, Tavily datasheet import, constraint repair, LLM prefill/decode and safetensors input. All edge numbers are **analytical predictions**, not measurements.
+Not yet: any GPU/Jetson measurement, live-verified Nebius/Nemotron/Tavily calls, Tavily datasheet import, constraint repair, LLM prefill/decode and safetensors input. All edge numbers are **analytical predictions**, not measurements.
 
 ## Run it
 

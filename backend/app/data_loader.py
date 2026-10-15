@@ -14,12 +14,33 @@ DATA_DIR = Path(__file__).parent / "data"
 
 
 @lru_cache(maxsize=1)
-def load_devices() -> dict[str, HardwareProfile]:
+def _builtin_devices() -> dict[str, HardwareProfile]:
     out: dict[str, HardwareProfile] = {}
     for f in sorted((DATA_DIR / "devices").glob("*.yaml")):
         d = HardwareProfile.model_validate(yaml.safe_load(f.read_text(encoding="utf-8")))
         out[d.id] = d
     return out
+
+
+# Devices the user imported from a datasheet and confirmed (persisted in the database and
+# re-registered at start-up).
+_CUSTOM_DEVICES: dict[str, HardwareProfile] = {}
+
+
+def register_device(profile: HardwareProfile) -> None:
+    _CUSTOM_DEVICES[profile.id] = profile
+
+
+def unregister_device(device_id: str) -> None:
+    _CUSTOM_DEVICES.pop(device_id, None)
+
+
+def clear_custom_devices() -> None:
+    _CUSTOM_DEVICES.clear()
+
+
+def load_devices() -> dict[str, HardwareProfile]:
+    return {**_builtin_devices(), **_CUSTOM_DEVICES}
 
 
 @lru_cache(maxsize=1)

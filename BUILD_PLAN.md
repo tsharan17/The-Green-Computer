@@ -11,8 +11,9 @@ Companion to the Implementation Plan (design and rationale). This is the executi
 | 1 | Done (committed) | Thin slice. Nebius spikes still open: need API keys |
 | 2 | Done (committed) | ONNX + manual models, coupled solver, corner-envelope uncertainty, 1,000+ candidate sweep, Pareto, co-design. Deferred: LLM prefill/decode, safetensors/Hugging Face input |
 | 3 | Done, with gaps (committed) | Measurement ingest, gated calibration, Verify screen, bench scripts, real CPU measurements on the dev machine. Gaps: no GPU/power measurement, Nebius Jobs launcher not implemented (needs credentials), FP16/INT8 export and accuracy scripts unrun |
-| 4 | Built, unverified live (uncommitted) | Agent client, router, 10 tools, loop, numbers guardrail, SSE chat, Agent tab, Nebius Jobs launcher and check script. Tested with fakes only: no Token Factory key, `nebius` CLI, account or GPU was available. Tavily/datasheet import not done |
-| 5 to 6 | Not started | |
+| 4 | Built, unverified live (committed) | Agent client, router, 10 tools, loop, numbers guardrail, SSE chat, Agent tab, Nebius Jobs launcher and check script. Tested with fakes only: no Token Factory key, `nebius` CLI, account or GPU was available. Tavily/datasheet import not done |
+| 5 | Built, unverified live (uncommitted) | Constraint repair, pruning and model-swap knobs, what-ifs and elasticities, four-level advice, alternatives, recipes, report, datasheet import (Tavily + Nemotron, mocked only), plain-language UI redesign. Recipes are syntax-checked, never run on a device; datasheet import never run live |
+| 6 | Not started | |
 
 ## Principles
 

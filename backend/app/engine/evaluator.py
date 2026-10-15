@@ -42,6 +42,7 @@ def matches(m: MeasurementIn, hw: HardwareProfile, model_id: str, cfg: Config) -
         and m.precision == cfg.precision
         and m.batch == cfg.batch
         and m.resolution_scale == cfg.resolution_scale
+        and cfg.sparsity == 0.0
         and cfg.clock_trim == 1.0
         and (m.power_mode_id or top) == cfg.power_mode_id
         and (m.cooling_id is None or m.cooling_id == cfg.cooling_id)
@@ -58,6 +59,7 @@ def evaluate(
     measured_retention: float | None = None,
     calibration: Calibration | None = None,
     measured: MeasurementIn | None = None,
+    accuracy_reference: float | None = None,
 ) -> EvaluationResult:
     """`calibration` re-centres and re-bands the model from measurements; `measured` (an exact
     match for this operating point) replaces batch time, capacity and active power with the
@@ -106,7 +108,8 @@ def evaluate(
         provenance=AN,
     )
     acc, acc_measured = accuracy_metric(
-        model, config.precision, constraints, measured_retention, config.resolution_scale
+        model, config.precision, constraints, measured_retention, config.resolution_scale,
+        config.sparsity, accuracy_reference,
     )
 
     if measured is not None and measured.batch_latency_ms is not None:
@@ -183,14 +186,19 @@ def evaluate(
 
     state = certify(checks)
     notes: list[str] = []
-    capped = config.precision in A.UNMEASURED_CAPPED_PRECISIONS or config.resolution_scale < 1.0
+    capped = (
+        config.precision in A.UNMEASURED_CAPPED_PRECISIONS
+        or config.resolution_scale < 1.0
+        or config.sparsity > 0.0
+    )
     if state == Feasibility.PREDICTED_FEASIBLE and not acc_measured and capped:
         state = Feasibility.UNCERTAIN
-        what = (
-            f"{config.precision} accuracy"
-            if config.precision in A.UNMEASURED_CAPPED_PRECISIONS
-            else "the reduced-resolution accuracy"
-        )
+        if config.precision in A.UNMEASURED_CAPPED_PRECISIONS:
+            what = f"{config.precision} accuracy"
+        elif config.sparsity > 0.0:
+            what = "the pruned model's accuracy (it needs fine-tuning and measuring)"
+        else:
+            what = "the reduced-resolution accuracy"
         notes.append(
             f"{what} is an unmeasured prior; measure it on your validation set before relying "
             "on this configuration."

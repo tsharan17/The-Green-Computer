@@ -14,13 +14,16 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.agent.datasheet import DatasheetError, extract_hardware_spec, search_hits
 from app.data_loader import get_device, load_devices, load_models
 from app.db import repository as repo
+from app.integrations import tavily as tv
 from app.integrations.jobs import JobsError, JobSpec
 from app.schemas.project import ProjectSpec
 from app.schemas.results import Config, EvaluationResult, OptimisationResult
 from app.services import benchmark_service as bench
 from app.services import evaluation_service as svc
+from app.services import hardware_service
 from app.services import measurement_service as ms
 from app.services.model_lookup import resolve_model
 from app.services.project_service import SpecError, validate_refs
@@ -87,6 +90,10 @@ class ToolContext:
     candidates: dict[str, EvaluationResult] = field(default_factory=dict)
     last_optimisation: OptimisationResult | None = None
     called_tools: list[str] = field(default_factory=list)
+    # Provider handles for datasheet import (None when the agent runs without them).
+    llm: Any = None
+    models: Any = None
+    tavily_factory: Any = None
 
     @property
     def spec(self) -> ProjectSpec:
@@ -162,6 +169,16 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     _fn("calibration_status",
         "How well the model has been checked against real measurements for this project's device, "
         "and whether a calibration is applied.", {}),
+    _fn("find_datasheet",
+        "Search the web (Tavily) for spec pages of a hardware device that is not in the library. "
+        "Returns titles, URLs and snippets only.",
+        {"device_name": {"type": "string"}}, ["device_name"]),
+    _fn("import_hardware",
+        "Create a DRAFT hardware profile for a device from its datasheet (Tavily search + "
+        "Nemotron extraction). The draft is unusable until the USER confirms it in the app; you "
+        "cannot confirm it. Tell the user which values were found, which are missing, and that "
+        "they must review and confirm them.",
+        {"device_name": {"type": "string"}}, ["device_name"]),
     _fn("submit_benchmark",
         "Launch a real GPU benchmark on Nebius Serverless Jobs (reference models only). Fails "
         "clearly if jobs are not configured.",
@@ -298,6 +315,49 @@ def _optimise(ctx: ToolContext, _a: dict) -> dict:
          "temperature_c": sig(r.metrics["temperature"].value)}
         for i, r in enumerate(res.top[:6])
     ]  # fmt: skip
+    if res.verdict:
+        v = res.verdict
+        out["verdict"] = {
+            "summary": v.summary,
+            "current_setup_ok": v.baseline.ok,
+            "current_problems": v.baseline.problems,
+            "recommended_setup_ok": v.improved.ok if v.improved else None,
+            "savings": None if not v.savings else {
+                "power_percent": sig(v.savings.power_percent),
+                "energy_percent": sig(v.savings.energy_percent),
+                "carbon_kg_per_year": sig(v.savings.carbon_kg_per_year),
+            },
+        }  # fmt: skip
+    if res.repair:
+        out["cheapest_fix"] = {
+            "needed": res.repair.needed,
+            "message": res.repair.message,
+            "binding_constraints": res.repair.binding_constraints,
+            "plans": [
+                {"changes": p.changes, "effort_score": p.effort_score,
+                 "feasibility": p.feasibility.value, "fixes": p.fixes}
+                for p in res.repair.plans
+            ],
+        }  # fmt: skip
+    out["limiting_factor"] = res.limiting_factor
+    out["recommendations"] = [
+        {"tier": a.tier, "title": a.title, "gain": a.gain, "confidence": a.confidence,
+         "effort": a.effort, "why": a.why, "tradeoffs": a.tradeoffs, "fixes": a.fixes}
+        for a in res.advice
+    ]  # fmt: skip
+    out["alternatives"] = [
+        {"kind": x.kind, "name": x.name, "feasibility": x.feasibility.value,
+         "energy_saving_percent": None if x.energy_saving_percent is None else sig(x.energy_saving_percent),
+         "compared_with": x.compared_with,
+         "accuracy_retention": None if x.accuracy_retention is None else sig(x.accuracy_retention)}
+        for x in res.alternatives
+    ]  # fmt: skip
+    out["hardware_design_whatifs"] = [
+        {"change": w.change, "energy_change_percent": sig(w.energy_change_percent),
+         "latency_change_percent": sig(w.latency_change_percent),
+         "elasticity_latency": sig(w.elasticity_latency)}
+        for w in res.whatifs[:4]
+    ]  # fmt: skip
     cd = res.codesign
 
     def arm(r: EvaluationResult | None) -> dict | None:
@@ -366,7 +426,43 @@ def _get_benchmark(ctx: ToolContext, a: dict) -> dict:
         raise ToolError(str(e)) from e
 
 
-_IMPLS = {
+def _find_datasheet(ctx: ToolContext, a: dict) -> dict:
+    name = str(a.get("device_name", "")).strip()
+    if len(name) < 2:
+        raise ToolError("device_name is required")
+    try:
+        client = (ctx.tavily_factory or tv.TavilyClient)()
+        hits = search_hits(client, name)
+    except tv.TavilyError as e:
+        raise ToolError(str(e)) from e
+    return {"results": [{"title": h.title, "url": h.url, "snippet": h.content[:300]} for h in hits]}
+
+
+def _import_hardware(ctx: ToolContext, a: dict) -> dict:
+    name = str(a.get("device_name", "")).strip()
+    if len(name) < 2:
+        raise ToolError("device_name is required")
+    if ctx.llm is None or ctx.models is None:
+        raise ToolError("the model provider is not available for extraction")
+    try:
+        client = (ctx.tavily_factory or tv.TavilyClient)()
+        hits = search_hits(client, name)
+        ex = extract_hardware_spec(ctx.llm, ctx.models.for_task("fast"), name, hits)
+    except (tv.TavilyError, DatasheetError) as e:
+        raise ToolError(str(e)) from e
+    draft = hardware_service.store_draft(ctx.db, name, ex, [h.url for h in hits])
+    return {
+        "draft_id": draft["id"],
+        "status": "draft: NOT usable until the user confirms it in the app",
+        "found": draft["candidate"],
+        "missing": draft["missing"],
+        "dropped_implausible": draft["dropped_implausible"],
+        "needs_user_confirmation": True,
+    }
+
+
+_IMPLS = {"find_datasheet": _find_datasheet, "import_hardware": _import_hardware,
+          
     "get_project": _get_project, "list_devices": _list_devices, "list_models": _list_models,
     "update_project_spec": _update_project_spec, "evaluate": _evaluate, "optimise": _optimise,
     "get_candidate": _get_candidate, "calibration_status": _calibration_status,

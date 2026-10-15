@@ -106,3 +106,18 @@ class AgentRunRow(Base):
     events: Mapped[list] = mapped_column(JSON)
     guardrail_ok: Mapped[bool] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class HardwareDraftRow(Base):
+    """A hardware profile extracted from a datasheet; unusable until the user confirms it."""
+
+    __tablename__ = "hardware_drafts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    query: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft|confirmed|rejected
+    profile: Mapped[dict] = mapped_column(JSON)
+    evidence: Mapped[list] = mapped_column(JSON)
+    missing: Mapped[list] = mapped_column(JSON)
+    device_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

@@ -67,6 +67,7 @@ def roofline_at(
     batch: int,
     resolution_scale: float = 1.0,
     eta_scale: float = 1.0,
+    sparsity: float = 0.0,
 ) -> RooflineResult:
     if batch < 1:
         raise ValueError("batch must be >= 1")
@@ -76,6 +77,12 @@ def roofline_at(
         raise ValueError(f"{model.id} does not support input-resolution scaling")
 
     flops, params, acts, n_layers = _arrays(model)
+    if sparsity > 0.0:
+        # Structured pruning removes channels: compute and weights shrink with the kept
+        # fraction; activations shrink about half as fast (inputs and some paths are unpruned).
+        flops = flops * (1.0 - sparsity)
+        params = params * (1.0 - sparsity)
+        acts = acts * (1.0 - 0.5 * sparsity)
     bpe = A.BYTES_PER_ELEM[precision]
     s2 = resolution_scale**2
 

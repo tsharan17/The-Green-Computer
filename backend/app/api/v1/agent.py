@@ -98,6 +98,7 @@ def agent_chat(
         raise HTTPException(503, str(e)) from e
 
     q: queue.Queue[dict[str, Any] | None] = queue.Queue()
+    tavily_factory = getattr(request.app.state, "tavily_factory", None)
     session_factory = request.app.state.session_factory
 
     def worker() -> None:
@@ -106,6 +107,7 @@ def agent_chat(
             run_turn(
                 thread_db, body.project_id, body.message,
                 [m.model_dump() for m in body.history], llm, models, q.put, s.max_tool_calls,
+                tavily_factory,
             )  # fmt: skip
         except Exception as e:  # noqa: BLE001  never leave the stream hanging
             q.put({"type": "error", "text": f"agent failed: {type(e).__name__}: {e}"})

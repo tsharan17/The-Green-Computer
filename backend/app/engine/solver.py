@@ -85,7 +85,8 @@ def _steady(
     cooling = hw.cooling(cfg.cooling_id)
     f = mode.freq_scale * cfg.clock_trim * theta
     rf = roofline_at(
-        model, hw, f, mode.mem_scale, cfg.precision, cfg.batch, cfg.resolution_scale, corner.eta
+        model, hw, f, mode.mem_scale, cfg.precision, cfg.batch, cfg.resolution_scale, corner.eta,
+        cfg.sparsity,
     )
     r_th = cooling.r_th_k_per_w * corner.rth
 

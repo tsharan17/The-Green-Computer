@@ -17,8 +17,11 @@ from itertools import product
 
 import numpy as np
 
+from app.engine.changes import describe, effort
 from app.engine.evaluator import evaluate, matches
+from app.engine.repair import plan_repair
 from app.engine.roofline import supports
+from app.engine.verdict import build_verdict
 from app.schemas.hardware import HardwareProfile
 from app.schemas.measurement import Calibration, MeasurementIn
 from app.schemas.metrics import Feasibility
@@ -34,11 +37,15 @@ from app.schemas.results import (
 )
 
 _TIE_LOG = math.log(1.03)  # energies within ~3% share a ranking bucket
+# Each unit of engineering effort (see engine/changes.py) costs 1.2% of energy in the ranking, so
+# a physical change such as a bigger heatsink must earn its keep.
+EFFORT_ENERGY_PENALTY = 0.012
 
 PRECISIONS = ("fp32", "fp16", "int8")
 BATCHES = (1, 2, 4, 8, 16)
 RESOLUTIONS = (1.0, 0.75, 0.5)
 CLOCK_TRIMS = (1.0, 0.85, 0.7)
+SPARSITIES = (0.0, 0.4)
 
 _STATE_RANK = {
     Feasibility.VERIFIED_FEASIBLE: 0,
@@ -61,18 +68,58 @@ def baseline_config(hw: HardwareProfile, cooling_id: str | None) -> Config:
 
 
 def search_space(model: ModelProfile, hw: HardwareProfile) -> Iterable[Config]:
-    for prec, b, mode, cool, res, trim in product(
+    for prec, b, mode, cool, res, trim, spars in product(
         [p for p in PRECISIONS if supports(hw, p)],
         BATCHES,
         [m.id for m in hw.power_modes],
         [c.id for c in hw.cooling_options],
         RESOLUTIONS if model.resolution_scalable else (1.0,),
         CLOCK_TRIMS,
+        SPARSITIES,
     ):
         yield Config(
             precision=prec, batch=b, power_mode_id=mode, cooling_id=cool,
-            resolution_scale=res, clock_trim=trim,
+            resolution_scale=res, clock_trim=trim, sparsity=spars,
         )  # fmt: skip
+
+
+def quick_space(model: ModelProfile, hw: HardwareProfile, cooling_id: str | None) -> list[Config]:
+    """A small space for comparing alternatives fast: precision x batch x power mode x clock."""
+    cooling = cooling_id if cooling_id in {c.id for c in hw.cooling_options} else hw.default_cooling
+    return [
+        Config(precision=p, batch=b, power_mode_id=m.id, cooling_id=cooling, clock_trim=t)
+        for p in PRECISIONS
+        if supports(hw, p)
+        for b in (1, 2, 4)
+        for m in hw.power_modes
+        for t in (1.0, 0.7)
+    ]
+
+
+def make_evaluator(
+    model: ModelProfile,
+    hw: HardwareProfile,
+    wl: Workload,
+    cons: Constraints,
+    measured: dict[str, float] | None = None,
+    calibrations: dict[str, Calibration] | None = None,
+    measurements: list[MeasurementIn] | None = None,
+    accuracy_reference: float | None = None,
+) -> Callable[[Config], EvaluationResult]:
+    """One evaluation context (calibration, measurements, accuracy reference) as a function."""
+    measured = measured or {}
+    calibrations = calibrations or {}
+    measurements = measurements or []
+
+    def ev(cfg: Config) -> EvaluationResult:
+        exact = next((m for m in measurements if matches(m, hw, model.id, cfg)), None)
+        return evaluate(
+            model, hw, cfg, wl, cons, measured.get(cfg.precision),
+            calibration=calibrations.get(cfg.precision), measured=exact,
+            accuracy_reference=accuracy_reference,
+        )  # fmt: skip
+
+    return ev
 
 
 def _failed(r: EvaluationResult) -> int:
@@ -83,46 +130,29 @@ def _eligible(r: EvaluationResult) -> bool:
     return _STATE_RANK[r.feasibility] <= 1
 
 
-def _rank_key(r: EvaluationResult) -> tuple:
-    # Energy differences inside the band's noise are ties: break them by lower latency, so the
+def _rank_key(r: EvaluationResult, base: Config | None = None) -> tuple:
+    # Energy (plus a small penalty per unit of engineering effort, when a baseline is given).
+    # Differences inside the band's noise are ties, broken by lower latency, so the
     # recommendation does not trade a 4x slower response for a sub-percent energy saving.
     e = r.metrics["energy_per_inference"].value
+    adj = e * (1.0 + EFFORT_ENERGY_PENALTY * (effort(base, r.config) if base else 0.0))
     return (
         _STATE_RANK[r.feasibility],
-        math.floor(math.log(e) / _TIE_LOG),
+        math.floor(math.log(adj) / _TIE_LOG),
         r.metrics["latency"].value,
         e,
     )
 
 
-def _pick(results: Iterable[EvaluationResult]) -> EvaluationResult | None:
+def _pick(results: Iterable[EvaluationResult], base: Config | None = None) -> EvaluationResult | None:
     ok = [r for r in results if _eligible(r)]
-    return min(ok, key=_rank_key) if ok else None
-
-
-def _fmt_changes(base: Config, cand: Config) -> list[str]:
-    out = []
-    if cand.precision != base.precision:
-        out.append(f"Software: precision {base.precision.upper()} → {cand.precision.upper()}")
-    if cand.batch != base.batch:
-        out.append(f"Software: batch {base.batch} → {cand.batch}")
-    if cand.resolution_scale != base.resolution_scale:
-        out.append(
-            f"Software: input resolution {base.resolution_scale:.0%} → {cand.resolution_scale:.0%}"
-        )
-    if cand.power_mode_id != base.power_mode_id:
-        out.append(f"Hardware (configure): power mode {base.power_mode_id} → {cand.power_mode_id}")
-    if cand.clock_trim != base.clock_trim:
-        out.append(f"Hardware (configure): clock {base.clock_trim:.0%} → {cand.clock_trim:.0%}")
-    if cand.cooling_id != base.cooling_id:
-        out.append(f"Hardware (select): cooling {base.cooling_id} → {cand.cooling_id}")
-    return out
+    return min(ok, key=lambda r: _rank_key(r, base)) if ok else None
 
 
 def _recommendation(
-    base: EvaluationResult, best: EvaluationResult, spec: ProjectSpec
+    base: EvaluationResult, best: EvaluationResult, spec: ProjectSpec, hw: HardwareProfile
 ) -> Recommendation:
-    changes = _fmt_changes(base.config, best.config) or ["Keep the baseline configuration"]
+    changes = describe(base.config, best.config, hw) or ["Keep the baseline configuration"]
     bm, nm = base.metrics, best.metrics
     summary = (
         f"Average power {bm['power_avg'].value:.1f} W → {nm['power_avg'].value:.1f} W, "
@@ -182,11 +212,12 @@ def _codesign(
             c.precision == base_cfg.precision
             and c.batch == base_cfg.batch
             and c.resolution_scale == base_cfg.resolution_scale
+            and c.sparsity == base_cfg.sparsity
         )
 
-    sw = _pick(r for r in results if hw_same(r.config))
-    hw = _pick(r for r in results if sw_same(r.config))
-    comb = _pick(results)
+    sw = _pick((r for r in results if hw_same(r.config)), base_cfg)
+    hw = _pick((r for r in results if sw_same(r.config)), base_cfg)
+    comb = _pick(results, base_cfg)
 
     def energy(r: EvaluationResult) -> float:
         return r.metrics["energy_per_inference"].value
@@ -233,22 +264,15 @@ def optimise(
     measurements: list[MeasurementIn] | None = None,
     configs: Iterable[Config] | None = None,
     on_result: Callable[[EvaluationResult], None] | None = None,
+    accuracy_reference: float | None = None,
 ) -> OptimisationResult:
     t0 = time.perf_counter()
-    measured = measured or {}
     wl: Workload = spec.workload
     cons: Constraints = spec.constraints
     base_cfg = spec.baseline or baseline_config(hw, spec.cooling_id)
-
-    calibrations = calibrations or {}
-    measurements = measurements or []
-
-    def ev(cfg: Config) -> EvaluationResult:
-        exact = next((m for m in measurements if matches(m, hw, model.id, cfg)), None)
-        return evaluate(
-            model, hw, cfg, wl, cons, measured.get(cfg.precision),
-            calibration=calibrations.get(cfg.precision), measured=exact,
-        )  # fmt: skip
+    ev = make_evaluator(
+        model, hw, wl, cons, measured, calibrations, measurements, accuracy_reference
+    )
 
     baseline = ev(base_cfg)
     results = [ev(c) for c in (configs if configs is not None else search_space(model, hw))]
@@ -260,7 +284,7 @@ def optimise(
     for r in results:
         counts[r.feasibility.value] = counts.get(r.feasibility.value, 0) + 1
 
-    eligible = sorted((r for r in results if _eligible(r)), key=_rank_key)
+    eligible = sorted((r for r in results if _eligible(r)), key=lambda r: _rank_key(r, base_cfg))
     best = eligible[0] if eligible else None
 
     # Pareto set over eligible candidates: energy and latency down, accuracy up. Memory is a
@@ -297,6 +321,8 @@ def optimise(
     ]
 
     codesign = _codesign(baseline, results, base_cfg)
+    repair = plan_repair(baseline, results, hw=hw)
+    verdict = build_verdict(baseline, best, wl, cons)
     elapsed = time.perf_counter() - t0
 
     if best is not None:
@@ -304,12 +330,14 @@ def optimise(
             baseline=baseline,
             best=best,
             top=eligible[:top_n],
-            recommendation=_recommendation(baseline, best, spec),
+            recommendation=_recommendation(baseline, best, spec, hw),
             codesign=codesign,
             points=points,
             evaluated=len(results),
             counts=counts,
             search_seconds=elapsed,
+            verdict=verdict,
+            repair=repair,
         )
 
     closest = sorted(results, key=lambda r: (_failed(r), r.metrics["energy_per_inference"].value))
@@ -323,6 +351,8 @@ def optimise(
         evaluated=len(results),
         counts=counts,
         search_seconds=elapsed,
+        verdict=verdict,
+        repair=repair,
         message=(
             "No configuration in the searched space satisfies every hard constraint. "
             "Constraints were not relaxed. Showing the closest candidates by number of "

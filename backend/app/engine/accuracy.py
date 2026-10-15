@@ -14,6 +14,8 @@ def accuracy_metric(
     constraints: Constraints,
     measured_retention: float | None = None,
     resolution_scale: float = 1.0,
+    sparsity: float = 0.0,
+    reference_baseline: float | None = None,
 ) -> tuple[Metric, bool]:
     """Return (metric in the constraint's units, is_measured).
 
@@ -32,6 +34,22 @@ def accuracy_metric(
         v *= 1.0 - A.RES_RETENTION_SLOPE * d
         lo *= 1.0 - A.RES_RETENTION_SLOPE_LOW * d
         prov = Provenance.ASSUMED
+
+    if sparsity > 0.0:
+        v *= 1.0 - A.PRUNE_RETENTION_SLOPE * sparsity
+        lo *= 1.0 - A.PRUNE_RETENTION_SLOPE_LOW * sparsity
+        prov = Provenance.ASSUMED
+
+    # Swapping to a different model: its published accuracy relative to the original model's.
+    swap = 1.0
+    if reference_baseline and constraints.accuracy_mode == "relative":
+        swap = model.baseline_accuracy / reference_baseline
+        if swap != 1.0:
+            v, lo, hi = v * swap, lo * swap, hi * swap
+            if prov == Provenance.MEASURED:
+                prov = Provenance.ASSUMED
+            elif precision == "fp32" and resolution_scale == 1.0 and sparsity == 0.0:
+                prov = Provenance.VENDOR_SPEC
 
     measured = prov == Provenance.MEASURED
     if constraints.accuracy_mode == "relative":

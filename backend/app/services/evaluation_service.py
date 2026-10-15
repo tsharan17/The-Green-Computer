@@ -8,6 +8,7 @@ from app.engine.evaluator import evaluate, matches
 from app.engine.optimise import baseline_config, optimise
 from app.schemas.project import ProjectSpec
 from app.schemas.results import Config, EvaluationResult, OptimisationResult
+from app.services import advisor_service
 from app.services import measurement_service as ms
 from app.services.model_lookup import resolve_model
 
@@ -37,6 +38,7 @@ def optimise_project(db: Session, project_id: int, spec: ProjectSpec) -> Optimis
         calibrations=ms.active_calibrations(db, hw.id),
         measurements=ms.measurements_for(db, hw.id, model.id),
     )  # fmt: skip
+    advisor_service.enrich(db, spec, model, hw, result)
     repo.save_run(
         db, project_id, "optimise", result.baseline.engine_version, result.model_dump(mode="json")
     )

@@ -61,8 +61,9 @@ def test_best_respects_every_hard_constraint_and_is_not_infeasible():
 def test_codesign_combined_is_at_least_as_good_as_either_alone():
     cd = run().codesign
     assert cd.combined and cd.software_only and cd.hardware_only
-    assert _rank_key(cd.combined) <= _rank_key(cd.software_only)
-    assert _rank_key(cd.combined) <= _rank_key(cd.hardware_only)
+    base = cd.baseline.config
+    assert _rank_key(cd.combined, base) <= _rank_key(cd.software_only, base)
+    assert _rank_key(cd.combined, base) <= _rank_key(cd.hardware_only, base)
 
 
 def test_interaction_factor_matches_its_definition():

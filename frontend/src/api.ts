@@ -1,4 +1,6 @@
 import type {
+  HardwareDraft,
+  RecipeOut,
   AgentEvent,
   AgentStatus,
   BenchmarkJob,
@@ -83,6 +85,20 @@ export const api = {
   refreshBenchmark: (id: number) => req<BenchmarkJob>(`/benchmarks/${id}`),
   submitBenchmark: (body: { device_id: string; model_id: string; precision: string; batches: number[] }) =>
     req<BenchmarkJob>("/benchmarks", { method: "POST", body: JSON.stringify(body) }),
+  recipe: (id: number) => req<RecipeOut>(`/projects/${id}/recipe`),
+  reportText: async (id: number, format: "md" | "html") => {
+    const r = await fetch(`${BASE}/projects/${id}/report?format=${format}`);
+    if (!r.ok) throw new Error(`${r.status}: ${(await r.json().catch(() => ({ detail: r.statusText }))).detail}`);
+    return r.text();
+  },
+  drafts: () => req<HardwareDraft[]>("/hardware/drafts"),
+  importHardware: (name: string) =>
+    req<HardwareDraft>("/hardware/import", { method: "POST", body: JSON.stringify({ name }) }),
+  manualHardware: (body: Record<string, unknown>) =>
+    req<HardwareDraft>("/hardware/manual", { method: "POST", body: JSON.stringify(body) }),
+  confirmDraft: (id: number, overrides: Record<string, unknown>) =>
+    req<HardwareProfile>(`/hardware/drafts/${id}/confirm`, { method: "POST", body: JSON.stringify({ overrides }) }),
+  rejectDraft: (id: number) => req<HardwareDraft>(`/hardware/drafts/${id}/reject`, { method: "POST" }),
   evaluate: (id: number) => req<EvaluationResult>(`/projects/${id}/evaluate`, { method: "POST" }),
   optimise: (id: number) => req<OptimisationResult>(`/projects/${id}/optimise`, { method: "POST" }),
 };

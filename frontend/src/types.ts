@@ -31,6 +31,7 @@ export interface Config {
   cooling_id: string;
   resolution_scale: number;
   clock_trim: number;
+  sparsity: number;
 }
 
 export interface SolverInfo {
@@ -95,6 +96,98 @@ export interface CoDesign {
   interpretation: string;
 }
 
+export type Tier = "model" | "software" | "configure" | "select" | "design";
+
+export interface VerdictSide {
+  state: Feasibility;
+  ok: boolean;
+  headline: string;
+  problems: string[];
+  power_w: number;
+  latency_ms: number;
+  temperature_c: number;
+  capacity_fps: number;
+  energy_mj: number;
+  config: Config;
+}
+
+export interface Verdict {
+  baseline: VerdictSide;
+  improved: VerdictSide | null;
+  savings: { power_percent: number; energy_percent: number; cost_per_year: number; carbon_kg_per_year: number } | null;
+  fps_required: number;
+  summary: string;
+}
+
+export interface RepairPlan {
+  changes: string[];
+  effort_score: number;
+  feasibility: Feasibility;
+  fixes: string[];
+  config: Config;
+  energy_saving_percent: number;
+  note: string;
+}
+
+export interface Repair {
+  needed: boolean;
+  plans: RepairPlan[];
+  binding_constraints: string[];
+  message: string;
+}
+
+export interface Alternative {
+  kind: "device" | "model";
+  id: string;
+  name: string;
+  feasibility: Feasibility;
+  config: Config;
+  power_w: number;
+  energy_mj: number;
+  latency_ms: number;
+  temperature_c: number;
+  capacity_fps: number;
+  energy_saving_percent: number | null;
+  accuracy_retention: number | null;
+  lighter: boolean | null;
+  compared_with: string;
+  problem: string | null;
+  note: string;
+}
+
+export interface WhatIf {
+  id: string;
+  title: string;
+  change: string;
+  parameter: string;
+  factor: number;
+  latency_change_percent: number;
+  energy_change_percent: number;
+  power_change_percent: number;
+  temperature_change_c: number;
+  elasticity_latency: number;
+  elasticity_energy: number;
+  makes_baseline_feasible: boolean;
+  verify_with: string;
+}
+
+export interface Advice {
+  id: string;
+  tier: Tier;
+  title: string;
+  action: string;
+  gain: string;
+  why: string;
+  effect: Record<string, number | null>;
+  tradeoffs: string[];
+  confidence: "high" | "medium" | "low";
+  confidence_reason: string;
+  effort: "low" | "medium" | "high";
+  validate_steps: string[];
+  in_recommended: boolean;
+  fixes: string[];
+}
+
 export interface OptimisationResult {
   baseline: EvaluationResult;
   best: EvaluationResult | null;
@@ -106,6 +199,12 @@ export interface OptimisationResult {
   counts: Record<string, number>;
   search_seconds: number;
   message: string;
+  verdict: Verdict | null;
+  repair: Repair | null;
+  advice: Advice[];
+  alternatives: Alternative[];
+  whatifs: WhatIf[];
+  limiting_factor: string | null;
 }
 
 export interface Measurement {
@@ -262,4 +361,31 @@ export interface BenchmarkJob {
   measurement_ids: number[];
   error: string | null;
   created_at: string;
+}
+
+export interface HardwareDraft {
+  id: number;
+  query: string;
+  status: "draft" | "confirmed" | "rejected";
+  candidate: {
+    name?: string;
+    vendor?: string;
+    peak_tflops?: Record<string, number>;
+    mem_bw_gbs?: number;
+    mem_gb?: number;
+    power_modes?: { name: string; cap_w: number }[];
+    tdp_w?: number;
+    t_throttle_c?: number;
+  };
+  evidence: { field: string; value: unknown; source_url: string | null }[];
+  missing: string[];
+  device_id: string | null;
+  needs_confirmation: boolean;
+  notes?: string;
+  dropped_implausible?: string[];
+}
+
+export interface RecipeOut {
+  files: Record<string, { description: string; content: string }>;
+  warnings: string[];
 }

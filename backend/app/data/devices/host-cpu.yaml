@@ -17,6 +17,7 @@ power_modes:
   - {id: balanced, name: Balanced (about 30 W package), cap_w: 30, freq_scale: 1.0, mem_scale: 1.0}
 cooling_options:
   - {id: laptop_chassis, name: Laptop chassis, r_th_k_per_w: 2.0, fan_w: 1.0, c_th_j_per_k: 120}
+alternative_candidate: false
 default_cooling: laptop_chassis
 sources:
   peak_tflops: measured

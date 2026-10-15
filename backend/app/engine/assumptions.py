@@ -46,6 +46,10 @@ REPORT_TEMP_CAP_C = 200.0  # unthrottled temperatures are shown clamped to this
 RES_RETENTION_SLOPE = 0.30
 RES_RETENTION_SLOPE_LOW = 0.60
 
+# Structured pruning prior: retention = 1 - slope * sparsity (before any fine-tuning). Priors.
+PRUNE_RETENTION_SLOPE = 0.15
+PRUNE_RETENTION_SLOPE_LOW = 0.40
+
 # Accuracy retained vs the fp32 baseline: (value, low, high). Priors, not measurements.
 ACCURACY_RETENTION_PRIOR = {
     "fp32": (1.000, 1.000, 1.000),

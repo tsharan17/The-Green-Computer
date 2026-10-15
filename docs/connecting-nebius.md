@@ -38,4 +38,5 @@ How it works: the stock CUDA image (`GC_BENCH_IMAGE`, default `nvidia/cuda:12.4.
 | Whole agent loop, tools, guardrail, streaming UI | Tested against a scripted fake model and a local fake provider over real HTTP |
 | `nebius ai job create/get/logs/cancel` flags | Taken from the Nebius CLI docs; command construction unit tested with a fake runner |
 | Real job launch, the JSON shape of `job get`/`create` output, CUDA image tag, `onnxruntime-gpu` install in the job, `nvidia-smi` sampling | **Not tested** (no CLI, account or GPU). State/id parsing searches the JSON flexibly because the field names are undocumented |
-| Tavily datasheet import | Not implemented |
+| Tavily search request format (POST /search, Bearer key, body fields) | Taken from the Tavily docs; client tested against a mocked transport |
+| Real Tavily call and Nemotron datasheet extraction quality | **Not tested** (no keys). Extraction is validated and always needs your confirmation |

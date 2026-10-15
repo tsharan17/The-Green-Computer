@@ -43,9 +43,12 @@ def run_turn(
     models: ResolvedModels,
     emit: Emit,
     max_tool_calls: int = 12,
+    tavily_factory: Any = None,
 ) -> dict[str, Any]:
     """Run one user turn. Returns {"reply", "events", "guardrail_ok", "messages"}."""
-    ctx = ToolContext(db=db, project_id=project_id)
+    ctx = ToolContext(
+        db=db, project_id=project_id, llm=llm, models=models, tavily_factory=tavily_factory
+    )
     events: list[dict[str, Any]] = []
 
     def out(e: dict[str, Any]) -> None:
