@@ -7,7 +7,8 @@ tool cannot measure (for example power on a CPU-only host) is recorded as `null`
 |---|---|---|
 | `reference_models.py` | Build ResNet-50 and MobileNetV2 ONNX graphs (random weights) from their published architectures. Valid for latency/power/memory, not accuracy | Run; parser reproduces the published param/FLOP counts (tested) |
 | `probe_host.py` | Measure achievable fp32 GEMM GFLOPS and copy bandwidth, to build a device profile | Run on the development machine |
-| `run_benchmark.py` | Time an ONNX model with ONNX Runtime (CUDA if present, else CPU), optional `nvidia-smi` power/temperature, emit `green-computer.bench/1` JSON | Run on the development machine's CPU (CPU only; no GPU or power data) |
+| `run_benchmark.py` | Time an ONNX model with ONNX Runtime (CUDA if present, else CPU); a separate sustained-load pass samples `nvidia-smi` power/temperature when available; emit `green-computer.bench/1` JSON | Run on the development machine's CPU (CPU only; no GPU or power data) |
+| `job_entrypoint.sh` | Entry script injected into a Nebius Serverless Job (installs onnxruntime-gpu, builds the model, runs the benchmark, prints the result between markers) | **Never run on a Nebius GPU**; syntax checked |
 | `power_logger.py` | `nvidia-smi` sampler used by `run_benchmark.py` | **Not exercised**: no NVIDIA GPU was available |
 | `export_models.py` | FP16 / INT8 variants of an FP32 model | **Not run** |
 | `accuracy_check.py` | Top-1 accuracy retention of a variant vs FP32 on your validation data | **Not run** |

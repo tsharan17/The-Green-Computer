@@ -151,3 +151,20 @@ summary { cursor: pointer; color: var(--accent); }
 .chart .pt-cal { fill: var(--ok); opacity: 0.85; }
 .sw-open { background: none; border: 2px solid var(--bad); }
 textarea { width: 100%; font: 12px/1.4 ui-monospace, Consolas, monospace; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 6px 0; }
+
+/* Day 4 additions */
+.agent .chat { max-height: 56vh; overflow-y: auto; padding: 4px 2px; margin: 8px 0; }
+.examples { display: flex; flex-direction: column; gap: 6px; }
+.examples button { text-align: left; }
+.turn { margin: 10px 0; }
+.turn-user .bubble { background: var(--accent); color: var(--accent-ink); margin-left: 12%; }
+.turn-assistant .bubble { background: var(--bg); border: 1px solid var(--line); margin-right: 6%; }
+.bubble { white-space: pre-wrap; border-radius: 12px; padding: 9px 12px; margin: 4px 0; }
+.timeline { list-style: none; margin: 4px 0; padding: 0 0 0 4px; font-size: 13px; }
+.timeline li { padding: 1px 0 1px 14px; position: relative; }
+.timeline li::before { content: ""; position: absolute; left: 0; top: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.timeline li.ok::before { background: var(--ok); }
+.timeline li.bad::before { background: var(--bad); }
+.chat-input { display: flex; gap: 8px; align-items: flex-end; }
+.chat-input textarea { flex: 1; margin: 0; }
+code { font: 12px ui-monospace, Consolas, monospace; background: var(--bg); padding: 1px 5px; border-radius: 4px; }

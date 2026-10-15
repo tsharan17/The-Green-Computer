@@ -117,9 +117,11 @@ def test_trace_imports_and_bench_json_import(client):
     assert client.post(f"{P}/measurements/import?format=bench_json", content="not json").status_code == 422
 
 
-def test_jobs_are_reported_unconfigured_not_faked(client):
+def test_jobs_are_reported_unavailable_not_faked(client, monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _name: None)  # pretend the CLI is not installed
     s = client.get(f"{P}/benchmarks/status").json()
-    assert s["jobs_configured"] is False and s["replay_available"] is True
-    r = client.post(f"{P}/benchmarks")
-    assert r.status_code == 503 and "bench/run_benchmark.py" in r.json()["detail"]
+    assert s["jobs_configured"] is False and s["cli_found"] is False and s["replay_available"]
+    r = client.post(f"{P}/benchmarks", json={"device_id": "nebius-l40s"})
+    assert r.status_code == 503 and "bench/" in r.json()["detail"] and "nebius" in r.json()["detail"]
     assert client.get(f"{P}/health").json()["jobs"]["configured"] is False
+    assert client.get(f"{P}/benchmarks").json() == []

@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.v1.agent import router as agent_router
 from app.api.v1.measurements import router as measurement_router
 from app.api.v1.routes import router
 from app.config import get_settings
@@ -35,6 +36,7 @@ def create_app(db_url: str | None = None) -> FastAPI:
     app.state.session_factory = session_factory
     app.include_router(router, prefix=settings.api_prefix)
     app.include_router(measurement_router, prefix=settings.api_prefix)
+    app.include_router(agent_router, prefix=settings.api_prefix)
 
     if STATIC_DIR.is_dir():
         app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="ui")

@@ -18,6 +18,7 @@ power_modes:
 cooling_options:
   - {id: datacenter_air, name: Datacenter forced air, r_th_k_per_w: 0.06, fan_w: 0.0, c_th_j_per_k: 4000}
 default_cooling: datacenter_air
+nebius_platform: gpu-h100-sxm
 sources:
   mem_bw_gbs: vendor_spec
   mem_gb: vendor_spec

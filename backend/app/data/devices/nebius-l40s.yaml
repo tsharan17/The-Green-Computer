@@ -18,6 +18,7 @@ power_modes:
 cooling_options:
   - {id: datacenter_air, name: Datacenter forced air, r_th_k_per_w: 0.12, fan_w: 0.0, c_th_j_per_k: 2500}
 default_cooling: datacenter_air
+nebius_platform: gpu-l40s-d
 sources:
   mem_bw_gbs: vendor_spec
   mem_gb: vendor_spec

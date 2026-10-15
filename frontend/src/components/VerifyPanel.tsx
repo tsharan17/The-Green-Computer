@@ -7,6 +7,7 @@ import type {
   ModelProfile,
   VerifyOut,
 } from "../types";
+import NebiusJobsPanel from "./NebiusJobsPanel";
 import PredVsMeasuredChart from "./PredVsMeasuredChart";
 import { fmt } from "./common";
 
@@ -204,6 +205,8 @@ export default function VerifyPanel({
           </table>
         </section>
       )}
+
+      <NebiusJobsPanel devices={devices} onIngested={() => { load(); onChanged(); }} />
 
       <section className="panel">
         <h2>Add measurements</h2>

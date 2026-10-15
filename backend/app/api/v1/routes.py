@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.config import get_llm_settings
 from app.data_loader import load_devices, load_models
 from app.db import repository as repo
 from app.engine.workload.onnx_parser import ModelParseError, manual_profile, parse_onnx
@@ -14,6 +15,7 @@ from app.schemas.model import ModelProfile
 from app.schemas.project import ProjectOut, ProjectSpec
 from app.schemas.results import Config, EvaluationResult, OptimisationResult
 from app.services import evaluation_service as svc
+from app.services.project_service import SpecError, validate_refs
 
 router = APIRouter()
 
@@ -30,22 +32,10 @@ def get_db(request: Request) -> Iterator[Session]:
 
 
 def _validate_refs(db: Session, spec: ProjectSpec) -> None:
-    devices = load_devices()
-    if spec.model_id not in load_models() and repo.get_custom_model(db, spec.model_id) is None:
-        raise HTTPException(422, f"unknown model '{spec.model_id}'")
-    if spec.device_id not in devices:
-        raise HTTPException(422, f"unknown device '{spec.device_id}'")
-    hw = devices[spec.device_id]
-    if spec.cooling_id and spec.cooling_id not in {c.id for c in hw.cooling_options}:
-        raise HTTPException(422, f"unknown cooling '{spec.cooling_id}' for {hw.id}")
-    b = spec.baseline
-    if b is not None:
-        if b.power_mode_id not in {m.id for m in hw.power_modes}:
-            raise HTTPException(422, f"unknown power mode '{b.power_mode_id}' for {hw.id}")
-        if b.cooling_id not in {c.id for c in hw.cooling_options}:
-            raise HTTPException(422, f"unknown cooling '{b.cooling_id}' for {hw.id}")
-        if hw.peak_tflops.get(b.precision, 0) <= 0:
-            raise HTTPException(422, f"{hw.id} does not support {b.precision}")
+    try:
+        validate_refs(db, spec)
+    except SpecError as e:
+        raise HTTPException(422, str(e)) from e
 
 
 def _project(db: Session, project_id: int) -> ProjectOut:
@@ -62,7 +52,7 @@ def health() -> dict:
     jobs = jobs_status()
     return {
         "status": "ok",
-        "agent": "disabled (Day 4)",
+        "agent": {"configured": get_llm_settings().configured},
         "jobs": {"configured": jobs.configured, "detail": jobs.reason},
     }
 

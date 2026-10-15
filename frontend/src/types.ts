@@ -164,6 +164,7 @@ export interface BenchmarkStatus {
   jobs_configured: boolean;
   detail: string;
   replay_available: boolean;
+  cli_found?: boolean;
   import_formats: string[];
 }
 
@@ -229,4 +230,36 @@ export interface HardwareProfile {
   power_modes: { id: string; name: string; cap_w: number }[];
   peak_tflops: Record<string, number>;
   default_cooling: string;
+}
+
+export interface AgentStatus {
+  configured: boolean;
+  base_url: string;
+  detail: string | null;
+  models?: Record<string, string | null>;
+  available_models?: number;
+}
+
+export type AgentEvent =
+  | { type: "status"; text: string }
+  | { type: "tool_call"; name: string; arguments: Record<string, unknown> }
+  | { type: "tool_result"; name: string; ok: boolean; summary: string }
+  | { type: "guardrail"; action: "rewrite" | "redacted"; figures: string[] }
+  | { type: "message"; text: string; guardrail_ok: boolean }
+  | { type: "error"; text: string }
+  | { type: "done" };
+
+export interface BenchmarkJob {
+  id: number;
+  job_name: string;
+  job_id: string;
+  device_id: string;
+  model_id: string;
+  precision: string;
+  batches: number[];
+  state: string;
+  ingested: boolean;
+  measurement_ids: number[];
+  error: string | null;
+  created_at: string;
 }

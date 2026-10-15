@@ -15,8 +15,10 @@ from app.engine.measure_parsers import (
     parse_nvidia_smi_csv,
     parse_tegrastats,
 )
+from app.integrations.jobs import JobsError, JobSpec
 from app.integrations.jobs import status as jobs_status
 from app.schemas.measurement import MeasurementIn, MeasurementOut, VerifyOut
+from app.services import benchmark_service as bench
 from app.services import measurement_service as ms
 
 router = APIRouter()
@@ -161,16 +163,47 @@ def benchmark_status() -> dict:
     return {
         "jobs_configured": j.configured,
         "detail": j.reason,
+        "cli_found": j.cli_found,
         "replay_available": True,
         "import_formats": ["bench_json", "nvidia_smi_csv", "tegrastats"],
     }
 
 
-@router.post("/benchmarks")
-def submit_benchmark() -> dict:
-    j = jobs_status()
-    raise HTTPException(
-        503,
-        f"Nebius Serverless Jobs unavailable ({j.reason}). Run bench/run_benchmark.py on a GPU "
-        "host and import the JSON via POST /measurements/import?format=bench_json.",
-    )
+class BenchmarkIn(BaseModel):
+    device_id: str
+    model_id: str = "resnet-50"
+    precision: str = "fp32"
+    batches: list[int] = [1, 8, 32]
+    runs: int = 50
+
+
+@router.post("/benchmarks", status_code=202)
+def submit_benchmark(body: BenchmarkIn, db: Session = Depends(get_db)) -> dict:
+    """Launch a Nebius Serverless Job on an NVIDIA GPU. 503 when jobs are not available."""
+    spec = JobSpec(body.device_id, body.model_id, body.precision, tuple(body.batches), body.runs)
+    try:
+        return bench.submit(db, spec)
+    except JobsError as e:
+        code = 503 if "unavailable" in str(e) else 422
+        raise HTTPException(code, f"{e}. You can still run bench/ on a GPU host and import it.") from e
+
+
+@router.get("/benchmarks")
+def list_benchmarks(db: Session = Depends(get_db)) -> list[dict]:
+    return bench.list_jobs(db)
+
+
+@router.get("/benchmarks/{row_id}")
+def get_benchmark(row_id: int, db: Session = Depends(get_db)) -> dict:
+    try:
+        return bench.refresh(db, row_id)
+    except JobsError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.post("/benchmarks/{row_id}/cancel")
+def cancel_benchmark(row_id: int, db: Session = Depends(get_db)) -> dict:
+    try:
+        return bench.cancel(db, row_id)
+    except JobsError as e:
+        raise HTTPException(422, str(e)) from e

@@ -1,4 +1,4 @@
-# Assumptions (L0 simulator, engine 0.3.0)
+# Assumptions (L0 simulator, engine 0.3.0, Green Agent 0.1)
 
 Every constant below is an assumption until calibrated against measurements (Day 3). The UI labels these values "assumed" or "analytical"; none is shown as measured. Constants live in `backend/app/engine/assumptions.py`.
 
@@ -82,3 +82,16 @@ Manual-parameter models widen these by 1.5×. Whether the envelope actually cove
 - The two reference GPUs (L40S, H100) exist to be measured on Nebius; no GPU has been measured yet and their availability there is unconfirmed.
 - `host-cpu` (this development machine) is the only measured device: compute and bandwidth roofs come from `bench/probe_host.py`; power and thermal constants are assumptions and there is no power measurement.
 - ResNet-50 and MobileNetV2 activation traffic comes from parsing the reference graphs in `bench/reference_models.py`, whose parameter and FLOP counts reproduce the published figures (tested).
+
+## Green Agent (`backend/app/agent/`)
+
+- The agent reasons and explains; every metric comes from a tool, which calls the deterministic engine. Tool outputs are rounded to four significant digits so they can be quoted exactly.
+- **Guardrail:** every figure in a reply must equal a number in a tool result from the same turn (or one the user typed), rounded to the figure's own precision, optionally scaled by 100 or 1000 (fraction/percent, ms/s). There is no relative tolerance, because one is enough to let "99.5" pass when "100" exists. Whole numbers up to 12 are tolerated only when no unit follows. A failing reply is rewritten up to twice; if it still fails the figures are replaced by "[unverified figure]" and flagged.
+- **Constraints are read-only:** the tool schema has no constraint fields and the implementation rejects attempts, so a prompt injection cannot loosen the 55 W / accuracy limits.
+- At most 12 tool calls per turn (configurable); after that the model must answer without tools. Every turn and its events are stored (`agent_runs`).
+- Model tiers: Ultra for planning and the final narrative, Super/Nano as fallbacks; IDs are resolved against the provider's model list. Defaults are unverified (see docs/connecting-nebius.md).
+- Not implemented: Tavily datasheet import, the multimodal (Omni) datasheet reader, recipe generation, constraint repair.
+
+## Nebius Serverless Jobs (`backend/app/integrations/jobs.py`)
+
+Command construction follows the documented `nebius ai job create` flags and is unit tested against a fake runner. Never run against a real account. The CUDA image tag and the `onnxruntime-gpu` install inside the job are unverified; job state and id parsing search the CLI's JSON flexibly because the field names are undocumented. Jobs build only the reference models (ResNet-50, MobileNetV2) in FP32/FP16.

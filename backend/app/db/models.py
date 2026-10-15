@@ -72,3 +72,37 @@ class CalibrationRow(Base):
     calibration: Mapped[dict] = mapped_column(JSON)
     report: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class BenchmarkJobRow(Base):
+    """A Nebius Serverless Job launched to measure real GPU behaviour."""
+
+    __tablename__ = "benchmark_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_name: Mapped[str] = mapped_column(String(120))
+    job_id: Mapped[str] = mapped_column(String(200))
+    device_id: Mapped[str] = mapped_column(String(80))
+    model_id: Mapped[str] = mapped_column(String(80))
+    precision: Mapped[str] = mapped_column(String(10))
+    batches: Mapped[list] = mapped_column(JSON)
+    state: Mapped[str] = mapped_column(String(20))
+    ingested: Mapped[bool] = mapped_column(Boolean, default=False)
+    measurement_ids: Mapped[list] = mapped_column(JSON, default=list)
+    error: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class AgentRunRow(Base):
+    """Every agent turn with its tool calls and results, so a session can be replayed."""
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    user_message: Mapped[str] = mapped_column(String(4000))
+    reply: Mapped[str] = mapped_column(String(8000))
+    events: Mapped[list] = mapped_column(JSON)
+    guardrail_ok: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
+import AgentPanel from "./components/AgentPanel";
 import CodesignTable from "./components/CodesignTable";
 import ModelPanel from "./components/ModelPanel";
 import ParetoChart from "./components/ParetoChart";
@@ -17,7 +18,7 @@ import type {
   Workload,
 } from "./types";
 
-type Tab = "setup" | "thermal" | "lab" | "verify";
+type Tab = "agent" | "setup" | "thermal" | "lab" | "verify";
 
 function Num(props: {
   label: string;
@@ -71,7 +72,7 @@ export default function App() {
   const [baseline, setBaseline] = useState<EvaluationResult | null>(null);
   const [opt, setOpt] = useState<OptimisationResult | null>(null);
   const [thermalView, setThermalView] = useState<"baseline" | "best">("baseline");
-  const [tab, setTab] = useState<Tab>("setup");
+  const [tab, setTab] = useState<Tab>("agent");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -150,7 +151,7 @@ export default function App() {
           <h1>The Green Computer</h1>
           <p className="tag">Predict. Optimise. Verify. Make every computation count.</p>
         </div>
-        <span className="pill">Day 3 · measurements and gated calibration</span>
+        <span className="pill">Day 4 · Nemotron agent + Nebius GPU jobs</span>
       </header>
 
       <div className="layout">
@@ -293,6 +294,7 @@ export default function App() {
           <nav className="tabs" role="tablist">
             {(
               [
+                ["agent", "Agent"],
                 ["setup", "Evaluation"],
                 ["thermal", "Energy & Thermal"],
                 ["lab", "Optimisation Lab"],
@@ -304,6 +306,19 @@ export default function App() {
               </button>
             ))}
           </nav>
+
+          {tab === "agent" && (
+            <AgentPanel
+              projectId={projectId}
+              onProjectChanged={async () => {
+                const p = await api.projects();
+                const cur = p.find((x) => x.id === projectId);
+                if (cur) setSpec(cur.spec);
+                setBaseline(null);
+                setOpt(null);
+              }}
+            />
+          )}
 
           {tab === "setup" &&
             (baseline ? (
