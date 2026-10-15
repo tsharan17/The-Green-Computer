@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app import __version__
 from app.config import get_llm_settings
 from app.data_loader import load_devices, load_models
 from app.db import repository as repo
@@ -14,6 +15,13 @@ from app.schemas.hardware import HardwareProfile
 from app.schemas.model import ModelProfile
 from app.schemas.project import ProjectOut, ProjectSpec
 from app.schemas.results import Config, EvaluationResult, OptimisationResult
+from app.security import (
+    demo_mode,
+    limit_analyse,
+    max_custom_items,
+    max_projects,
+    max_upload_bytes,
+)
 from app.services import evaluation_service as svc
 from app.services.project_service import SpecError, validate_refs
 
@@ -38,6 +46,12 @@ def _validate_refs(db: Session, spec: ProjectSpec) -> None:
         raise HTTPException(422, str(e)) from e
 
 
+def _check_custom_model_cap(db: Session) -> None:
+    cap = max_custom_items()
+    if cap and len(repo.list_custom_models(db)) >= cap:
+        raise HTTPException(503, "This demo has reached its limit of uploaded models.")
+
+
 def _project(db: Session, project_id: int) -> ProjectOut:
     p = repo.get_project(db, project_id)
     if p is None:
@@ -52,6 +66,8 @@ def health() -> dict:
     jobs = jobs_status()
     return {
         "status": "ok",
+        "version": __version__,
+        "demo_mode": demo_mode(),
         "agent": {"configured": get_llm_settings().configured},
         "jobs": {"configured": jobs.configured, "detail": jobs.reason},
     }
@@ -90,11 +106,13 @@ async def upload_model(
     if filename.lower().endswith(REFUSED_EXTENSIONS):
         raise HTTPException(415, "pickle-based and torch checkpoint files are refused; use ONNX")
     declared = request.headers.get("content-length")
-    if declared and declared.isdigit() and int(declared) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "file too large (limit 100 MB)")
+    limit = max_upload_bytes(MAX_UPLOAD_BYTES)
+    _check_custom_model_cap(db)
+    if declared and declared.isdigit() and int(declared) > limit:
+        raise HTTPException(413, f"file too large (limit {limit // (1024 * 1024)} MB)")
     data = await request.body()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "file too large (limit 100 MB)")
+    if len(data) > limit:
+        raise HTTPException(413, f"file too large (limit {limit // (1024 * 1024)} MB)")
     if not 0 < baseline_accuracy <= 1:
         raise HTTPException(422, "baseline_accuracy must be in (0, 1]")
     try:
@@ -124,6 +142,7 @@ class ManualModelIn(BaseModel):
     status_code=201,
 )
 def add_manual_model(body: ManualModelIn, db: Session = Depends(get_db)) -> ModelProfile:
+    _check_custom_model_cap(db)
     profile = manual_profile(
         body.name, body.params_m, body.gflops, body.n_layers, body.act_mb_fp32,
         body.baseline_accuracy, body.accuracy_metric,
@@ -138,11 +157,17 @@ def hardware_library() -> list[HardwareProfile]:
 
 @router.get("/projects", response_model=list[ProjectOut])
 def list_projects(db: Session = Depends(get_db)) -> list[ProjectOut]:
-    return repo.list_projects(db)
+    projects = repo.list_projects(db)
+    if demo_mode():  # visitors must not see each other's projects; only the shared example
+        projects = [p for p in projects if p.spec.name.startswith("Example")]
+    return projects
 
 
 @router.post("/projects", response_model=ProjectOut, status_code=201)
 def create_project(spec: ProjectSpec, db: Session = Depends(get_db)) -> ProjectOut:
+    cap = max_projects()
+    if cap and len(repo.list_projects(db)) >= cap:
+        raise HTTPException(503, "This demo has reached its project limit; please try again later.")
     _validate_refs(db, spec)
     return repo.create_project(db, spec)
 
@@ -173,6 +198,8 @@ def evaluate_project(
 
 
 @router.post("/projects/{project_id}/optimise", response_model=OptimisationResult)
-def optimise_project(project_id: int, db: Session = Depends(get_db)) -> OptimisationResult:
+def optimise_project(
+    project_id: int, db: Session = Depends(get_db), _rl: None = Depends(limit_analyse)
+) -> OptimisationResult:
     p = _project(db, project_id)
     return svc.optimise_project(db, p.id, p.spec)

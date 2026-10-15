@@ -51,9 +51,9 @@ function Side({
           <h3>{side.headline}</h3>
         </div>
       </div>
-      {side.problems.length > 0 && !side.ok && (
+      {side.problems.filter((p) => p !== side.headline).length > 0 && !side.ok && (
         <ul className="problems">
-          {side.problems.map((p) => (
+          {side.problems.filter((p) => p !== side.headline).map((p) => (
             <li key={p}>{p}</li>
           ))}
         </ul>

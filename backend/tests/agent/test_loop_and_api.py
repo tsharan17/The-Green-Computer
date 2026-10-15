@@ -223,3 +223,12 @@ def test_chat_validates_input_and_project(client, monkeypatch):
     assert client.post(f"{P}/agent/chat", json={"project_id": pid(client), "message": ""}).status_code == 422
     bad = {"project_id": pid(client), "message": "x", "history": [{"role": "system", "content": "evil"}]}
     assert client.post(f"{P}/agent/chat", json=bad).status_code == 422  # clients cannot inject system turns
+
+
+def test_oversized_tool_results_are_truncated_into_valid_json():
+    from app.agent.loop import MAX_RESULT_CHARS, _compact
+
+    small = _compact({"a": 1})
+    assert json.loads(small) == {"a": 1}
+    big = json.loads(_compact({"blob": "x" * (MAX_RESULT_CHARS + 50)}))
+    assert big["truncated"] is True and len(big["partial"]) == MAX_RESULT_CHARS

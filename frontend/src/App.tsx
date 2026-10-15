@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
+import ErrorBoundary from "./components/ErrorBoundary";
 import ExplorePage from "./pages/ExplorePage";
 import ExportPage from "./pages/ExportPage";
 import ResultsPage from "./pages/ResultsPage";
@@ -22,13 +23,30 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [m, d, p] = await Promise.all([api.models(), api.devices(), api.projects()]);
+        const [m, d, list] = await Promise.all([api.models(), api.devices(), api.projects()]);
         setModels(m);
         setDevices(d);
-        if (p.length) {
-          setProjectId(p[0].id);
-          setSpec(p[0].spec);
+        // Every visitor gets their own project, remembered in this browser, so people sharing a
+        // public demo never overwrite each other's inputs.
+        let stored = 0;
+        try {
+          stored = Number(localStorage.getItem("gc_project_id") || 0);
+        } catch {
+          /* storage unavailable: fall through to a fresh project */
         }
+        let cur = stored ? await api.project(stored).catch(() => null) : null;
+        if (!cur) {
+          const tpl = list.find((p) => p.spec.name.startsWith("Example")) ?? list[0];
+          if (!tpl) throw new Error("No example project is available.");
+          cur = await api.create({ ...tpl.spec, name: "My analysis" });
+          try {
+            localStorage.setItem("gc_project_id", String(cur.id));
+          } catch {
+            /* ignore */
+          }
+        }
+        setProjectId(cur.id);
+        setSpec(cur.spec);
       } catch (e) {
         setError(String(e instanceof Error ? e.message : e));
       }
@@ -74,11 +92,26 @@ export default function App() {
   if (error && !spec) {
     return (
       <div className="page">
-        <p className="error">{error}</p>
+        <section className="panel" role="alert">
+          <h2>We could not load the app</h2>
+          <p className="error">{error}</p>
+          <button className="primary" onClick={() => window.location.reload()}>Try again</button>
+        </section>
       </div>
     );
   }
-  if (!spec || projectId === null) return <div className="page"><p>Loading…</p></div>;
+  if (!spec || projectId === null) {
+    return (
+      <div className="page">
+        <div className="panel skeleton" aria-busy="true" aria-live="polite">
+          <div className="sk-line w60" />
+          <div className="sk-line w90" />
+          <div className="sk-line w75" />
+          <p className="hint">Loading The Green Computer…</p>
+        </div>
+      </div>
+    );
+  }
 
   const have = res !== null;
   const steps: { id: Page; n: string; label: string; needs?: boolean }[] = [
@@ -114,6 +147,7 @@ export default function App() {
       </header>
 
       <main>
+        <ErrorBoundary>
         {page === "start" && (
           <StartPage
             spec={spec}
@@ -138,6 +172,7 @@ export default function App() {
         {page === "verify" && (
           <VerifyPage devices={devices} models={models} onChanged={() => setRes(null)} />
         )}
+        </ErrorBoundary>
       </main>
 
       <footer className="foot">

@@ -50,6 +50,7 @@ export const api = {
   models: () => req<ModelProfile[]>("/models/library"),
   devices: () => req<HardwareProfile[]>("/hardware/library"),
   projects: () => req<ProjectOut[]>("/projects"),
+  project: (id: number) => req<ProjectOut>(`/projects/${id}`),
   save: (id: number, spec: ProjectSpec) =>
     req<ProjectOut>(`/projects/${id}`, { method: "PUT", body: JSON.stringify(spec) }),
   create: (spec: ProjectSpec) =>

@@ -1,0 +1,17 @@
+# Local run of the production image:  docker compose up --build   then open http://localhost:8000
+# Never built in the environment this was written in; see the Dockerfile header.
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false # keys are optional; the app works without them
+    environment:
+      GC_DB_URL: sqlite:////data/green_computer.db
+      # GC_PUBLIC_DEMO: "1"   # uncomment to behave like the public demo
+    volumes:
+      - gc-data:/data
+volumes:
+  gc-data:

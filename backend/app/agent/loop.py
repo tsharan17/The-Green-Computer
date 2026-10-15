@@ -24,13 +24,14 @@ from app.db.models import AgentRunRow
 Emit = Callable[[dict[str, Any]], None]
 SYSTEM_PROMPT = (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8")
 MAX_REWRITES = 2
-MAX_RESULT_CHARS = 14000  # keep tool output within a sane context budget
+MAX_RESULT_CHARS = 24000  # keep tool output within a sane context budget
 
 
 def _compact(result: dict[str, Any]) -> str:
     text = json.dumps(result, separators=(",", ":"), default=str)
     if len(text) > MAX_RESULT_CHARS:
-        text = text[:MAX_RESULT_CHARS] + '..."truncated"'
+        # Stay valid JSON so the model can still read what fits and knows it was cut.
+        return json.dumps({"truncated": True, "partial": text[:MAX_RESULT_CHARS]})
     return text
 
 

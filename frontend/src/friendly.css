@@ -161,3 +161,43 @@ button.big { width: 100%; font-size: 17px; padding: 13px; margin-top: 18px; }
 .side-head h3, .level h3, .alt-block h3, .rec h4 { text-transform: none; letter-spacing: 0; }
 .side-head h3 { color: var(--ink); font-size: 17px; }
 .alt-block h3 { color: var(--ink); font-size: 16px; }
+
+/* Loading, errors, focus, small screens */
+.skeleton { display: grid; gap: 10px; }
+.sk-line { height: 16px; border-radius: 8px; background: linear-gradient(90deg, var(--line), var(--panel), var(--line)); background-size: 200% 100%; animation: sk 1.2s linear infinite; }
+.w60 { width: 60%; } .w75 { width: 75%; } .w90 { width: 90%; }
+@keyframes sk { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .sk-line { animation: none; } }
+.err-detail { white-space: pre-wrap; font: 12px/1.4 ui-monospace, Consolas, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .hero h1 { font-size: 24px; }
+  .top { gap: 10px; }
+  .steps { width: 100%; }
+  .step-btn { padding: 6px 10px; font-size: 13px; }
+  .tiles { grid-template-columns: 1fr 1fr; }
+  .verdict-summary { font-size: 17px; }
+  .report-frame { height: 380px; }
+  .page { padding: 14px 12px 32px; }
+}
+
+/* Nothing may force the page wider than the screen. */
+.results-page > *, .export-page > *, .panel, .side, .level, .rec, .whatif, .verify-card { min-width: 0; }
+h1, h2, h3, h4, .rec p, .side-head h3 { overflow-wrap: anywhere; }
+.row { flex-wrap: wrap; }
+@media (max-width: 860px) {
+  .before-after { grid-template-columns: minmax(0, 1fr); }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .savings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .tbl { display: block; overflow-x: auto; max-width: 100%; }
+  .field.inline { flex-wrap: wrap; }
+  .field.inline select { max-width: 100%; }
+  .seg { flex-wrap: wrap; }
+}
+@media (max-width: 700px) {
+  .tbl, .codesign { min-width: 0 !important; }
+}

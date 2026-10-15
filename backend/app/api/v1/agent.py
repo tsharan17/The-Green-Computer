@@ -20,6 +20,7 @@ from app.agent.router import ResolvedModels, resolve_models
 from app.api.v1.routes import get_db
 from app.config import get_llm_settings
 from app.db import repository as repo
+from app.security import limit_agent
 
 router = APIRouter()
 MODEL_CACHE_S = 300.0
@@ -85,7 +86,10 @@ def _sse(event: dict[str, Any]) -> str:
 
 @router.post("/agent/chat")
 def agent_chat(
-    body: ChatIn, request: Request, db: Session = Depends(get_db)
+    body: ChatIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    _rl: None = Depends(limit_agent),
 ) -> StreamingResponse:
     if repo.get_project(db, body.project_id) is None:
         raise HTTPException(404, "project not found")

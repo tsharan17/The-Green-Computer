@@ -18,6 +18,7 @@ from app.engine.measure_parsers import (
 from app.integrations.jobs import JobsError, JobSpec
 from app.integrations.jobs import status as jobs_status
 from app.schemas.measurement import MeasurementIn, MeasurementOut, VerifyOut
+from app.security import block_in_demo
 from app.services import benchmark_service as bench
 from app.services import measurement_service as ms
 
@@ -180,6 +181,7 @@ class BenchmarkIn(BaseModel):
 @router.post("/benchmarks", status_code=202)
 def submit_benchmark(body: BenchmarkIn, db: Session = Depends(get_db)) -> dict:
     """Launch a Nebius Serverless Job on an NVIDIA GPU. 503 when jobs are not available."""
+    block_in_demo("Launching GPU benchmarks")
     spec = JobSpec(body.device_id, body.model_id, body.precision, tuple(body.batches), body.runs)
     try:
         return bench.submit(db, spec)

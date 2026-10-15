@@ -14,6 +14,7 @@ from app.api.v1.agent import _llm, _models
 from app.api.v1.routes import get_db
 from app.integrations import tavily as tv
 from app.schemas.hardware import HardwareProfile
+from app.security import block_in_demo, max_custom_items
 from app.services import hardware_service as hw
 
 router = APIRouter()
@@ -36,6 +37,7 @@ class ImportIn(BaseModel):
 def import_hardware(
     body: ImportIn, request: Request, db: Session = Depends(get_db)
 ) -> dict[str, Any]:
+    block_in_demo("Datasheet search")
     factory = getattr(request.app.state, "tavily_factory", default_tavily_factory)
     try:
         tavily = factory()
@@ -64,6 +66,9 @@ class ManualIn(BaseModel):
 
 @router.post("/hardware/manual", status_code=201)
 def manual_draft(body: ManualIn, db: Session = Depends(get_db)) -> dict[str, Any]:
+    cap = max_custom_items()
+    if cap and len(hw.list_drafts(db)) >= cap:
+        raise HTTPException(503, "This demo has reached its limit of imported devices.")
     raw = body.model_dump(exclude_none=True)
     ex = clean_extraction({**raw, "sources": {}}, set())
     ex.evidence = [{"field": k, "value": v, "source_url": None} for k, v in ex.candidate.items()]

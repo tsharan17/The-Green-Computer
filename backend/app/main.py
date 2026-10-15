@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from app import __version__
 from app.api.v1.agent import router as agent_router
 from app.api.v1.export import router as export_router
 from app.api.v1.hardware import router as hardware_router
@@ -15,6 +16,7 @@ from app.api.v1.routes import router
 from app.config import get_settings
 from app.db import models  # noqa: F401  (register tables)
 from app.db.session import Base, make_engine, make_session_factory
+from app.security import SecurityHeaders
 from app.services import hardware_service, measurement_service
 from app.services.seed import seed_example
 
@@ -35,7 +37,8 @@ def create_app(db_url: str | None = None) -> FastAPI:
             measurement_service.replay_committed(db)
         yield
 
-    app = FastAPI(title="The Green Computer", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="The Green Computer", version=__version__, lifespan=lifespan)
+    app.add_middleware(SecurityHeaders)
     app.state.session_factory = session_factory
     app.include_router(router, prefix=settings.api_prefix)
     app.include_router(measurement_router, prefix=settings.api_prefix)
