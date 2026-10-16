@@ -83,6 +83,17 @@ Manual-parameter models widen these by 1.5×. Whether the envelope actually cove
 - `host-cpu` (this development machine) is the only measured device: compute and bandwidth roofs come from `bench/probe_host.py`; power and thermal constants are assumptions and there is no power measurement.
 - ResNet-50 and MobileNetV2 activation traffic comes from parsing the reference graphs in `bench/reference_models.py`, whose parameter and FLOP counts reproduce the published figures (tested).
 
+## Broader hardware (hardware builders, engine 0.3)
+
+- A profile may override engine defaults: `runtime_overhead_gb`, `usable_mem_fraction`, `eta_compute`, `eta_memory`, `launch_overhead_s`. Without overrides the Jetson-era defaults apply.
+- `weights_mem_gb` (flash / model memory): weights are checked against it and `mem_gb` becomes the RAM that holds the largest layer's activations (without a parsed graph, 3x the average layer is assumed). Both must fit.
+- `onchip_weights_mb`: when the whole model's weights fit in 85% of it, weight traffic is removed from the memory roof (FPGA BRAM/URAM, Hailo/Coral SRAM). `onchip_bw_gbs` then applies to activation traffic and `mem_bw_gbs` to anything that spills. Hailo and the Pi+Hailo kit assume weights are always resident (the compiler's multi-context scheme is not modelled), so large models are optimistic there.
+- Builders (`engine/hwbuild.py`): MCU peak = MHz x int8 MACs/cycle x 2 at 15% achieved (depthwise-heavy nets on CMSIS-NN-class kernels), SRAM bandwidth 4 bytes/cycle, per-layer overhead 5,000 cycles; FPGA peak = DSPs x usable fraction (0.7) x MACs/DSP x 2 x MHz at 45% achieved; generic power split 65% dynamic / 25% memory / 10% leakage of the non-idle power; clock steps and cooling are generated and labelled assumed. A stated thermal resistance (theta-JA) is used as-is.
+- Library entries added for Raspberry Pi 5 (+Hailo-8L), Hailo-8, Coral Edge TPU, L4, T4, Apple M4, Snapdragon X Elite, QCS6490, Intel Core Ultra 7 258V (NPU 4), AMD Ryzen AI 9 HX 370, STM32H743, nRF52840, ESP32-S3, STM32N6, Kria KV260. Vendor TOPS are taken as int8 and dense (sparse figures halved); marketing NPU numbers are not measurements; several memory-bandwidth and power values are estimates, flagged per entry. None has been measured.
+- The MLPerf Tiny models carry approximate published parameter and MAC counts and hand-estimated activation traffic.
+- Vendor report parsers (`engine/vendor_reports.py`) were written from each tool's documented layout and tested on synthetic samples, not a corpus of real reports.
+- Layer view: times come from the same roofline; int8 risk is a heuristic prior by operator type and position.
+
 ## Green Agent (`backend/app/agent/`)
 
 - The agent reasons and explains; every metric comes from a tool, which calls the deterministic engine. Tool outputs are rounded to four significant digits so they can be quoted exactly.

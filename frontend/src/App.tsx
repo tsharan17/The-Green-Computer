@@ -168,7 +168,7 @@ export default function App() {
         )}
         {page === "results" && res && <ResultsPage res={res} spec={spec} go={setPage} />}
         {page === "export" && res && <ExportPage projectId={projectId} />}
-        {page === "explore" && res && <ExplorePage res={res} spec={spec} />}
+        {page === "explore" && res && <ExplorePage res={res} spec={spec} projectId={projectId} />}
         {page === "verify" && (
           <VerifyPage devices={devices} models={models} onChanged={() => setRes(null)} />
         )}

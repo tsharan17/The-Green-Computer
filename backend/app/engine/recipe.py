@@ -12,6 +12,8 @@ import json
 import re
 from dataclasses import dataclass
 
+from app.engine.layers import quant_sensitivity_script
+from app.engine.recipe_ecosystems import build as build_eco
 from app.schemas.config import Config
 from app.schemas.hardware import HardwareProfile
 from app.schemas.model import ModelProfile
@@ -279,6 +281,20 @@ def build_recipe(
         )
     files: dict[str, RecipeFile] = {}
     changes = res.recommendation.changes if res.recommendation else ["(no changes)"]
+    eco = build_eco(spec, model, hw, cfg)
+    if _is_jetson(hw):
+        steps = [
+            "`bash build_engine.sh` - build the TensorRT engine.",
+            "`bash set_power_mode.sh` - set the power mode (look up the id first).",
+            "Run your workload, then `bash verify.sh` to measure and report back.",
+        ]
+    else:
+        steps = eco.steps
+    onnx_step = (
+        [f"`python optimise_model.py` - produce the {cfg.precision.upper()} model."]
+        if eco.key != "mcu"
+        else []
+    )
     files["README.md"] = RecipeFile(
         "Start here: the steps in order",
         "\n".join(
@@ -289,18 +305,7 @@ def build_recipe(
                 *[f"- {c}" for c in changes],
                 "",
                 "Steps:",
-                f"1. `python optimise_model.py` — produce the {cfg.precision.upper()} model.",
-            ]
-            + (
-                [
-                    "2. `bash build_engine.sh` — build the TensorRT engine.",
-                    "3. `bash set_power_mode.sh` — set the power mode (look up the id first).",
-                    "4. Run your workload, then `bash verify.sh` to measure and report back.",
-                ]
-                if _is_jetson(hw)
-                else ["2. Run your workload and measure it; import the result on the Verify tab."]
-            )
-            + [
+                *[f"{i}. {t}" for i, t in enumerate(onnx_step + steps, 1)],
                 "",
                 "Expected (predicted) result is in `runtime_config.json`. Compare it with what you "
                 "measure: the Verify tab shows predicted versus measured and calibrates the model.",
@@ -309,13 +314,21 @@ def build_recipe(
             ]
         ),
     )
-    files["optimise_model.py"] = RecipeFile(
-        "Convert the model to the recommended precision", _optimise_model_py(cfg, model)
+    if eco.key != "mcu":
+        files["optimise_model.py"] = RecipeFile(
+            "Convert the model to the recommended precision", _optimise_model_py(cfg, model)
+        )
+    files["quant_sensitivity.py"] = RecipeFile(
+        "Measure which layers are fragile to int8 on your own data (for mixed precision)",
+        quant_sensitivity_script(),
     )
     if _is_jetson(hw):
         files["build_engine.sh"] = RecipeFile("Build the TensorRT engine", _build_engine_sh(cfg, model))
         files["set_power_mode.sh"] = RecipeFile("Set the power mode", _power_sh(cfg, hw))
         files["verify.sh"] = RecipeFile("Measure on the board and report back", _verify_sh(spec, cfg))
+    else:
+        for name, (desc, content) in eco.files.items():
+            files[name] = RecipeFile(desc, content)
     files["runtime_config.json"] = RecipeFile(
         "The recommended settings and the predicted result",
         json.dumps(

@@ -203,3 +203,21 @@ def optimise_project(
 ) -> OptimisationResult:
     p = _project(db, project_id)
     return svc.optimise_project(db, p.id, p.spec)
+
+
+@router.post("/projects/{project_id}/layers")
+def project_layers(
+    project_id: int, config: Config | None = None, db: Session = Depends(get_db)
+) -> dict:
+    """Where the time goes, layer by layer, for a configuration (default: the current setup)."""
+    from app.engine.layers import layer_profile
+    from app.engine.optimise import baseline_config
+    from app.services.model_lookup import resolve_model
+
+    p = _project(db, project_id)
+    model, hw = resolve_model(db, p.spec.model_id), load_devices()[p.spec.device_id]
+    cfg = config or p.spec.baseline or baseline_config(hw, p.spec.cooling_id)
+    try:
+        return layer_profile(model, hw, cfg)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e

@@ -60,7 +60,7 @@ def baseline_config(hw: HardwareProfile, cooling_id: str | None) -> Config:
     """Reference point: fp32, batch 1, highest-power mode, the project's cooling."""
     top_mode = max(hw.power_modes, key=lambda m: m.cap_w)
     return Config(
-        precision="fp32" if supports(hw, "fp32") else "fp16",
+        precision=next((p for p in PRECISIONS if supports(hw, p)), "int8"),
         batch=1,
         power_mode_id=top_mode.id,
         cooling_id=cooling_id or hw.default_cooling,

@@ -201,3 +201,14 @@ h1, h2, h3, h4, .rec p, .side-head h3 { overflow-wrap: anywhere; }
 @media (max-width: 700px) {
   .tbl, .codesign { min-width: 0 !important; }
 }
+
+/* Hardware picker, wizard and layer view */
+.picker { display: grid; gap: 8px; }
+.picker input[type="search"] { width: 100%; }
+.wizard textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }
+.wizard .seg { margin: 8px 0; }
+.wizard .checks-inline { display: grid; gap: 4px; margin: 8px 0; }
+.tbl-wrap { overflow-x: auto; }
+.tbl .bar { display: inline-block; height: 8px; background: var(--accent, #2f855a); border-radius: 4px; vertical-align: middle; }
+.risk-high { color: var(--bad); font-weight: 600; }
+.plain-list { margin: 6px 0 0; padding-left: 18px; }

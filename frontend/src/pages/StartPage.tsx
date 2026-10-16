@@ -1,4 +1,6 @@
 import AgentPanel from "../components/AgentPanel";
+import CustomHardwareWizard from "../components/CustomHardwareWizard";
+import DevicePicker from "../components/DevicePicker";
 import HardwareImportCard from "../components/HardwareImportCard";
 import ModelPanel from "../components/ModelPanel";
 import { GLOSSARY } from "../lib/plain";
@@ -12,12 +14,22 @@ const PRESETS: {
   fps: number;
   ambient: number;
   latency: number | null;
+  power?: number;
 }[] = [
   { title: "Robot that spots objects", blurb: "YOLOv8s on a Jetson Orin NX in a warm room. It overheats today.", model_id: "yolov8s", device_id: "jetson-orin-nx", fps: 30, ambient: 40, latency: 100 },
   { title: "Smart camera", blurb: "MobileNetV2 on a small Jetson Orin Nano. A comfortable fit.", model_id: "mobilenet-v2", device_id: "jetson-orin-nano", fps: 30, ambient: 30, latency: 100 },
   { title: "Fast, heavy vision", blurb: "ResNet-50 at 60 frames/s on a Jetson AGX Orin.", model_id: "resnet-50", device_id: "jetson-agx-orin", fps: 60, ambient: 30, latency: 50 },
+  { title: "Camera on a Raspberry Pi", blurb: "MobileNetV2 on a Pi 5 with no fan, in a warm cabinet.", model_id: "mobilenet-v2", device_id: "raspberry-pi-5", fps: 15, ambient: 40, latency: 100, power: 8 },
+  { title: "Keyword spotting on a microcontroller", blurb: "A tiny speech model on an STM32H743: does it fit in flash and SRAM?", model_id: "tiny-kws-dscnn", device_id: "stm32h743", fps: 4, ambient: 30, latency: 250, power: 0.5 },
+  { title: "Person detection on an FPGA", blurb: "A small vision model on a Kria KV260.", model_id: "tiny-vww-mobilenet", device_id: "xilinx-kria-kv260", fps: 60, ambient: 35, latency: 30, power: 10 },
   { title: "Too much for the board", blurb: "A big detector on the smallest board. See what we suggest.", model_id: "yolov8m", device_id: "jetson-orin-nano", fps: 30, ambient: 40, latency: 100 },
 ];
+
+function compact(n: number): string {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)} billion`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)} million`;
+  return `${Math.round(n / 1e3)} thousand`;
+}
 
 function Row({
   children,
@@ -79,7 +91,7 @@ export default function StartPage({
     if (!device) return;
     const top = [...device.power_modes].sort((a, b) => b.cap_w - a.cap_w)[0];
     const cur: Config = spec.baseline ?? {
-      precision: (device.peak_tflops.fp32 ?? 0) > 0 ? "fp32" : "fp16",
+      precision: (["fp32", "fp16", "int8"] as const).find((p) => (device.peak_tflops[p] ?? 0) > 0) ?? "int8",
       batch: 1,
       power_mode_id: top.id,
       cooling_id: spec.cooling_id ?? device.default_cooling,
@@ -102,7 +114,7 @@ export default function StartPage({
       cooling_id: d?.default_cooling ?? null,
       baseline: null,
       workload: { ...spec.workload, fps: p.fps, ambient_c: p.ambient },
-      constraints: { ...spec.constraints, max_latency_ms: p.latency },
+      constraints: { ...spec.constraints, max_latency_ms: p.latency, ...(p.power ? { max_power_w: p.power } : {}) },
     });
   }
 
@@ -149,23 +161,25 @@ export default function StartPage({
             </label>
             {model && (
               <p className="hint">
-                {model.task} · {model.params_m.toFixed(1)} million parameters · {model.gflops.toFixed(1)} billion operations per image
+                {model.task} · {compact(model.params_m * 1e6)} parameters · {compact(model.gflops * 1e9)} operations per input
               </p>
             )}
             <ModelPanel onAdded={onModelAdded} />
 
             <h2>2 · What hardware?</h2>
-            <label className="field">
-              <select value={spec.device_id} onChange={(e) => {
-                const d = devices.find((x) => x.id === e.target.value);
-                setSpec({ ...spec, device_id: e.target.value, cooling_id: d?.default_cooling ?? null, baseline: null });
-              }} aria-label="Hardware">
-                {devices.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </label>
+            <DevicePicker
+              devices={devices}
+              value={spec.device_id}
+              onPick={(d) => setSpec({ ...spec, device_id: d.id, cooling_id: d.default_cooling ?? null, baseline: null })}
+            />
             {device && <p className="hint">{device.role}</p>}
+            {device?.notes && <p className="hint"><small>{device.notes}</small></p>}
+            <CustomHardwareWizard
+              onCreated={(d) => {
+                onDevicesChanged();
+                setSpec({ ...spec, device_id: d.id, cooling_id: d.default_cooling ?? null, baseline: null });
+              }}
+            />
             <HardwareImportCard onConfirmed={onDevicesChanged} />
 
             <h2>3 · What must be true?</h2>

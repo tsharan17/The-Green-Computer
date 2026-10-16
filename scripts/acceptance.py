@@ -107,6 +107,25 @@ def main() -> int:
     step("the recipe downloads as a valid zip", "README.md" in names and "runtime_config.json" in names,
          f"{len(names)} files")  # fmt: skip
 
+    code, lib, _ = call("GET", "/hardware/library")
+    kinds = {d["kind"] for d in lib or []}
+    step("the hardware library spans boards, MCUs, FPGAs, accelerators and PC chips",
+         {"mcu", "fpga", "accelerator", "sbc", "laptop_soc", "edge_soc"} <= kinds, ", ".join(sorted(kinds)))  # fmt: skip
+    mcu = {**tpl["spec"], "name": "Acceptance MCU", "model_id": "tiny-kws-dscnn", "device_id": "stm32h743",
+           "cooling_id": None, "baseline": None,
+           "workload": {**tpl["spec"]["workload"], "fps": 4},
+           "constraints": {**tpl["spec"]["constraints"], "max_power_w": 0.5, "max_latency_ms": 250}}  # fmt: skip
+    code, mp, _ = call("POST", "/projects", mcu)
+    if step("a microcontroller project can be created", code == 201 and mp is not None, f"HTTP {code}"):
+        code, mres, _ = call("POST", f"/projects/{mp['id']}/optimise")
+        step("a microcontroller project analyses (flash and SRAM checked)",
+             code == 200 and any("weights" in c["name"] for c in mres["baseline"]["checks"]), f"HTTP {code}")  # fmt: skip
+    code, prev, _ = call("POST", "/hardware/custom/preview",
+                         {"name": "Acceptance FPGA", "style": "fpga", "dsp_slices": 1248, "fabric_mhz": 250,
+                          "mem_bw_gbs": 19.2, "mem_gb": 4, "dynamic_w": 4.0})  # fmt: skip
+    step("custom hardware can be described and previewed", code == 200 and prev and prev["kind"] == "fpga",
+         f"HTTP {code}")  # fmt: skip
+
     code, ver, _ = call("GET", "/verify")
     step("real measurements are shown (honestly labelled)", code == 200 and bool(ver["summaries"]),
          "; ".join(f"{s['device_id']}/{s['precision']} n={s['n']}" for s in ver["summaries"][:2]) if ver else "")  # fmt: skip

@@ -1,5 +1,7 @@
 import type {
   HardwareDraft,
+  LayerProfile,
+  ReportParse,
   RecipeOut,
   AgentEvent,
   AgentStatus,
@@ -100,6 +102,17 @@ export const api = {
   confirmDraft: (id: number, overrides: Record<string, unknown>) =>
     req<HardwareProfile>(`/hardware/drafts/${id}/confirm`, { method: "POST", body: JSON.stringify({ overrides }) }),
   rejectDraft: (id: number) => req<HardwareDraft>(`/hardware/drafts/${id}/reject`, { method: "POST" }),
+  customPreview: (body: Record<string, unknown>) =>
+    req<HardwareProfile>("/hardware/custom/preview", { method: "POST", body: JSON.stringify(body) }),
+  customCreate: (body: Record<string, unknown>) =>
+    req<HardwareProfile>("/hardware/custom", { method: "POST", body: JSON.stringify(body) }),
+  parseReport: (text: string, tool?: string, supplyV?: number) =>
+    req<ReportParse>("/hardware/parse-report", {
+      method: "POST",
+      body: JSON.stringify({ text, ...(tool ? { tool } : {}), ...(supplyV ? { supply_v: supplyV } : {}) }),
+    }),
+  layers: (id: number, config?: unknown) =>
+    req<LayerProfile>(`/projects/${id}/layers`, { method: "POST", body: config ? JSON.stringify(config) : undefined }),
   evaluate: (id: number) => req<EvaluationResult>(`/projects/${id}/evaluate`, { method: "POST" }),
   optimise: (id: number) => req<OptimisationResult>(`/projects/${id}/optimise`, { method: "POST" }),
 };

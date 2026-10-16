@@ -148,6 +148,16 @@ def evaluate(
         if constraints.accuracy_mode == "relative"
         else "absolute value of the model accuracy metric"
     )
+    metrics_extra: dict[str, Metric] = {}
+    notes_pre: list[str] = []
+    wh = hw.extras.get("battery_wh")
+    if isinstance(wh, (int, float)) and p_avg.value > 0:
+        eff = hw.extras.get("regulator_efficiency", 0.9)
+        eff = float(eff) if isinstance(eff, (int, float)) else 0.9
+        metrics_extra["battery_hours"] = Metric(
+            value=wh * eff / p_avg.value, unit="h", low=wh * eff / max(p_avg.high, 1e-9),
+            high=wh * eff / max(p_avg.low, 1e-9), provenance=pw_prov,
+        )
     checks: list[tuple[ConstraintCheck, Provenance]] = [
         (check("power (average)", "<=", constraints.max_power_w, p_avg), AN),
         (check("accuracy", ">=", constraints.min_accuracy, acc, note=acc_note), acc.provenance),
@@ -168,6 +178,15 @@ def evaluate(
             check("temperature held below throttle point", "<=", hw.t_throttle_c, temp), AN,
         ),
     ]  # fmt: skip
+    if hw.weights_mem_gb is not None:
+        weights = _band(sims, "GB", lambda s: s.rf.weights_gb)
+        metrics_extra["weights"] = weights
+        checks.append((check(
+            "weights fit in storage", "<=", hw.weights_mem_gb * 0.95, weights,
+            note="flash / model memory",
+        ), AN))  # fmt: skip
+        if weights.value > hw.weights_mem_gb * 0.95:
+            notes_pre.append("Model weights do not fit in the device's weight storage.")
     if constraints.max_latency_ms is not None:
         checks.append((check(
                     "latency",
@@ -185,7 +204,7 @@ def evaluate(
         checks.append((check("no sustained throttling", "<=", hw.t_throttle_c, temp_free), AN))
 
     state = certify(checks)
-    notes: list[str] = []
+    notes: list[str] = list(notes_pre)
     capped = (
         config.precision in A.UNMEASURED_CAPPED_PRECISIONS
         or config.resolution_scale < 1.0
@@ -247,6 +266,7 @@ def evaluate(
         "accuracy": acc,
         "cost_per_day": cost,
         "carbon_per_day": carbon,
+        **metrics_extra,
     }
     return EvaluationResult(
         config=config,

@@ -19,7 +19,9 @@ export const METRIC_ROWS: [string, string][] = [
   ["temperature_unthrottled", "Temperature without governor"],
   ["thermal_headroom", "Thermal headroom"],
   ["clock_factor", "Governor clock factor"],
-  ["memory", "Memory"],
+  ["memory", "Memory (working RAM)"],
+  ["weights", "Model weights (flash / storage)"],
+  ["battery_hours", "Battery life"],
   ["accuracy", "Accuracy"],
   ["cost_per_day", "Electricity cost"],
   ["carbon_per_day", "Carbon"],
@@ -31,6 +33,15 @@ export function fmt(n: number): string {
   if (a >= 100) return n.toFixed(0);
   if (a >= 10) return n.toFixed(1);
   return n.toFixed(2);
+}
+
+/** Show small memory sizes in MB / KB (microcontrollers) instead of 0.00 GB. */
+export function scaled(m: { value: number; low: number; high: number; unit: string }) {
+  if (m.unit === "GB" && Math.abs(m.value) < 1) {
+    const [k, u] = Math.abs(m.value) >= 1e-3 ? [1e3, "MB"] : [1e6, "KB"];
+    return { value: m.value * k, low: m.low * k, high: m.high * k, unit: u };
+  }
+  return m;
 }
 
 export function Chip({ state }: { state: Feasibility }) {
@@ -68,8 +79,9 @@ export function MetricTable({ r }: { r: EvaluationResult }) {
       </thead>
       <tbody>
         {METRIC_ROWS.map(([k, label]) => {
-          const m = r.metrics[k];
-          if (!m) return null;
+          const raw = r.metrics[k];
+          if (!raw) return null;
+          const m = { ...raw, ...scaled(raw) };
           return (
             <tr key={k}>
               <td>{label}</td>
@@ -90,6 +102,9 @@ export function MetricTable({ r }: { r: EvaluationResult }) {
   );
 }
 
+const sc = (c: EvaluationResult["checks"][number]) =>
+  scaled({ value: c.limit, low: c.optimistic, high: c.pessimistic, unit: c.unit });
+
 export function Checks({ r }: { r: EvaluationResult }) {
   return (
     <ul className="checks">
@@ -97,10 +112,10 @@ export function Checks({ r }: { r: EvaluationResult }) {
         <li key={c.name} className={`check check-${c.status}`}>
           <span className="check-dot" />
           <span>
-            <strong>{c.name}</strong> {c.sense} {fmt(c.limit)} {c.unit}
+            <strong>{c.name}</strong> {c.sense} {fmt(sc(c).value)} {sc(c).unit}
             <span className="muted">
               {" "}
-              — worst case {fmt(c.pessimistic)}, best case {fmt(c.optimistic)}
+              — worst case {fmt(sc(c).high)}, best case {fmt(sc(c).low)}
               {c.note ? ` (${c.note})` : ""}
             </span>
           </span>

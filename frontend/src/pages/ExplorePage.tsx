@@ -1,11 +1,12 @@
 import { useState } from "react";
 import CodesignTable from "../components/CodesignTable";
+import LayerView from "../components/LayerView";
 import ParetoChart from "../components/ParetoChart";
 import ThermalChart from "../components/ThermalChart";
 import { Checks, Chip, MetricTable, configLabel, fmt } from "../components/common";
 import type { EvaluationResult, OptimisationResult, ProjectSpec } from "../types";
 
-type Sub = "numbers" | "heat" | "options";
+type Sub = "numbers" | "layers" | "heat" | "options";
 
 function Block({ r, title }: { r: EvaluationResult; title: string }) {
   return (
@@ -26,7 +27,7 @@ function Block({ r, title }: { r: EvaluationResult; title: string }) {
   );
 }
 
-export default function ExplorePage({ res, spec }: { res: OptimisationResult; spec: ProjectSpec }) {
+export default function ExplorePage({ res, spec, projectId }: { res: OptimisationResult; spec: ProjectSpec; projectId: number }) {
   const [sub, setSub] = useState<Sub>("numbers");
   const [which, setWhich] = useState<"baseline" | "best">(res.best ? "best" : "baseline");
   const r = which === "best" && res.best ? res.best : res.baseline;
@@ -40,6 +41,7 @@ export default function ExplorePage({ res, spec }: { res: OptimisationResult; sp
         {(
           [
             ["numbers", "Numbers and checks"],
+            ["layers", "Layer by layer"],
             ["heat", "Heat and power"],
             ["options", "All options tried"],
           ] as [Sub, string][]
@@ -58,6 +60,8 @@ export default function ExplorePage({ res, spec }: { res: OptimisationResult; sp
       )}
 
       {sub === "numbers" && <Block r={r} title={which === "best" ? "Recommended setup" : "Current setup"} />}
+
+      {sub === "layers" && <LayerView projectId={projectId} config={r.config} title={which === "best" ? "recommended setup" : "current setup"} />}
 
       {sub === "heat" && (
         <section className="panel">

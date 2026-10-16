@@ -12,6 +12,8 @@ from app.agent.client import LLMError
 from app.agent.datasheet import DatasheetError, clean_extraction
 from app.api.v1.agent import _llm, _models
 from app.api.v1.routes import get_db
+from app.engine.hwbuild import CustomHardwareSpec, build_custom
+from app.engine.vendor_reports import parse_power_csv, parse_report
 from app.integrations import tavily as tv
 from app.schemas.hardware import HardwareProfile
 from app.security import block_in_demo, max_custom_items
@@ -73,6 +75,44 @@ def manual_draft(body: ManualIn, db: Session = Depends(get_db)) -> dict[str, Any
     ex = clean_extraction({**raw, "sources": {}}, set())
     ex.evidence = [{"field": k, "value": v, "source_url": None} for k, v in ex.candidate.items()]
     return hw.store_draft(db, body.name, ex, [])
+
+
+@router.post("/hardware/custom/preview", response_model=HardwareProfile)
+def custom_preview(body: CustomHardwareSpec) -> HardwareProfile:
+    """What the wizard would create, without saving it (live preview of derived values)."""
+    return build_custom(body, "preview")
+
+
+@router.post("/hardware/custom", status_code=201, response_model=HardwareProfile)
+def custom_create(body: CustomHardwareSpec, db: Session = Depends(get_db)) -> HardwareProfile:
+    cap = max_custom_items()
+    if cap and len(hw.list_drafts(db)) >= cap:
+        raise HTTPException(503, "This demo has reached its limit of custom devices.")
+    return hw.register_custom(db, body)
+
+
+@router.delete("/hardware/custom/{device_id}")
+def custom_delete(device_id: str, db: Session = Depends(get_db)) -> dict[str, bool]:
+    if not hw.remove_custom(db, device_id):
+        raise HTTPException(404, "custom device not found")
+    return {"deleted": True}
+
+
+class ReportIn(BaseModel):
+    text: str = Field(min_length=10, max_length=400_000)
+    tool: str | None = None
+    supply_v: float | None = Field(None, gt=0)
+
+
+@router.post("/hardware/parse-report")
+def parse_vendor_report(body: ReportIn) -> dict[str, Any]:
+    """Pull numbers out of a Vivado / ST Edge AI / Vela report or a power-meter CSV."""
+    try:
+        if body.tool == "power_csv":
+            return parse_power_csv(body.text, body.supply_v)
+        return parse_report(body.text, body.tool)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
 
 
 @router.get("/hardware/drafts")

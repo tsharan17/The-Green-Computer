@@ -29,6 +29,9 @@ class RooflineResult:
     compute_bound_fraction: float
     mem_gb: float
     mem_usable_gb: float
+    weights_gb: float = 0.0
+    # (t_layer, t_compute, t_memory) per layer, seconds per batch; only when detail=True
+    per_layer: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
 
 
 _ARRAYS: dict[tuple, tuple[np.ndarray, np.ndarray, np.ndarray, int]] = {}
@@ -68,6 +71,7 @@ def roofline_at(
     resolution_scale: float = 1.0,
     eta_scale: float = 1.0,
     sparsity: float = 0.0,
+    detail: bool = False,
 ) -> RooflineResult:
     if batch < 1:
         raise ValueError("batch must be >= 1")
@@ -88,18 +92,27 @@ def roofline_at(
 
     # No upper cap: a calibrated scale above 1 legitimately says the profile's peak numbers are
     # conservative for this device (e.g. caches lift effective bandwidth above the DRAM roof).
-    eta_c = A.ETA_COMPUTE[precision] * eta_scale
-    eta_m = A.ETA_MEMORY * eta_scale
+    eta_c = hw.eta_compute.get(precision, A.ETA_COMPUTE[precision]) * eta_scale
+    eta_m = (hw.eta_memory if hw.eta_memory is not None else A.ETA_MEMORY) * eta_scale
     peak = hw.peak_tflops[precision] * 1e12 * freq_scale
     bw = hw.mem_bw_gbs * 1e9 * mem_scale
 
     t_c = batch * s2 * flops / (peak * eta_c)
-    bytes_ = params * bpe + batch * s2 * acts * bpe
-    t_m = bytes_ / (bw * eta_m)
+    resident = (
+        hw.onchip_weights_mb is not None
+        and float(params.sum()) * bpe <= 0.85 * hw.onchip_weights_mb * 1e6
+    )
+    w_bytes = np.zeros_like(params) if resident else params * bpe
+    a_bytes = batch * s2 * acts * bpe
+    if hw.onchip_bw_gbs is not None:
+        t_m = w_bytes / (bw * eta_m) + a_bytes / (hw.onchip_bw_gbs * 1e9 * mem_scale * eta_m)
+    else:
+        t_m = (w_bytes + a_bytes) / (bw * eta_m)
     hi = np.maximum(t_c, t_m)
     lo = np.minimum(t_c, t_m)
     t_layers = hi + A.KAPPA * lo
-    t_o = n_layers * A.LAUNCH_OVERHEAD_S
+    launch = hw.launch_overhead_s if hw.launch_overhead_s is not None else A.LAUNCH_OVERHEAD_S
+    t_o = n_layers * launch
     t = float(t_layers.sum()) + t_o
 
     sum_c, sum_m = float(t_c.sum()), float(t_m.sum())
@@ -114,7 +127,20 @@ def roofline_at(
 
     weight_bytes = float(params.sum()) * bpe
     act_bytes = batch * s2 * float(acts.sum()) * bpe
-    mem_gb = (weight_bytes + A.LIVE_ACT_FRACTION * act_bytes) / 1e9 + A.RUNTIME_OVERHEAD_GB
+    overhead = (
+        hw.runtime_overhead_gb if hw.runtime_overhead_gb is not None else A.RUNTIME_OVERHEAD_GB
+    )
+    usable = A.USABLE_MEM_FRACTION if hw.usable_mem_fraction is None else hw.usable_mem_fraction
+    if hw.weights_mem_gb is not None:
+        # Weights live in non-volatile storage; RAM holds the largest layer's activations
+        # (in + out) and the runtime. Both limits are checked (weights_gb vs weights_mem_gb).
+        # act_elems already counts read + write. Without a parsed graph, assume the largest
+        # layer is 3x the average (early layers dominate).
+        biggest = float(acts.max()) if model.layers else 3.0 * float(acts.sum()) / max(n_layers, 1)
+        peak_act = batch * s2 * biggest * bpe
+        mem_gb = peak_act / 1e9 + overhead
+    else:
+        mem_gb = (weight_bytes + A.LIVE_ACT_FRACTION * act_bytes) / 1e9 + overhead
 
     return RooflineResult(
         t_batch_s=t,
@@ -126,7 +152,9 @@ def roofline_at(
         bottleneck=bottleneck,
         compute_bound_fraction=cb_frac,
         mem_gb=mem_gb,
-        mem_usable_gb=hw.mem_gb * A.USABLE_MEM_FRACTION,
+        mem_usable_gb=hw.mem_gb * usable,
+        weights_gb=weight_bytes / 1e9,
+        per_layer=(t_layers, t_c, t_m) if detail else None,
     )
 
 

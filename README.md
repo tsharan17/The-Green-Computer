@@ -2,7 +2,7 @@
 
 Predict how an AI model will behave on a given hardware setup **before anything is built**, then recommend the changes that meet your requirements on the least energy: to the AI model, to how you run it, to the hardware you choose, and to the chip or board itself. *Predict. Optimise. Verify. Make every computation count.*
 
-> **Honest status (release 0.6.0).** The product works end to end and is tested (164+ backend tests, an end-to-end journey test, an acceptance script). Its numbers are **predictions** from a physics model with stated assumptions; the only real measurements so far are ResNet-50 and MobileNetV2 latency on the developer's CPU. The Green Agent (Nemotron on Nebius Token Factory), the Nebius GPU job launcher and datasheet import (Tavily) were built from the vendors' documentation and tested against fakes: **they have not been run against the live services.** The Docker image and the Nebius endpoint deployment have never been built or run. See [docs/for-judges.md](docs/for-judges.md) and the table at the end.
+> **Honest status (release 0.7.0).** The product works end to end and is tested (196 backend tests, an end-to-end journey test, an acceptance script). Its numbers are **predictions** from a physics model with stated assumptions; the only real measurements so far are ResNet-50 and MobileNetV2 latency on the developer's CPU. The Green Agent (Nemotron on Nebius Token Factory), the Nebius GPU job launcher and datasheet import (Tavily) were built from the vendors' documentation and tested against fakes: **they have not been run against the live services.** The Docker image and the Nebius endpoint deployment have never been built or run. See [docs/for-judges.md](docs/for-judges.md) and the table at the end.
 
 ## How to use it (3 steps)
 
@@ -11,6 +11,13 @@ Predict how an AI model will behave on a given hardware setup **before anything 
 3. **Export.** A shareable report (Markdown / web page / PDF via print) and a recipe: scripts to convert the model, build a TensorRT engine, set the Jetson power mode, measure on the board, plus design notes for hardware engineers.
 
 Two more pages: **Technical details** (every number with its best-case to worst-case range and source, the heat model, all options tried) and **Real measurements** (predicted vs measured; calibration applied only if it predicts held-out measurements better).
+
+## Who it is for
+
+- **Hardware engineers** with boards, microcontrollers, FPGAs and accelerators: pick one of 22 devices (Jetson, Raspberry Pi, Hailo, Coral, STM32/nRF/ESP32, Kria FPGA, Apple/Qualcomm/Intel/AMD NPUs, L4/T4/H100...) or *describe your own* (flash and SRAM limits, DSP slices and BRAM, on-chip model memory, battery), paste Vivado / ST Edge AI / Vela reports or a power-meter CSV, and get predictions, design what-ifs and a deployment recipe for your toolchain.
+- **Software engineers** optimising models: a per-layer view of where the time goes and which layers are fragile to int8, a sensitivity script to run on your data, and a CLI and library (`gc check`) with budgets in a `greencomputer.yaml` and a CI template that comments on pull requests.
+
+Details and honest limits: [docs/for-engineers.md](docs/for-engineers.md).
 
 ## Quick start
 
@@ -73,6 +80,10 @@ The agent never computes a number: it plans and explains by calling the engine a
 | Recipes | Syntax-checked, never run on a device |
 | Docker image, Nebius endpoint | Written, **never built or deployed** |
 | Chip-design what-ifs | Directional: the model has no on-chip memory hierarchy |
+| Non-Jetson devices, MCU / FPGA / accelerator models | Tested for sanity and consistency; **no device measured**. Vendor TOPS are marketing figures, several bandwidth and power values are estimates (flagged per entry) |
+| Vendor report readers (Vivado, ST Edge AI, Vela, power CSV) | Tested on synthetic samples from documented layouts, **not on real tool output** |
+| `gc` CLI, library, CI template | CLI and library tested; the CI workflow template was **never run** in a real repository |
+| Ecosystem recipes (OpenVINO, QNN, Core ML, Hailo, Edge TPU, TFLM, hls4ml...) | Templates from public docs; Python syntax-checked, **never run on devices** |
 
 ## Licence
 

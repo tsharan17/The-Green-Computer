@@ -323,8 +323,16 @@ export interface UploadOut {
 export interface HardwareProfile {
   id: string;
   name: string;
+  vendor?: string;
   kind: string;
   role: string;
+  mem_gb?: number;
+  idle_w: number;
+  mem_bw_gbs?: number;
+  weights_mem_gb?: number | null;
+  notes?: string;
+  sources?: Record<string, string>;
+  extras?: Record<string, number | string>;
   cooling_options: { id: string; name: string }[];
   power_modes: { id: string; name: string; cap_w: number }[];
   peak_tflops: Record<string, number>;
@@ -388,4 +396,44 @@ export interface HardwareDraft {
 export interface RecipeOut {
   files: Record<string, { description: string; content: string }>;
   warnings: string[];
+}
+
+export interface LayerRow {
+  index: number;
+  name: string;
+  op: string;
+  time_ms: number;
+  share: number;
+  bound: "compute" | "memory";
+  flops_share: number;
+  weights_kb: number;
+  quant_risk: number;
+}
+
+export interface LayerProfile {
+  has_graph: boolean;
+  graph_source?: string;
+  note: string;
+  total_ms: number;
+  overhead_ms?: number;
+  n_layers?: number;
+  layers: LayerRow[];
+  top?: LayerRow[];
+  by_op: { op: string; time_ms: number; count: number; share: number }[];
+  fragile?: LayerRow[];
+  hints?: string[];
+}
+
+export type HardwareStyle = "generic" | "mcu" | "fpga" | "accelerator";
+
+export interface ReportParse {
+  tool: string;
+  fields?: Record<string, number>;
+  found?: Record<string, unknown>;
+  note?: string;
+  power_w_avg?: number;
+  power_w_active?: number;
+  power_w_idle?: number;
+  power_w_peak?: number;
+  samples?: number;
 }

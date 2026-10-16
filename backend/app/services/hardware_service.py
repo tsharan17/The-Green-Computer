@@ -16,8 +16,14 @@ from app.agent.datasheet import (
     extract_hardware_spec,
     search_hits,
 )
-from app.data_loader import clear_custom_devices, load_devices, register_device
+from app.data_loader import (
+    clear_custom_devices,
+    load_devices,
+    register_device,
+    unregister_device,
+)
 from app.db.models import HardwareDraftRow
+from app.engine.hwbuild import CustomHardwareSpec, build_custom
 from app.integrations.tavily import TavilyClient
 from app.schemas.hardware import HardwareProfile
 
@@ -95,6 +101,35 @@ def confirm(db: Session, draft_id: int, overrides: dict[str, Any] | None) -> Har
     db.commit()
     register_device(profile)
     return profile
+
+
+def register_custom(db: Session, spec: CustomHardwareSpec) -> HardwareProfile:
+    """A device the user described themselves (no extraction, so no confirmation gate)."""
+    profile = build_custom(spec, _new_id(spec.name))
+    row = HardwareDraftRow(
+        query=spec.name[:200], status="confirmed", device_id=profile.id,
+        profile={"name": spec.name, "_spec": spec.model_dump(mode="json"),
+                 "_profile": profile.model_dump(mode="json")},
+        evidence=[], missing=[],
+    )  # fmt: skip
+    db.add(row)
+    db.commit()
+    register_device(profile)
+    return profile
+
+
+def remove_custom(db: Session, device_id: str) -> bool:
+    row = db.scalars(
+        select(HardwareDraftRow).where(
+            HardwareDraftRow.device_id == device_id, HardwareDraftRow.status == "confirmed"
+        )
+    ).first()
+    if row is None:
+        return False
+    row.status = "rejected"
+    db.commit()
+    unregister_device(device_id)
+    return True
 
 
 def reject(db: Session, draft_id: int) -> dict[str, Any]:
