@@ -113,3 +113,36 @@ a { color: var(--accent-strong); }
 .level { border-top-width: 5px; }
 .report-frame { background: #fff; }
 .agent, .agent-panel { background: var(--panel); }
+
+/* ---- Redesign pass 2: guided steps, summary, status bar ---- */
+.hero { padding: 20px 24px 18px; }
+.hero h1 { font-size: 27px; margin-bottom: 6px; }
+.hero p { margin-bottom: 12px; }
+.chips-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
+.chip-btn { padding: 5px 13px; font-size: 13px; background: #fff; border-color: var(--line); }
+.chip-btn:hover { border-color: var(--accent-strong); }
+.step-card h2 { display: flex; align-items: center; gap: 10px; font-size: 18px; margin: 0 0 10px; }
+.step-card h2 i { font-style: normal; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-size: 14px; font-weight: 700; flex: none; }
+.start-grid > div > .panel { margin-bottom: 14px; }
+.summary { position: relative; border-color: var(--accent-strong); background: linear-gradient(180deg, #f3fbf6, #fff); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 8px 0 12px; font-size: 14px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.summary .big { margin-top: 6px; }
+.only-narrow { display: none; }
+@media (max-width: 960px) { .only-narrow { display: block; } .summary .big { display: none; } }
+.start-side { display: grid; gap: 14px; }
+.start-side .panel { margin-bottom: 0; }
+
+.report-head { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 20px; box-shadow: var(--shadow); }
+.report-head h2 { margin: 0; font-size: 22px; }
+.report-head p { margin: 2px 0 0; font-size: 14px; }
+.eyebrow { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-strong); font-weight: 700; }
+.report-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+
+.statusbar { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-top: 28px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 999px; background: #fff; font-size: 12px; color: var(--muted); }
+.statusbar .grow { flex: 1; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #c9d6ce; margin-right: 6px; }
+.dot.on { background: #3fae75; }
+.dot.warn { background: #e0a82e; }
+@media (max-width: 700px) { .statusbar { border-radius: 16px; } .statusbar .grow { display: none; } }

@@ -324,6 +324,7 @@ export interface HardwareProfile {
   id: string;
   name: string;
   vendor?: string;
+  verified?: boolean;
   kind: string;
   role: string;
   mem_gb?: number;
@@ -378,6 +379,7 @@ export interface HardwareDraft {
   candidate: {
     name?: string;
     vendor?: string;
+  verified?: boolean;
     peak_tflops?: Record<string, number>;
     mem_bw_gbs?: number;
     mem_gb?: number;

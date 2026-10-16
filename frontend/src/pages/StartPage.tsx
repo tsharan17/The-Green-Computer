@@ -56,6 +56,42 @@ function Row({
   );
 }
 
+
+function SetupSummary({
+  spec,
+  model,
+  device,
+  busy,
+  onAnalyse,
+}: {
+  spec: ProjectSpec;
+  model?: ModelProfile;
+  device?: HardwareProfile;
+  busy: boolean;
+  onAnalyse: () => void;
+}) {
+  const c = spec.constraints;
+  const caveats: string[] = [];
+  if (device && !device.verified) caveats.push("Hardware figures are predictions, not measurements.");
+  if (model && model.fidelity === "manual") caveats.push("Model entered by hand: wider uncertainty.");
+  return (
+    <section className="panel summary" aria-label="Your setup">
+      <h2>Your setup</h2>
+      <dl className="kv">
+        <dt>AI model</dt><dd>{model?.name ?? "-"}</dd>
+        <dt>Hardware</dt><dd>{device?.name ?? "-"}</dd>
+        <dt>Speed needed</dt><dd>{spec.workload.fps} frames/s{c.max_latency_ms ? `, ≤ ${c.max_latency_ms} ms each` : ""}</dd>
+        <dt>Power limit</dt><dd>{c.max_power_w} W</dd>
+        <dt>Accuracy kept</dt><dd>≥ {Math.round(c.min_accuracy * 100)}%</dd>
+        <dt>Room</dt><dd>{spec.workload.ambient_c} °C{c.forbid_throttling ? ", no throttling" : ""}</dd>
+      </dl>
+      {caveats.map((t) => <p key={t} className="note">{t}</p>)}
+      <button className="primary big" disabled={busy} onClick={onAnalyse}>{busy ? "Analysing…" : "Analyse my setup"}</button>
+      <p className="hint center">A couple of seconds. Nothing runs on your hardware.</p>
+    </section>
+  );
+}
+
 export default function StartPage({
   spec,
   setSpec,
@@ -123,33 +159,23 @@ export default function StartPage({
       <section className="hero">
         <h1>Will your AI run on your hardware, and how do you make it greener?</h1>
         <p>
-          Tell us the AI model, the hardware and what must be true. We predict how it will behave <em>before you build
-          anything</em>, then show exactly what to change, from the AI model to the chip, to hit your targets on the least
-          energy.
+          Describe the AI model, the hardware and what must be true. We predict speed, power and heat <em>before you build
+          anything</em>, then rank what to change, from the AI model to the chip.
         </p>
-        <div className="how">
-          <div><b>1</b><strong>Predict</strong><span>See speed, power and heat for your setup, with a range, not a guess.</span></div>
-          <div><b>2</b><strong>Optimise</strong><span>Get ranked changes to the model, the settings, the hardware and the design.</span></div>
-          <div><b>3</b><strong>Verify</strong><span>Add real measurements so the predictions get more accurate.</span></div>
+        <div className="chips-row" role="group" aria-label="Try an example">
+          <span className="muted">Try an example:</span>
+          {PRESETS.map((p) => (
+            <button key={p.title} className="chip-btn" title={p.blurb} onClick={() => applyPreset(p)}>
+              {p.title}
+            </button>
+          ))}
         </div>
       </section>
 
       <div className="start-grid">
         <div>
-          <section className="panel">
-            <h2>Try an example</h2>
-            <div className="presets">
-              {PRESETS.map((p) => (
-                <button key={p.title} className="preset" onClick={() => applyPreset(p)}>
-                  <strong>{p.title}</strong>
-                  <span>{p.blurb}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel form">
-            <h2>1 · What AI are you running?</h2>
+          <section className="panel form step-card">
+            <h2><i>1</i>What AI are you running?</h2>
             <label className="field">
               <select value={spec.model_id} onChange={(e) => setSpec({ ...spec, model_id: e.target.value })} aria-label="AI model">
                 {models.map((m) => (
@@ -166,7 +192,9 @@ export default function StartPage({
             )}
             <ModelPanel onAdded={onModelAdded} />
 
-            <h2>2 · What hardware?</h2>
+          </section>
+          <section className="panel form step-card">
+            <h2><i>2</i>What hardware?</h2>
             <DevicePicker
               devices={devices}
               value={spec.device_id}
@@ -182,7 +210,9 @@ export default function StartPage({
             />
             <HardwareImportCard onConfirmed={onDevicesChanged} />
 
-            <h2>3 · What must be true?</h2>
+          </section>
+          <section className="panel form step-card">
+            <h2><i>3</i>What must be true?</h2>
             <div className="reqs">
               <Row label="Process at least" unit="frames per second" hint={GLOSSARY.fps}>
                 <input type="number" value={spec.workload.fps} onChange={(e) => setW({ fps: num(e.target.value, 1) })} />
@@ -249,15 +279,15 @@ export default function StartPage({
               )}
             </details>
 
-            <button className="primary big" disabled={busy} onClick={onAnalyse}>
+            <button className="primary big only-narrow" disabled={busy} onClick={onAnalyse}>
               {busy ? "Analysing…" : "Analyse my setup"}
             </button>
-            <p className="hint center">Takes a couple of seconds. Nothing is installed or run on your hardware.</p>
             {error && <p className="error">{error}</p>}
           </section>
         </div>
 
         <div className="start-side">
+          <SetupSummary spec={spec} model={model} device={device} busy={busy} onAnalyse={onAnalyse} />
           <AgentPanel projectId={projectId} onProjectChanged={onProjectChanged} />
         </div>
       </div>

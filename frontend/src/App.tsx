@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import ErrorBoundary from "./components/ErrorBoundary";
+import StatusBar from "./components/StatusBar";
 import ExplorePage from "./pages/ExplorePage";
 import ExportPage from "./pages/ExportPage";
 import ResultsPage from "./pages/ResultsPage";
@@ -177,6 +178,7 @@ export default function App() {
         )}
         </ErrorBoundary>
       </main>
+      <StatusBar />
 
       <footer className="foot">
         Predictions come from a physics model with stated assumptions; nothing is measured until you add real
