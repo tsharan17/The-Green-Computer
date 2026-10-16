@@ -114,10 +114,11 @@ export default function App() {
   }
 
   const have = res !== null;
-  const steps: { id: Page; n: string; label: string; needs?: boolean }[] = [
-    { id: "start", n: "1", label: "Describe" },
-    { id: "results", n: "2", label: "Results", needs: true },
-    { id: "export", n: "3", label: "Export", needs: true },
+  const pipe: { id: Page; n: string; label: string; sub: string; needs?: boolean; on: boolean }[] = [
+    { id: "start", n: "Step 1 · Inputs", label: "Describe", sub: "AI model, hardware, requirements", on: page === "start" },
+    { id: "results", n: "Step 2 · Predict + Optimise", label: "Results", sub: "Verdict and ranked changes", needs: true, on: page === "results" || page === "explore" },
+    { id: "verify", n: "Step 3 · Verify", label: "Real measurements", sub: "Calibrate the predictions", on: page === "verify" },
+    { id: "export", n: "Step 4 · Output", label: "Report and recipe", sub: "Share it, run it", needs: true, on: page === "export" },
   ];
 
   return (
@@ -130,21 +131,23 @@ export default function App() {
             <small>Predict. Optimise. Verify. Make every computation count.</small>
           </span>
         </button>
-        <nav className="steps" aria-label="Steps">
-          {steps.map((s) => (
-            <button key={s.id} className={`step-btn ${page === s.id ? "on" : ""}`} disabled={s.needs && !have} onClick={() => setPage(s.id)} title={s.needs && !have ? "Analyse your setup first" : undefined}>
-              <b>{s.n}</b> {s.label}
-            </button>
-          ))}
-          <span className="sep" aria-hidden />
-          <button className={`step-btn minor ${page === "explore" ? "on" : ""}`} disabled={!have} onClick={() => setPage("explore")}>
-            Technical details
+            </header>
+
+      <nav className="pipeline" aria-label="How the system works">
+        {pipe.map((p) => (
+          <button key={p.id} className={`pipe ${p.on ? "on" : ""}`} disabled={p.needs && !have} onClick={() => setPage(p.id)} title={p.needs && !have ? "Analyse your setup first" : undefined}>
+            <b>{p.n}</b>
+            <strong>{p.label}</strong>
+            <span>{p.sub}</span>
           </button>
-          <button className={`step-btn minor ${page === "verify" ? "on" : ""}`} onClick={() => setPage("verify")}>
-            Real measurements
-          </button>
-        </nav>
-      </header>
+        ))}
+      </nav>
+      <div className="subnav">
+        <span className="muted">Go deeper:</span>
+        <button className={`step-btn ${page === "explore" ? "on" : ""}`} disabled={!have} onClick={() => setPage("explore")}>
+          Technical details
+        </button>
+      </div>
 
       <main>
         <ErrorBoundary>
