@@ -2,6 +2,22 @@
 
 The Green Computer predicts how an AI model behaves on given hardware, then says what to change. Two ways in.
 
+## Upload your files
+
+The Workspace has one drop zone; the app works out what each file is:
+
+| File | What happens |
+|---|---|
+| `.onnx` | Parsed into a model profile and selected (dynamic dimensions default to 224 if you did not set one) |
+| `greencomputer.yaml` | Loads the whole setup: model, device (library id or an inline `custom:` block), workload, requirements |
+| `.yaml` / `.json` hardware description (`name` + `style`) | Creates your hardware and selects it |
+| `.yaml` / `.json` full device profile | Registers it as `custom-...` |
+| `.rpt` / `.txt` Vivado, ST Edge AI, Vela report | Values go into *Describe your own hardware* |
+| `.csv` power-meter capture | Active and idle power go into *Describe your own hardware* |
+| `.pdf` datasheet | Text is extracted; the Green Agent reads the specs into a draft you must confirm (needs the agent key; off in the public demo) |
+
+`.pt`, `.pkl`, `.tflite` and other formats are refused with an explanation. Nothing you upload is executed. The PDF-to-specs step was tested only up to the point of calling the agent (no live model was available).
+
 ## Hardware engineers (boards, MCUs, FPGAs, accelerators)
 
 1. **Pick or describe your hardware.** The picker lists 22 devices by class (search "stm32", "npu", "fpga"). If yours is missing, *Describe your own hardware* offers four starting points:

@@ -1,8 +1,9 @@
-import AgentPanel from "../components/AgentPanel";
 import CustomHardwareWizard from "../components/CustomHardwareWizard";
 import DevicePicker from "../components/DevicePicker";
+import FileDrop from "../components/FileDrop";
 import HardwareImportCard from "../components/HardwareImportCard";
 import ModelPanel from "../components/ModelPanel";
+import { useState } from "react";
 import { GLOSSARY } from "../lib/plain";
 import type { Config, Constraints, HardwareProfile, ModelProfile, ProjectSpec, Workload } from "../types";
 
@@ -57,41 +58,6 @@ function Row({
 }
 
 
-function SetupSummary({
-  spec,
-  model,
-  device,
-  busy,
-  onAnalyse,
-}: {
-  spec: ProjectSpec;
-  model?: ModelProfile;
-  device?: HardwareProfile;
-  busy: boolean;
-  onAnalyse: () => void;
-}) {
-  const c = spec.constraints;
-  const caveats: string[] = [];
-  if (device && !device.verified) caveats.push("Hardware figures are predictions, not measurements.");
-  if (model && model.fidelity === "manual") caveats.push("Model entered by hand: wider uncertainty.");
-  return (
-    <section className="panel summary" aria-label="Your setup">
-      <h2>Your setup</h2>
-      <dl className="kv">
-        <dt>AI model</dt><dd>{model?.name ?? "-"}</dd>
-        <dt>Hardware</dt><dd>{device?.name ?? "-"}</dd>
-        <dt>Speed needed</dt><dd>{spec.workload.fps} frames/s{c.max_latency_ms ? `, ≤ ${c.max_latency_ms} ms each` : ""}</dd>
-        <dt>Power limit</dt><dd>{c.max_power_w} W</dd>
-        <dt>Accuracy kept</dt><dd>≥ {Math.round(c.min_accuracy * 100)}%</dd>
-        <dt>Room</dt><dd>{spec.workload.ambient_c} °C{c.forbid_throttling ? ", no throttling" : ""}</dd>
-      </dl>
-      {caveats.map((t) => <p key={t} className="note">{t}</p>)}
-      <button className="primary big" disabled={busy} onClick={onAnalyse}>{busy ? "Analysing…" : "Analyse my setup"}</button>
-      <p className="hint center">A couple of seconds. Nothing runs on your hardware.</p>
-    </section>
-  );
-}
-
 export default function StartPage({
   spec,
   setSpec,
@@ -99,11 +65,9 @@ export default function StartPage({
   devices,
   busy,
   error,
-  projectId,
   onAnalyse,
   onModelAdded,
   onDevicesChanged,
-  onProjectChanged,
 }: {
   spec: ProjectSpec;
   setSpec: (s: ProjectSpec) => void;
@@ -111,14 +75,14 @@ export default function StartPage({
   devices: HardwareProfile[];
   busy: boolean;
   error: string | null;
-  projectId: number;
   onAnalyse: () => void;
   onModelAdded: (m: ModelProfile) => void;
   onDevicesChanged: () => void;
-  onProjectChanged: () => void;
 }) {
   const model = models.find((m) => m.id === spec.model_id);
   const device = devices.find((d) => d.id === spec.device_id);
+  const [prefill, setPrefill] = useState<{ nonce: number; fields: Record<string, string>; source: string } | null>(null);
+  const [draftKey, setDraftKey] = useState(0);
   const setW = (patch: Partial<Workload>) => setSpec({ ...spec, workload: { ...spec.workload, ...patch } });
   const setC = (patch: Partial<Constraints>) => setSpec({ ...spec, constraints: { ...spec.constraints, ...patch } });
   const num = (v: string, fallback: number) => (v === "" ? fallback : Number(v));
@@ -154,88 +118,119 @@ export default function StartPage({
     });
   }
 
+  const c = spec.constraints;
+  const caveats: string[] = [];
+  if (device && !device.verified) caveats.push("Hardware figures are predictions, not measurements.");
+  if (model && model.fidelity === "manual") caveats.push("Model entered by hand: wider uncertainty.");
+
   return (
-    <div className="start">
-      <section className="hero">
-        <h1>Will your AI run on your hardware, and how do you make it greener?</h1>
-        <p>
-          Describe the AI model, the hardware and what must be true. We predict speed, power and heat <em>before you build
-          anything</em>, then rank what to change, from the AI model to the chip.
-        </p>
-        <div className="chips-row" role="group" aria-label="Try an example">
-          <span className="muted">Try an example:</span>
-          {PRESETS.map((p) => (
-            <button key={p.title} className="chip-btn" title={p.blurb} onClick={() => applyPreset(p)}>
-              {p.title}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <div className="start-grid">
+    <div className="workspace">
+      <header className="ws-head">
         <div>
-          <section className="panel form step-card">
-            <h2><i>1</i>What AI are you running?</h2>
-            <label className="field">
-              <select value={spec.model_id} onChange={(e) => setSpec({ ...spec, model_id: e.target.value })} aria-label="AI model">
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}{m.fidelity !== "library" ? ` (yours)` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {model && (
-              <p className="hint">
-                {model.task} · {compact(model.params_m * 1e6)} parameters · {compact(model.gflops * 1e9)} operations per input
-              </p>
-            )}
-            <ModelPanel onAdded={onModelAdded} />
+          <span className="eyebrow">Workspace</span>
+          <h1>Will your AI run on your hardware?</h1>
+          <p className="muted">Upload your model and hardware files, or pick from the library. We predict speed, power and heat, then rank what to change.</p>
+        </div>
+      </header>
 
-          </section>
-          <section className="panel form step-card">
-            <h2><i>2</i>What hardware?</h2>
-            <DevicePicker
-              devices={devices}
-              value={spec.device_id}
-              onPick={(d) => setSpec({ ...spec, device_id: d.id, cooling_id: d.default_cooling ?? null, baseline: null })}
-            />
-            {device && <p className="hint">{device.role}</p>}
-            {device?.notes && <p className="hint"><small>{device.notes}</small></p>}
-            <CustomHardwareWizard
-              onCreated={(d) => {
-                onDevicesChanged();
-                setSpec({ ...spec, device_id: d.id, cooling_id: d.default_cooling ?? null, baseline: null });
-              }}
-            />
-            <HardwareImportCard onConfirmed={onDevicesChanged} />
+      <FileDrop
+        disabled={busy}
+        handlers={{
+          addModel: onModelAdded,
+          applyProject: (sp, hwCreated) => {
+            setSpec(sp);
+            if (hwCreated) onDevicesChanged();
+          },
+          hardwareReady: (d) => {
+            onDevicesChanged();
+            setSpec({ ...spec, device_id: d.id, cooling_id: d.default_cooling ?? null, baseline: null });
+          },
+          prefill: (fields, source) => setPrefill({ nonce: Date.now(), fields, source }),
+          draftsChanged: () => setDraftKey((k) => k + 1),
+        }}
+      />
 
-          </section>
-          <section className="panel form step-card">
-            <h2><i>3</i>What must be true?</h2>
-            <div className="reqs">
-              <Row label="Process at least" unit="frames per second" hint={GLOSSARY.fps}>
-                <input type="number" value={spec.workload.fps} onChange={(e) => setW({ fps: num(e.target.value, 1) })} />
-              </Row>
-              <Row label="Use no more than" unit="watts">
-                <input type="number" value={spec.constraints.max_power_w} onChange={(e) => setC({ max_power_w: num(e.target.value, 55) })} />
-              </Row>
-              <Row label="Keep at least" unit="% of the model's accuracy">
-                <input type="number" value={Math.round(spec.constraints.min_accuracy * 100)} onChange={(e) => setC({ min_accuracy: Math.min(1, Math.max(0.01, num(e.target.value, 90) / 100)) })} />
-              </Row>
-              <Row label="Answer each frame within" unit="milliseconds (blank = no limit)" hint={GLOSSARY.latency}>
-                <input type="number" value={spec.constraints.max_latency_ms ?? ""} placeholder="none" onChange={(e) => setC({ max_latency_ms: e.target.value === "" ? null : Number(e.target.value) })} />
-              </Row>
-              <Row label="The room is at" unit="°C">
-                <input type="number" value={spec.workload.ambient_c} onChange={(e) => setW({ ambient_c: num(e.target.value, 25) })} />
-              </Row>
-              <label className="check-row">
-                <input type="checkbox" checked={spec.constraints.forbid_throttling} onChange={(e) => setC({ forbid_throttling: e.target.checked })} />
-                <span>Don't let it overheat and slow itself down <small title={GLOSSARY.throttle}>ⓘ</small></span>
-              </label>
-            </div>
-            <p className="hint">We never loosen these to make a result look better.</p>
+      <div className="chips-row" role="group" aria-label="Try an example">
+        <span className="muted">No files yet? Try an example:</span>
+        {PRESETS.map((p) => (
+          <button key={p.title} className="chip-btn" title={p.blurb} onClick={() => applyPreset(p)}>
+            {p.title}
+          </button>
+        ))}
+      </div>
 
+      <div className="ws-grid">
+        <section className="card" aria-labelledby="sw-h">
+          <div className="card-head"><span className="tag-sw">Software</span><h2 id="sw-h">Your AI model</h2></div>
+          <select value={spec.model_id} onChange={(e) => setSpec({ ...spec, model_id: e.target.value })} aria-label="AI model">
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}{m.fidelity !== "library" ? " (yours)" : ""}
+              </option>
+            ))}
+          </select>
+          {model && (
+            <dl className="facts-grid">
+              <div><dt>Task</dt><dd>{model.task}</dd></div>
+              <div><dt>Parameters</dt><dd>{compact(model.params_m * 1e6)}</dd></div>
+              <div><dt>Operations / input</dt><dd>{compact(model.gflops * 1e9)}</dd></div>
+              <div><dt>Layers</dt><dd>{model.n_layers}</dd></div>
+            </dl>
+          )}
+          <ModelPanel onAdded={onModelAdded} />
+        </section>
+
+        <section className="card" aria-labelledby="hw-h">
+          <div className="card-head"><span className="tag-hw">Hardware</span><h2 id="hw-h">Your hardware</h2></div>
+          <DevicePicker
+            devices={devices}
+            value={spec.device_id}
+            onPick={(d) => setSpec({ ...spec, device_id: d.id, cooling_id: d.default_cooling ?? null, baseline: null })}
+          />
+          {device && (
+            <dl className="facts-grid">
+              <div><dt>Class</dt><dd>{device.kind.replace("_", " ")}</dd></div>
+              <div><dt>Compute</dt><dd>{Math.max(...Object.values(device.peak_tflops)).toFixed(1)} T(FL)OPS peak</dd></div>
+              <div><dt>Power modes</dt><dd>{device.power_modes.length}</dd></div>
+              <div><dt>Evidence</dt><dd>{device.verified ? "measured" : "datasheet / assumed"}</dd></div>
+            </dl>
+          )}
+          {device?.notes && <p className="hint"><small>{device.notes}</small></p>}
+          <CustomHardwareWizard
+            prefill={prefill}
+            onCreated={(d) => {
+              onDevicesChanged();
+              setSpec({ ...spec, device_id: d.id, cooling_id: d.default_cooling ?? null, baseline: null });
+            }}
+          />
+          <HardwareImportCard onConfirmed={onDevicesChanged} refreshKey={draftKey} />
+        </section>
+      </div>
+
+      <section className="card" aria-labelledby="rq-h">
+        <div className="card-head"><span className="tag-rq">Requirements</span><h2 id="rq-h">What must be true</h2></div>
+        <div className="reqs two-col">
+          <Row label="Process at least" unit="frames per second" hint={GLOSSARY.fps}>
+            <input type="number" value={spec.workload.fps} onChange={(e) => setW({ fps: num(e.target.value, 1) })} />
+          </Row>
+          <Row label="Use no more than" unit="watts">
+            <input type="number" value={c.max_power_w} onChange={(e) => setC({ max_power_w: num(e.target.value, 55) })} />
+          </Row>
+          <Row label="Keep at least" unit="% of the model's accuracy">
+            <input type="number" value={Math.round(c.min_accuracy * 100)} onChange={(e) => setC({ min_accuracy: Math.min(1, Math.max(0.01, num(e.target.value, 90) / 100)) })} />
+          </Row>
+          <Row label="Answer each frame within" unit="ms (blank = no limit)" hint={GLOSSARY.latency}>
+            <input type="number" value={c.max_latency_ms ?? ""} placeholder="none" onChange={(e) => setC({ max_latency_ms: e.target.value === "" ? null : Number(e.target.value) })} />
+          </Row>
+          <Row label="The room is at" unit="°C">
+            <input type="number" value={spec.workload.ambient_c} onChange={(e) => setW({ ambient_c: num(e.target.value, 25) })} />
+          </Row>
+          <label className="check-row">
+            <input type="checkbox" checked={c.forbid_throttling} onChange={(e) => setC({ forbid_throttling: e.target.checked })} />
+            <span>Don't let it overheat and slow itself down <small title={GLOSSARY.throttle}>ⓘ</small></span>
+          </label>
+        </div>
+        <p className="hint">We never loosen these to make a result look better.</p>
             <details className="adv">
               <summary>More settings (optional)</summary>
               <div className="grid2">
@@ -278,19 +273,17 @@ export default function StartPage({
                 </div>
               )}
             </details>
+      </section>
 
-            <button className="primary big only-narrow" disabled={busy} onClick={onAnalyse}>
-              {busy ? "Analysing…" : "Analyse my setup"}
-            </button>
-            {error && <p className="error">{error}</p>}
-          </section>
+      <div className="actionbar" role="region" aria-label="Analyse">
+        <div className="ab-summary">
+          <strong>{model?.name ?? "-"}</strong> on <strong>{device?.name ?? "-"}</strong>
+          <span className="muted"> · {spec.workload.fps} frames/s · ≤ {c.max_power_w} W · ≥ {Math.round(c.min_accuracy * 100)}% accuracy</span>
+          {caveats.map((t) => <small key={t} className="ab-caveat">{t}</small>)}
         </div>
-
-        <div className="start-side">
-          <SetupSummary spec={spec} model={model} device={device} busy={busy} onAnalyse={onAnalyse} />
-          <AgentPanel projectId={projectId} onProjectChanged={onProjectChanged} />
-        </div>
+        <button className="primary big" disabled={busy} onClick={onAnalyse}>{busy ? "Analysing…" : "Analyse my setup"}</button>
       </div>
+      {error && <p className="error">{error}</p>}
     </div>
   );
 }

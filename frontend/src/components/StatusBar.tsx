@@ -17,8 +17,6 @@ export default function StatusBar() {
       <span><i className={`dot ${h ? "on" : ""}`} /> {h ? `Engine online · v${h.version}` : "Engine unreachable"}</span>
       <span><i className={`dot ${h?.agent.configured ? "on" : ""}`} /> Green Agent {h?.agent.configured ? "connected" : "off (no key)"}</span>
       {h?.demo_mode && <span><i className="dot warn" /> Public demo mode</span>}
-      <span className="grow" />
-      <span>Numbers are analytical predictions unless marked measured.</span>
     </footer>
   );
 }

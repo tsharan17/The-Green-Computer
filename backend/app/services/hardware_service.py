@@ -118,6 +118,25 @@ def register_custom(db: Session, spec: CustomHardwareSpec) -> HardwareProfile:
     return profile
 
 
+def register_profile(db: Session, profile: HardwareProfile) -> HardwareProfile:
+    """Persist and register a complete profile (uploaded as a file)."""
+    taken = set(load_devices())
+    pid = profile.id
+    n = 2
+    while pid in taken:
+        pid, n = f"{profile.id}-{n}", n + 1
+    profile = profile.model_copy(update={"id": pid, "verified": False})
+    row = HardwareDraftRow(
+        query=profile.name[:200], status="confirmed", device_id=profile.id,
+        profile={"name": profile.name, "_profile": profile.model_dump(mode="json")},
+        evidence=[], missing=[],
+    )  # fmt: skip
+    db.add(row)
+    db.commit()
+    register_device(profile)
+    return profile
+
+
 def remove_custom(db: Session, device_id: str) -> bool:
     row = db.scalars(
         select(HardwareDraftRow).where(

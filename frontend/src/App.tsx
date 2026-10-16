@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import ErrorBoundary from "./components/ErrorBoundary";
+import AgentPanel from "./components/AgentPanel";
 import StatusBar from "./components/StatusBar";
 import ExplorePage from "./pages/ExplorePage";
 import ExportPage from "./pages/ExportPage";
@@ -19,6 +20,7 @@ export default function App() {
   const [res, setRes] = useState<OptimisationResult | null>(null);
   const [page, setPage] = useState<Page>("start");
   const [busy, setBusy] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -115,75 +117,88 @@ export default function App() {
   }
 
   const have = res !== null;
-  const pipe: { id: Page; n: string; label: string; sub: string; needs?: boolean; on: boolean }[] = [
-    { id: "start", n: "Step 1 · Inputs", label: "Describe", sub: "AI model, hardware, requirements", on: page === "start" },
-    { id: "results", n: "Step 2 · Predict + Optimise", label: "Results", sub: "Verdict and ranked changes", needs: true, on: page === "results" || page === "explore" },
-    { id: "verify", n: "Step 3 · Verify", label: "Real measurements", sub: "Calibrate the predictions", on: page === "verify" },
-    { id: "export", n: "Step 4 · Output", label: "Report and recipe", sub: "Share it, run it", needs: true, on: page === "export" },
+  const nav: { id: Page; n: string; label: string; sub: string; needs?: boolean; on: boolean; icon: string }[] = [
+    { id: "start", n: "1", label: "Workspace", sub: "Upload or pick, set requirements", on: page === "start", icon: "⌂" },
+    { id: "results", n: "2", label: "Results", sub: "Verdict and ranked changes", needs: true, on: page === "results", icon: "✓" },
+    { id: "explore", n: "", label: "Technical details", sub: "Numbers, layers, heat, options", needs: true, on: page === "explore", icon: "≡" },
+    { id: "verify", n: "3", label: "Verify", sub: "Real measurements", on: page === "verify", icon: "◎" },
+    { id: "export", n: "4", label: "Report and recipe", sub: "Share it, run it", needs: true, on: page === "export", icon: "⇩" },
   ];
+  const model = models.find((m) => m.id === spec.model_id);
+  const device = devices.find((d) => d.id === spec.device_id);
 
   return (
-    <div className="page">
-      <header className="top">
+    <div className="shell">
+      <aside className="sidebar" aria-label="Main">
         <button className="brand" onClick={() => setPage("start")} aria-label="The Green Computer, home">
           <span className="logo" aria-hidden>◐</span>
           <span>
             <strong>The Green Computer</strong>
-            <small>Predict. Optimise. Verify. Make every computation count.</small>
+            <small>Predict. Optimise. Verify.</small>
           </span>
         </button>
-            </header>
-
-      <nav className="pipeline" aria-label="How the system works">
-        {pipe.map((p) => (
-          <button key={p.id} className={`pipe ${p.on ? "on" : ""}`} disabled={p.needs && !have} onClick={() => setPage(p.id)} title={p.needs && !have ? "Analyse your setup first" : undefined}>
-            <b>{p.n}</b>
-            <strong>{p.label}</strong>
-            <span>{p.sub}</span>
-          </button>
-        ))}
-      </nav>
-      <div className="subnav">
-        <span className="muted">Go deeper:</span>
-        <button className={`step-btn ${page === "explore" ? "on" : ""}`} disabled={!have} onClick={() => setPage("explore")}>
-          Technical details
+        <nav className="side-nav">
+          {nav.map((i) => (
+            <button key={i.id} className={`nav-item ${i.on ? "on" : ""}`} disabled={i.needs && !have} onClick={() => setPage(i.id)} title={i.needs && !have ? "Analyse your setup first" : undefined}>
+              <i aria-hidden>{i.icon}</i>
+              <span><strong>{i.label}</strong><small>{i.sub}</small></span>
+            </button>
+          ))}
+        </nav>
+        <button className="agent-btn" onClick={() => setAgentOpen(true)}>
+          <span aria-hidden>✦</span> Ask the Green Agent
         </button>
+        <StatusBar />
+      </aside>
+
+      <div className="content">
+        <header className="topbar">
+          <div>
+            <span className="eyebrow">{spec.name}</span>
+            <strong>{model?.name ?? "-"}</strong> <span className="muted">on</span> <strong>{device?.name ?? "-"}</strong>
+          </div>
+          <div className="topbar-right">
+            {have && <span className="badge badge-analytical">predicted, not measured</span>}
+            {page !== "start" && <button onClick={() => setPage("start")}>Edit inputs</button>}
+          </div>
+        </header>
+
+        <main>
+          <ErrorBoundary>
+            {page === "start" && (
+              <StartPage
+                spec={spec}
+                setSpec={setSpec}
+                models={models}
+                devices={devices}
+                busy={busy}
+                error={error}
+                onAnalyse={analyse}
+                onModelAdded={(m) => {
+                  setModels((prev) => [...prev.filter((x) => x.id !== m.id), m]);
+                  setSpec((s) => (s ? { ...s, model_id: m.id } : s));
+                }}
+                onDevicesChanged={refreshDevices}
+              />
+            )}
+            {page === "results" && res && <ResultsPage res={res} spec={spec} go={setPage} />}
+            {page === "export" && res && <ExportPage projectId={projectId} />}
+            {page === "explore" && res && <ExplorePage res={res} spec={spec} projectId={projectId} />}
+            {page === "verify" && <VerifyPage devices={devices} models={models} onChanged={() => setRes(null)} />}
+          </ErrorBoundary>
+        </main>
+
+        <footer className="foot">
+          Predictions come from a physics model with stated assumptions; nothing is measured until you add real
+          measurements. Your requirements are never relaxed to make a result look good.
+        </footer>
       </div>
 
-      <main>
-        <ErrorBoundary>
-        {page === "start" && (
-          <StartPage
-            spec={spec}
-            setSpec={setSpec}
-            models={models}
-            devices={devices}
-            busy={busy}
-            error={error}
-            projectId={projectId}
-            onAnalyse={analyse}
-            onModelAdded={(m) => {
-              setModels((prev) => [...prev, m]);
-              setSpec((s) => (s ? { ...s, model_id: m.id } : s));
-            }}
-            onDevicesChanged={refreshDevices}
-            onProjectChanged={reloadProject}
-          />
-        )}
-        {page === "results" && res && <ResultsPage res={res} spec={spec} go={setPage} />}
-        {page === "export" && res && <ExportPage projectId={projectId} />}
-        {page === "explore" && res && <ExplorePage res={res} spec={spec} projectId={projectId} />}
-        {page === "verify" && (
-          <VerifyPage devices={devices} models={models} onChanged={() => setRes(null)} />
-        )}
-        </ErrorBoundary>
-      </main>
-      <StatusBar />
-
-      <footer className="foot">
-        Predictions come from a physics model with stated assumptions; nothing is measured until you add real
-        measurements. Your requirements are never relaxed to make a result look good.
-      </footer>
+      {agentOpen && <div className="scrim" onClick={() => setAgentOpen(false)} />}
+      <aside className={`drawer ${agentOpen ? "open" : ""}`} aria-hidden={!agentOpen} aria-label="Green Agent">
+        <button className="drawer-close" onClick={() => setAgentOpen(false)} aria-label="Close">×</button>
+        {agentOpen && <AgentPanel projectId={projectId} onProjectChanged={reloadProject} />}
+      </aside>
     </div>
   );
 }

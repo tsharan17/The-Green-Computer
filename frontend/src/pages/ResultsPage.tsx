@@ -59,11 +59,7 @@ export default function ResultsPage({
             {spec.workload.fps} frames/s · {spec.workload.ambient_c} °C room · {spec.constraints.max_power_w} W limit · ≥ {Math.round(spec.constraints.min_accuracy * 100)}% accuracy
           </p>
         </div>
-        <div className="report-meta">
-          <span className="badge badge-analytical">predicted, not measured</span>
-          <span className="muted">engine {res.baseline.engine_version}</span>
-          <button onClick={() => go("start")}>Edit inputs</button>
-        </div>
+        <span className="muted">engine {res.baseline.engine_version}</span>
       </section>
       {res.verdict && <VerdictBanner verdict={res.verdict} wl={spec.workload} cons={spec.constraints} />}
       {res.repair && <CheapestFix repair={res.repair} />}

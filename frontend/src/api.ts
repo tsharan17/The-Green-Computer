@@ -113,6 +113,14 @@ export const api = {
     }),
   layers: (id: number, config?: unknown) =>
     req<LayerProfile>(`/projects/${id}/layers`, { method: "POST", body: config ? JSON.stringify(config) : undefined }),
+  inspectFile: async (file: File) =>
+    req<Record<string, unknown> & { kind: string }>(`/files/inspect?${new URLSearchParams({ filename: file.name })}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: await file.arrayBuffer(),
+    }),
+  registerProfile: (profile: HardwareProfile) =>
+    req<HardwareProfile>("/hardware/profile", { method: "POST", body: JSON.stringify(profile) }),
   evaluate: (id: number) => req<EvaluationResult>(`/projects/${id}/evaluate`, { method: "POST" }),
   optimise: (id: number) => req<OptimisationResult>(`/projects/${id}/optimise`, { method: "POST" }),
 };

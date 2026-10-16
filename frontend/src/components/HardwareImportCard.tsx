@@ -94,7 +94,7 @@ function DraftEditor({
   );
 }
 
-export default function HardwareImportCard({ onConfirmed }: { onConfirmed: () => void }) {
+export default function HardwareImportCard({ onConfirmed, refreshKey = 0 }: { onConfirmed: () => void; refreshKey?: number }) {
   const [name, setName] = useState("");
   const [drafts, setDrafts] = useState<HardwareDraft[]>([]);
   const [busy, setBusy] = useState(false);
@@ -110,7 +110,7 @@ export default function HardwareImportCard({ onConfirmed }: { onConfirmed: () =>
   }, []);
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   async function search() {
     setBusy(true);

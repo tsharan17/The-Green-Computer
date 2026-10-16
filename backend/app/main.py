@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app import __version__
 from app.api.v1.agent import router as agent_router
 from app.api.v1.export import router as export_router
+from app.api.v1.files import router as files_router
 from app.api.v1.hardware import router as hardware_router
 from app.api.v1.measurements import router as measurement_router
 from app.api.v1.routes import router
@@ -45,6 +46,7 @@ def create_app(db_url: str | None = None) -> FastAPI:
     app.include_router(agent_router, prefix=settings.api_prefix)
     app.include_router(export_router, prefix=settings.api_prefix)
     app.include_router(hardware_router, prefix=settings.api_prefix)
+    app.include_router(files_router, prefix=settings.api_prefix)
 
     if STATIC_DIR.is_dir():
         app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="ui")

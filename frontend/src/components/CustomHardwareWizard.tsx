@@ -81,7 +81,14 @@ function body(style: HardwareStyle, name: string, vendor: string, v: Record<stri
   return b;
 }
 
-export default function CustomHardwareWizard({ onCreated }: { onCreated: (d: HardwareProfile) => void }) {
+export default function CustomHardwareWizard({
+  onCreated,
+  prefill,
+}: {
+  onCreated: (d: HardwareProfile) => void;
+  prefill?: { nonce: number; fields: Record<string, string>; source: string } | null;
+}) {
+  const [open, setOpen] = useState(false);
   const [style, setStyle] = useState<HardwareStyle>("mcu");
   const [name, setName] = useState("");
   const [vendor, setVendor] = useState("");
@@ -109,6 +116,27 @@ export default function CustomHardwareWizard({ onCreated }: { onCreated: (d: Har
     }, 350);
     return () => clearTimeout(t);
   }, [ready, payload]);
+
+  useEffect(() => {
+    if (!prefill) return;
+    const f = { ...prefill.fields };
+    const active = f.__power_active_w;
+    const idle = f.__power_idle_w;
+    delete f.__power_active_w;
+    delete f.__power_idle_w;
+    setVals((v) => {
+      const next = { ...v, ...f };
+      if (active) {
+        next[style === "mcu" ? "run_power_mw" : "tdp_w"] = String(style === "mcu" ? +(Number(active) * 1000).toFixed(2) : +Number(active).toFixed(3));
+        if (idle) next[style === "mcu" ? "sleep_power_mw" : "idle_w"] = String(style === "mcu" ? +(Number(idle) * 1000).toFixed(3) : +Number(idle).toFixed(3));
+      }
+      return next;
+    });
+    if (prefill.source.startsWith("vivado_util") || prefill.source === "vivado_power") setStyle("fpga");
+    else if (prefill.source === "stedgeai" || prefill.source === "vela") setStyle("mcu");
+    setOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.nonce]);
 
   async function readReport() {
     setErr(null);
@@ -146,7 +174,7 @@ export default function CustomHardwareWizard({ onCreated }: { onCreated: (d: Har
 
   const tops = preview ? Math.max(...Object.values(preview.peak_tflops)) : 0;
   return (
-    <details className="import-card wizard">
+    <details className="import-card wizard" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
       <summary>Describe your own hardware (board, MCU, FPGA, accelerator)</summary>
       <p className="hint">
         Enter what you know. Anything we have to guess (clock steps, cooling, how much of the peak real code reaches) is
