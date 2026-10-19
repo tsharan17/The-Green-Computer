@@ -40,7 +40,7 @@ def test_backends_report_local_cpu_and_honest_optional_ones(app):
         b = {x["id"]: x for x in c.get(f"{P}/execution/backends").json()}
         assert b["local-cpu"]["status"] == "available" and "latency" in " ".join(b["local-cpu"]["measures"])
         assert b["local-cuda"]["status"] in ("unavailable", "disabled")
-        assert b["remote-device"]["status"] == "planned"
+        assert b["remote-device"]["status"] == "available"
 
 
 def test_uploaded_model_runs_and_produces_measured_trace_and_comparison(app):

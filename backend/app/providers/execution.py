@@ -129,11 +129,12 @@ class RemoteDeviceBackend:
     id = "remote-device"
 
     def info(self) -> BackendInfo:
-        return BackendInfo(self.id, "Your own device or cloud (agent)", "remote", "planned",
-                           "Interface only: a small agent on a board or VM would run the model and "
-                           "send results back. Until then, run bench/run_benchmark.py on the device "
-                           "and import its JSON (Verify).",
-                           "Not available yet.")  # fmt: skip
+        return BackendInfo(self.id, "Your own device (agent)", "remote", "available",
+                           "Pair the device agent (agent/gc_agent.py) under Verify → Run on a device; it runs "
+                           "signed requests for approved ONNX files with ONNX Runtime (CPU) and returns "
+                           "quality-checked timings.",
+                           "See docs/remote-agent.md.",
+                           measures=["latency", "throughput", "temperature (Linux thermal zones, when readable)"])  # fmt: skip
 
 
 BACKENDS: list[ExecutionBackend] = [

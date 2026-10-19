@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 MeasurementSource = Literal[
-    "bench_job", "local_bench", "nvidia_smi", "tegrastats", "manual", "replay"
+    "bench_job", "local_bench", "nvidia_smi", "tegrastats", "manual", "replay", "remote_agent"
 ]
 
 

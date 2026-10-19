@@ -1,3 +1,4 @@
+import DevicesPanel from "./components/DevicesPanel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, auth, history, setWorkspace } from "./api";
 import AgentPanel from "./components/AgentPanel";
@@ -309,15 +310,16 @@ function ProjectView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [notFound, setNotFound] = useState(false);
-  const [tab, setTab] = useState<"run" | "verify" | "history" | "export">("run");
+  const [tab, setTab] = useState<"run" | "device" | "verify" | "history" | "export">("run");
   const [verifyKey, setVerifyKey] = useState(0);
+  const onDeviceMeasured = useCallback(() => setVerifyKey((k) => k + 1), []);
   const [recTab, setRecTab] = useState<"results" | "plan" | "saved">("results");
   const [plansKey, setPlansKey] = useState(0);
   const qTab = query.get("tab");
   const qAdd = query.get("add");
   useEffect(() => {
     if (qTab === "plan" || qTab === "saved" || qTab === "results") setRecTab(qTab);
-    if (qTab === "run" || qTab === "verify" || qTab === "history" || qTab === "export") setTab(qTab);
+    if (qTab === "run" || qTab === "device" || qTab === "verify" || qTab === "history" || qTab === "export") setTab(qTab);
   }, [qTab, qAdd]);
 
   const load = useCallback(async () => {
@@ -494,13 +496,14 @@ function ProjectView({
       {area === "verify" && (
         <>
           <div className="tabs" role="tablist" aria-label="Verify, history and export">
-            {(["run", "verify", "history", "export"] as const).map((t) => (
+            {(["run", "device", "verify", "history", "export"] as const).map((t) => (
               <button key={t} role="tab" aria-selected={tab === t} className={`tab ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>
-                {{ run: "Run on this server", verify: "Predicted vs measured", history: "History", export: "Export" }[t]}
+                {{ run: "Run on this server", device: "Run on a device", verify: "Predicted vs measured", history: "History", export: "Export" }[t]}
               </button>
             ))}
           </div>
           {tab === "run" && <ExecutionPanel projectId={projectId} canWrite={canWrite} onMeasured={() => setVerifyKey((k) => k + 1)} />}
+          {tab === "device" && <DevicesPanel projectId={projectId} canWrite={canWrite} devices={devices} defaultDevice={spec.device_id} onMeasured={onDeviceMeasured} />}
           {tab === "verify" && <VerifyPage key={verifyKey} devices={devices} models={models} onChanged={() => setRes(null)} />}
           {tab === "history" && <HistoryPanel projectId={projectId} canWrite={canWrite} onRestored={load} />}
           {tab === "export" && <ExportPanel projectId={projectId} canWrite={canWrite} />}

@@ -400,3 +400,48 @@ class SystemGraphRow(Base):
     graph: Mapped[dict] = mapped_column(JSON)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class RemoteDeviceRow(Base):
+    """A registered device agent. Secrets are stored only as hashes."""
+
+    __tablename__ = "remote_devices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    device_id: Mapped[str] = mapped_column(String(120))  # hardware profile the results belong to
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | paired | revoked
+    token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    pairing_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    pairing_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    key_version: Mapped[int] = mapped_column(Integer, default=1)
+    agent_info: Mapped[dict] = mapped_column(JSON, default=dict)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RemoteJobRow(Base):
+    """A signed run request for one device and its result. Approved by the user who created it."""
+
+    __tablename__ = "remote_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    remote_device_id: Mapped[int] = mapped_column(ForeignKey("remote_devices.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"))
+    status: Mapped[str] = mapped_column(String(20), default="queued")  # queued | claimed | succeeded | failed | rejected | expired
+    payload: Mapped[dict] = mapped_column(JSON)
+    signature: Mapped[str] = mapped_column(String(64))
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    quality: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    measurement_id: Mapped[int | None] = mapped_column(ForeignKey("measurements.id"), nullable=True)
+    error: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

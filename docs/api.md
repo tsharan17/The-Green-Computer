@@ -151,6 +151,22 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `POST` | `/api/v1/projects/{project_id}/plans/analyse` | session | Re-analyse a selection: baseline, each change alone, and all of them combined (not saved). |
 | `POST` | `/api/v1/projects/{project_id}/plans` | session | Save Plan |
 
+## Remote Devices
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `DELETE` | `/api/v1/remote-devices/{device_id}` | session | Revoke |
+| `GET` | `/api/v1/device-agent/jobs/next` | session | Agent Next |
+| `GET` | `/api/v1/device-agent/jobs/{job_id}/artifact` | session | Agent Artifact |
+| `GET` | `/api/v1/remote-devices` | session | List Devices |
+| `GET` | `/api/v1/remote-jobs` | session | List Jobs |
+| `POST` | `/api/v1/device-agent/heartbeat` | session | Agent Heartbeat |
+| `POST` | `/api/v1/device-agent/jobs/{job_id}/result` | session | Agent Result |
+| `POST` | `/api/v1/device-agent/pair` | session | Exchange a one-time pairing code for a device token and signing key (shown to the agent once). |
+| `POST` | `/api/v1/remote-devices/{device_id}/jobs` | session | Approve one run of a validated ONNX file on this device; the request is signed and expires in an hour. |
+| `POST` | `/api/v1/remote-devices/{device_id}/pairing-code` | session | Repair |
+| `POST` | `/api/v1/remote-devices` | session | Register a device. The pairing code is shown once and works for 15 minutes. |
+
 ## System Graph
 
 | Method | Path | Auth | What it does |

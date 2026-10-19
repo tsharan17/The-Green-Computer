@@ -54,6 +54,8 @@ def test_state_changing_routes_refuse_cookie_requests_without_csrf_header(app):
         for method, path in sorted(set(_routes(app))):
             if method == "GET" or (method, path) in PUBLIC or path.endswith("/signout"):
                 continue
+            if path.startswith(f"{P}/device-agent/"):
+                continue  # device agents authenticate with a device token, never a cookie (checked below)
             url = re.sub(r"\{[^}]+\}", "1", path)
             r = c.request(method, url, json={})
             assert r.status_code == 403, f"{method} {path} answered {r.status_code} without the CSRF header"
@@ -94,3 +96,13 @@ def test_unknown_workspace_header_and_bad_tokens_are_refused(app):
         assert c.get(f"{P}/projects", headers={"X-GC-Workspace": "abc"}).status_code == 400
     with TestClient(app) as c:
         assert c.get(f"{P}/projects", headers={"Authorization": "Bearer " + "x" * 300}).status_code == 401
+
+
+def test_device_agent_routes_ignore_browser_sessions(app):
+    """A signed-in browser cannot act as a device: the agent side only accepts a device token."""
+    with AuthedClient(app) as c:
+        for method, path in sorted(set(_routes(app))):
+            if path.startswith(f"{P}/device-agent/"):
+                url = re.sub(r"\{[^}]+\}", "1", path)
+                r = c.request(method, url, json={})
+                assert r.status_code == 401, f"{method} {path} answered {r.status_code} to a browser session"

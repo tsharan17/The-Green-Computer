@@ -169,7 +169,7 @@ def test_formats_template_validation_and_capabilities_endpoints(client):
     caps = {c["id"]: c for c in client.get(f"{P}/capabilities").json()}
     assert caps["engine"]["status"] == "available" and caps["local-cpu"]["status"] == "available"
     assert caps["nebius-jobs"]["status"] in ("disabled", "needs_credential")
-    assert caps["remote-device"]["status"] == "planned"
+    assert caps["remote-device"]["status"] == "available"
     assert caps["ai"]["status"] == "needs_credential"
     assert caps["eda"]["status"] == "planned"
     assert caps["database"]["status"] == "available"

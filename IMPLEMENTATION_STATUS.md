@@ -498,6 +498,85 @@ Verification (2026-10-19)
 - `pytest -q --basetemp <scratch>`: 292 passed, 2 skipped; PostgreSQL: 2 passed.
 - `ruff`, `mypy app`, `tsc`, `eslint`, `vite build`: clean. `npx playwright test`: 13 passed.
 
+## Release 2, slice F: remote device agent (done)
+
+What works
+- Protocol `green-computer.agent/1` (`app/remote/protocol.py`, pure; documented in
+  `docs/remote-agent.md`).
+  - The agent polls over HTTPS; the server never connects to a device.
+  - A one-time pairing code (15 minutes, stored hashed, rate-limited) is exchanged for a device
+    token (stored hashed) and a per-device HMAC-SHA256 key.
+  - The key is derived from the server secret and the device's key version, so the server never
+    stores it. Re-pairing rotates it.
+  - The server secret comes from `GC_AGENT_SIGNING_SECRET`, or a random key created once in the
+    data directory. It is never in source.
+- Signed run requests: one allow-listed action (`benchmark_onnx`), bounded parameters, nonce, a
+  one-hour expiry, and the approved artifact's SHA-256 and size.
+  - Only a validated ONNX model stored in the workspace can be named.
+  - Creating the request is the approval, and it is audited with the approver.
+- Signed results. The server verifies the signature, job, nonce, file hash and sample bounds, then
+  runs the measurement-quality checks (`engine/measurement_quality.py`, pure):
+  - runs, spread, outliers, drift, warm-up, timer resolution, temperature rise, duration;
+  - verdict good / usable / poor.
+  - Measured results that are not poor become measurements (source `remote_agent`, quality
+    notes attached), which feed calibration and thermal validation.
+  - Simulated results are kept and labelled, never imported.
+- The agent (`agent/gc_agent.py`): a single file, standard library only, with ONNX Runtime and
+  NumPy for real runs.
+  - It verifies signature, addressee, expiry, nonce (replay store), action allow-list, local
+    policy limits and the downloaded file's SHA-256.
+  - It runs ONNX Runtime CPU inference only, and imports no `subprocess` (it has no shell).
+  - It reads Linux thermal zones when present and never guesses temperatures.
+  - `--simulate` gives fake, deterministic timings labelled "simulated".
+  - Plain http is refused except to localhost or with an explicit flag.
+  - If ONNX Runtime refuses a newer IR version, it lowers the header field (with the `onnx`
+    package) and says so in the result.
+- Revocation invalidates the token at once and fails queued and claimed requests.
+- Tables `remote_devices` and `remote_jobs` (migration `0008_remote_agents`, additive). Both are
+  workspace-owned and removed with the workspace.
+- UI: Verify → "Run on a device":
+  - register a device and see the pairing code once, with the exact commands;
+  - device list with online / offline / waiting / revoked (icon and words) and the agent's host and
+    runtime;
+  - new pairing code and revoke;
+  - approve a run (file, precision, batch, runs, time limit, with the SHA-256 shown);
+  - run list with status, measured/simulated tag, quality verdict and checks, and the stats.
+
+Tested
+- `tests/api/test_remote_agent.py` (5) drives the real agent code through the API:
+  - pairing, including a wrong code and single use of a code;
+  - a simulated run (not imported);
+  - a real ONNX Runtime run that is quality-checked and imported as a `remote_agent` measurement;
+  - agent-side refusal of a bad signature, a foreign key, a non-allow-listed action, expiry,
+    over-policy parameters, replay, and a request tampered with on the server;
+  - server-side refusal of a bad result signature, a wrong file hash, out-of-bounds parameters and
+    a non-ONNX file;
+  - revocation;
+  - another workspace sees nothing and gets 404s;
+  - rows removed on account deletion;
+  - quality verdicts for good, few runs, noisy, drifting, coarse timer, empty and heating.
+- Route security tests: every agent route refuses anonymous calls, and a signed-in browser session
+  cannot act as a device.
+- PostgreSQL journey: register, pair, poll, revoke.
+- Playwright `device-agent.spec.ts`:
+  - register in the UI and pair the real agent process with the code shown;
+  - see the device online, approve a run and run the agent once in simulator mode;
+  - see the labelled result, then revoke, after which the agent is refused.
+- axe scans the Devices tab in both colour schemes.
+- Checked by hand: the preview server with the agent paired from a shell.
+
+Not done or not claimed
+- No real device other than this Windows laptop was used. ONNX Runtime's CPU execution provider
+  only: no GPU/NPU providers, TensorRT or vendor runtimes. The agent reads no power; import a power
+  log for that.
+- Agent results are as honest as the device running the agent. The signature proves which paired
+  agent sent them, not that the hardware matches its profile.
+
+Verification (2026-10-19)
+- `pytest -q --basetemp <scratch>`: 298 passed, 2 skipped; PostgreSQL: 2 passed.
+- `ruff` (backend and agent), `mypy app` (125 files), `tsc`, `eslint`, `vite build`: clean.
+- `npx playwright test`: 14 passed.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no

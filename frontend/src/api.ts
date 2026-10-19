@@ -493,3 +493,31 @@ export const physics = {
   evidence: (pid: number) => req<Evidence>(`/projects/${pid}/evidence`),
   calibration: (deviceId: string) => req<CalibrationQuality>(`/calibration/quality?device_id=${encodeURIComponent(deviceId)}`),
 };
+
+// --- remote device agents ------------------------------------------------------------------------
+
+export interface RemoteDevice {
+  id: number; name: string; device_id: string; status: "pending" | "paired" | "revoked"; online: boolean;
+  last_seen_at: string | null; agent_info: Record<string, string>; key_version: number; created_at: string | null;
+  pairing_expires_at: string | null; pairing_code?: string;
+}
+export interface QualityCheck { id: string; status: "pass" | "warn" | "fail"; detail: string }
+export interface RemoteJob {
+  id: number; remote_device_id: number; project_id: number; artifact_id: number;
+  status: "queued" | "claimed" | "succeeded" | "failed" | "rejected" | "expired";
+  params: { precision: string; batch: number; warmup: number; runs: number; max_seconds: number } | null;
+  artifact: { id: number; sha256: string; size_bytes: number; filename: string } | null;
+  mode: "measured" | "simulated" | null; environment: Record<string, string> | null;
+  quality: { verdict: "good" | "usable" | "poor"; checks: QualityCheck[]; stats: Record<string, number> | null } | null;
+  measurement_id: number | null; error: string | null; created_at: string | null; expires_at: string | null; finished_at: string | null;
+}
+
+export const remote = {
+  devices: () => req<RemoteDevice[]>("/remote-devices"),
+  register: (name: string, device_id: string) => req<RemoteDevice>("/remote-devices", { method: "POST", body: JSON.stringify({ name, device_id }) }),
+  pairingCode: (id: number) => req<RemoteDevice>(`/remote-devices/${id}/pairing-code`, { method: "POST" }),
+  revoke: (id: number) => req<RemoteDevice>(`/remote-devices/${id}`, { method: "DELETE" }),
+  approve: (id: number, body: { project_id: number; artifact_id: number; precision: string; batch: number; warmup: number; runs: number; max_seconds: number }) =>
+    req<RemoteJob>(`/remote-devices/${id}/jobs`, { method: "POST", body: JSON.stringify(body) }),
+  jobs: (projectId: number) => req<RemoteJob[]>(`/remote-jobs?project_id=${projectId}`),
+};

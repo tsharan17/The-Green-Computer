@@ -90,6 +90,17 @@ def test_full_journey_on_postgres(pg_url, tmp_path):
             assert c.put(f"{P}/projects/{pid}", json=spec).status_code == 200
             cool = c.get(f"{P}/projects/{pid}/cooling").json()
             assert cool["environment"]["sealed_enclosure"] and any("sealed" in " ".join(x["reasons"]) for x in cool["excluded"])
+            # Release 2 slice F: register and pair a device agent, then revoke it.
+            reg = c.post(f"{P}/remote-devices", json={"name": "pg board", "device_id": "jetson-orin-nano"}).json()
+            from fastapi.testclient import TestClient
+
+            with TestClient(app) as agent:
+                paired = agent.post(f"{P}/device-agent/pair", json={"code": reg["pairing_code"], "agent": {"hostname": "pg"}})
+                assert paired.status_code == 200, paired.text
+                tok = {"Authorization": f"Device {paired.json()['device_token']}"}
+                assert agent.get(f"{P}/device-agent/jobs/next", headers=tok).status_code == 204
+                assert c.delete(f"{P}/remote-devices/{reg['id']}").json()["status"] == "revoked"
+                assert agent.get(f"{P}/device-agent/jobs/next", headers=tok).status_code == 401
         with AuthedClient(app, email="other@x.io") as o:
             assert o.get(f"{P}/projects/{pid}").status_code == 404
             assert not [h for h in o.get(f"{P}/search", params={"q": "voice"}).json() if h["type"] == "project"]
@@ -97,7 +108,7 @@ def test_full_journey_on_postgres(pg_url, tmp_path):
             r = c.post(f"{P}/auth/account/delete", json={"password": TEST_PASSWORD, "confirm": "DELETE"})
             assert r.status_code == 200, r.text
         with sa.create_engine(pg_url).connect() as conn:
-            for t in ("projects", "design_plans", "exports", "execution_traces", "runs", "system_graphs"):
+            for t in ("projects", "design_plans", "exports", "execution_traces", "runs", "system_graphs", "remote_jobs"):
                 assert conn.execute(sa.text(f"SELECT COUNT(*) FROM {t} WHERE project_id = :p" if t != "projects"
                                             else "SELECT COUNT(*) FROM projects WHERE id = :p"), {"p": pid}).scalar() == 0
     finally:
