@@ -7,6 +7,7 @@ from app.engine.hwbuild import CustomHardwareSpec, build_custom
 from app.engine.optimise import baseline_config, optimise
 from app.engine.vendor_reports import parse_power_csv, parse_report
 from app.schemas.project import Constraints, ProjectSpec, Workload
+from tests.helpers import AuthedClient
 
 MCU = CustomHardwareSpec(
     name="Test M7", style="mcu", core_mhz=480, int8_macs_per_cycle=2, flash_kb=2048,
@@ -134,12 +135,11 @@ def test_custom_api_roundtrip(client):
 
 @pytest.fixture
 def client(tmp_path):
-    from fastapi.testclient import TestClient
 
     from app.data_loader import clear_custom_devices
     from app.main import create_app
 
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'c.db'}")) as c:
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 'c.db'}")) as c:
         yield c
     clear_custom_devices()
 

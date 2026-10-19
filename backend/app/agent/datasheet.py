@@ -91,7 +91,8 @@ def clean_extraction(raw: dict[str, Any], urls: set[str]) -> Extraction:
     """Validate what the model returned; keep only plausible, sourced values."""
     cand: dict[str, Any] = {}
     dropped: list[str] = []
-    sources = raw.get("sources") if isinstance(raw.get("sources"), dict) else {}
+    raw_sources = raw.get("sources")
+    sources: dict[str, Any] = raw_sources if isinstance(raw_sources, dict) else {}
 
     def src(name: str) -> str | None:
         u = sources.get(name)
@@ -103,7 +104,8 @@ def clean_extraction(raw: dict[str, Any], urls: set[str]) -> Extraction:
     if raw.get("kind") in ("edge_soc", "datacenter_gpu"):
         cand["kind"] = raw["kind"]
     peaks = {}
-    p = raw.get("peak_tflops") if isinstance(raw.get("peak_tflops"), dict) else {}
+    raw_p = raw.get("peak_tflops")
+    p: dict[str, Any] = raw_p if isinstance(raw_p, dict) else {}
     for prec in ("fp32", "fp16", "int8"):
         x = _num(p.get(prec), *RANGES["peak_tflops"])
         if x is not None:

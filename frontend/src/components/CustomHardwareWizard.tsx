@@ -133,7 +133,8 @@ export default function CustomHardwareWizard({
       return next;
     });
     if (prefill.source.startsWith("vivado_util") || prefill.source === "vivado_power") setStyle("fpga");
-    else if (prefill.source === "stedgeai" || prefill.source === "vela") setStyle("mcu");
+    else if (prefill.source === "stedgeai" || prefill.source === "vela" || prefill.source === "datasheet_mcu") setStyle("mcu");
+    else if (prefill.source === "datasheet") setStyle("generic");
     setOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.nonce]);

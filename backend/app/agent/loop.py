@@ -45,10 +45,13 @@ def run_turn(
     emit: Emit,
     max_tool_calls: int = 12,
     tavily_factory: Any = None,
+    workspace_id: int | None = None,
+    user_id: int | None = None,
 ) -> dict[str, Any]:
     """Run one user turn. Returns {"reply", "events", "guardrail_ok", "messages"}."""
     ctx = ToolContext(
-        db=db, project_id=project_id, llm=llm, models=models, tavily_factory=tavily_factory
+        db=db, project_id=project_id, llm=llm, models=models, tavily_factory=tavily_factory,
+        workspace_id=workspace_id, user_id=user_id,
     )
     events: list[dict[str, Any]] = []
 

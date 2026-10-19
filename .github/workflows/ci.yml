@@ -4,12 +4,21 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: backend } }
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    env:
+      GC_TEST_PG_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[dev,postgres]"
       - run: ruff check .
+      - run: mypy app
       - run: pytest -q
   frontend:
     runs-on: ubuntu-latest
@@ -19,10 +28,24 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
       - run: npm ci
+      - run: npm run lint
       - run: npm run build
+  e2e:
+    # Browser journeys (sign-up, upload, analysis, plan, comparison, export, access control,
+    # accessibility) against a server started on a throwaway database.
+    runs-on: ubuntu-latest
+    env: { E2E_CHANNEL: chromium, E2E_PYTHON: python }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e backend
+      - run: cd frontend && npm ci && npm run build && npx playwright install --with-deps chromium
+      - run: cd frontend && npx playwright test
   acceptance:
-    # Builds the UI, starts the server from a clean (non-dev) install in public-demo mode and runs
-    # the judge-style journey against it.
+    # A clean (non-dev) install in public-demo mode, driven like a first-time visitor.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

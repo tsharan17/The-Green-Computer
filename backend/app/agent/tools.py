@@ -85,6 +85,9 @@ def _pct_saving(base: float, new: float) -> float:
 class ToolContext:
     db: Session
     project_id: int
+    # The caller's workspace: every lookup is scoped to it (None only for single-user scripts).
+    workspace_id: int | None = None
+    user_id: int | None = None
     # Candidate ids ("top-1"...) from the latest optimise call, so the model refers to results
     # by id and never has to retype a configuration or a number.
     candidates: dict[str, EvaluationResult] = field(default_factory=dict)
@@ -97,7 +100,7 @@ class ToolContext:
 
     @property
     def spec(self) -> ProjectSpec:
-        p = repo.get_project(self.db, self.project_id)
+        p = repo.get_project(self.db, self.project_id, self.workspace_id)
         if p is None:
             raise ToolError("project not found")
         return p.spec
@@ -196,8 +199,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
 
 def _get_project(ctx: ToolContext, _a: dict) -> dict:
     spec = ctx.spec
-    hw = get_device(spec.device_id)
-    model = resolve_model(ctx.db, spec.model_id)
+    hw = get_device(spec.device_id, ctx.workspace_id)
+    model = resolve_model(ctx.db, spec.model_id, ctx.workspace_id)
     return {
         "project": spec.model_dump(mode="json"),
         "model": {"id": model.id, "name": model.name, "task": model.task,
@@ -209,20 +212,20 @@ def _get_project(ctx: ToolContext, _a: dict) -> dict:
     }  # fmt: skip
 
 
-def _list_devices(_c: ToolContext, _a: dict) -> dict:
+def _list_devices(ctx: ToolContext, _a: dict) -> dict:
     return {
         "devices": [
             {"id": d.id, "name": d.name, "kind": d.kind, "role": d.role,
              "precisions": [p for p, v in d.peak_tflops.items() if v > 0],
              "power_modes": [{"id": m.id, "cap_w": m.cap_w} for m in d.power_modes],
              "cooling": [c.id for c in d.cooling_options]}
-            for d in load_devices().values()
+            for d in load_devices(ctx.workspace_id).values()
         ]
     }  # fmt: skip
 
 
 def _list_models(ctx: ToolContext, _a: dict) -> dict:
-    items = [*load_models().values(), *repo.list_custom_models(ctx.db)]
+    items = [*load_models().values(), *repo.list_custom_models(ctx.db, ctx.workspace_id)]
     return {
         "models": [
             {"id": m.id, "name": m.name, "task": m.task, "params_m": sig(m.params_m),
@@ -248,7 +251,8 @@ def _update_project_spec(ctx: ToolContext, a: dict) -> dict:
         if k in a:
             data[k] = a[k]
     if "device_id" in a and "cooling_id" not in a:
-        data["cooling_id"] = get_device(a["device_id"]).default_cooling if a["device_id"] in load_devices() else None
+        devs = load_devices(ctx.workspace_id)
+        data["cooling_id"] = devs[a["device_id"]].default_cooling if a["device_id"] in devs else None
         data["baseline"] = None  # a baseline from another device would not be valid here
     if "baseline" in a:
         data["baseline"] = a["baseline"]
@@ -259,10 +263,11 @@ def _update_project_spec(ctx: ToolContext, a: dict) -> dict:
         data["workload"] = {**data["workload"], **a["workload"]}
     try:
         new = ProjectSpec.model_validate(data)
-        validate_refs(ctx.db, new)
+        validate_refs(ctx.db, new, ctx.workspace_id)
     except (SpecError, ValueError) as e:
         raise ToolError(str(e)) from e
-    repo.update_project(ctx.db, ctx.project_id, new)
+    repo.update_project(ctx.db, ctx.project_id, new, ctx.workspace_id, ctx.user_id,
+                        note="changed by the Green Agent at the user's request")  # fmt: skip
     ctx.candidates.clear()
     ctx.last_optimisation = None
     return {"updated": True, "project": new.model_dump(mode="json")}
@@ -276,14 +281,15 @@ def _evaluate(ctx: ToolContext, a: dict) -> dict:
         except ValueError as e:
             raise ToolError(f"invalid config: {e}") from e
     try:
-        r = svc.evaluate_project(ctx.db, ctx.project_id, ctx.spec, cfg)
+        r = svc.evaluate_project(ctx.db, ctx.project_id, ctx.spec, cfg, ctx.workspace_id,
+                                 ctx.user_id)  # fmt: skip
     except (ValueError, KeyError) as e:
         raise ToolError(str(e)) from e
     return summarise(r)
 
 
 def _optimise(ctx: ToolContext, _a: dict) -> dict:
-    res = svc.optimise_project(ctx.db, ctx.project_id, ctx.spec)
+    res = svc.optimise_project(ctx.db, ctx.project_id, ctx.spec, ctx.workspace_id, ctx.user_id)
     ctx.last_optimisation = res
     ctx.candidates = {f"top-{i + 1}": r for i, r in enumerate(res.top)}
     base_e = res.baseline.metrics["energy_per_inference"].value
@@ -388,7 +394,7 @@ def _get_candidate(ctx: ToolContext, a: dict) -> dict:
 
 def _calibration_status(ctx: ToolContext, _a: dict) -> dict:
     spec = ctx.spec
-    v = ms.verify(ctx.db, spec.device_id)
+    v = ms.verify(ctx.db, spec.device_id, ctx.workspace_id)
     if not v.summaries:
         return {
             "device_id": spec.device_id,
@@ -414,14 +420,14 @@ def _submit_benchmark(ctx: ToolContext, a: dict) -> dict:
         batches=tuple(a.get("batches") or (1, 8, 32)),
     )  # fmt: skip
     try:
-        return bench.submit(ctx.db, spec)
+        return bench.submit(ctx.db, spec, ws=ctx.workspace_id)
     except JobsError as e:
         raise ToolError(str(e)) from e
 
 
 def _get_benchmark(ctx: ToolContext, a: dict) -> dict:
     try:
-        return bench.refresh(ctx.db, int(a["benchmark_id"]))
+        return bench.refresh(ctx.db, int(a["benchmark_id"]), ws=ctx.workspace_id)
     except (JobsError, KeyError, ValueError) as e:
         raise ToolError(str(e)) from e
 
@@ -450,7 +456,7 @@ def _import_hardware(ctx: ToolContext, a: dict) -> dict:
         ex = extract_hardware_spec(ctx.llm, ctx.models.for_task("fast"), name, hits)
     except (tv.TavilyError, DatasheetError) as e:
         raise ToolError(str(e)) from e
-    draft = hardware_service.store_draft(ctx.db, name, ex, [h.url for h in hits])
+    draft = hardware_service.store_draft(ctx.db, name, ex, [h.url for h in hits], ctx.workspace_id)
     return {
         "draft_id": draft["id"],
         "status": "draft: NOT usable until the user confirms it in the app",

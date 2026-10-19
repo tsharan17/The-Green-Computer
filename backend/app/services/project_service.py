@@ -13,9 +13,11 @@ class SpecError(ValueError):
     """The project spec refers to something that does not exist or is unsupported."""
 
 
-def validate_refs(db: Session, spec: ProjectSpec) -> None:
-    devices = load_devices()
-    if spec.model_id not in load_models() and repo.get_custom_model(db, spec.model_id) is None:
+def validate_refs(db: Session, spec: ProjectSpec, workspace_id: int | None = None) -> None:
+    devices = load_devices(workspace_id)
+    if spec.model_id not in load_models() and repo.get_custom_model(
+        db, spec.model_id, workspace_id
+    ) is None:
         raise SpecError(f"unknown model '{spec.model_id}'")
     if spec.device_id not in devices:
         raise SpecError(f"unknown device '{spec.device_id}'")

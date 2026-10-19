@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from app.agent.client import LLMError
 from app.agent.datasheet import DatasheetError, extract_hardware_spec
 from app.api.v1.agent import _llm, _models
-from app.api.v1.routes import get_db
+from app.auth.deps import Ctx, get_db, require_writer
 from app.data_loader import load_devices, load_models
 from app.db import repository as repo
 from app.engine.hwbuild import CustomHardwareSpec, build_custom
@@ -75,23 +75,23 @@ def _structured(text: str, name: str) -> dict[str, Any]:
     return doc
 
 
-def _import_project(db: Session, doc: dict[str, Any]) -> dict[str, Any]:
+def _import_project(db: Session, doc: dict[str, Any], ws: int) -> dict[str, Any]:
     """Turn a greencomputer.yaml into a project spec the UI can load (and create hardware)."""
     warnings: list[str] = []
     created = None
     doc = dict(doc)
     if "custom" in doc:
         cap = max_custom_items()
-        if cap and len(hw.list_drafts(db)) >= cap:
-            raise HTTPException(503, "This demo has reached its limit of custom devices.")
+        if cap and len(hw.list_drafts(db, ws)) >= cap:
+            raise HTTPException(503, "This workspace has reached its limit of custom devices.")
         try:
-            created = hw.register_custom(db, CustomHardwareSpec.model_validate(doc.pop("custom")))
+            created = hw.register_custom(db, CustomHardwareSpec.model_validate(doc.pop("custom")), ws)
         except ValidationError as e:
             raise HTTPException(422, f"custom hardware: {e.errors()[0]['msg']}") from e
         doc["device"] = created.id
         warnings.append(f"Created your hardware '{created.name}'.")
     model_ref = doc.get("model")
-    custom_ids = {m.id for m in repo.list_custom_models(db)}
+    custom_ids = {m.id for m in repo.list_custom_models(db, ws)}
     real_model = model_ref if isinstance(model_ref, str) and (
         model_ref in load_models() or model_ref in custom_ids
     ) else None
@@ -102,8 +102,11 @@ def _import_project(db: Session, doc: dict[str, Any]) -> dict[str, Any]:
             "ONNX file first, then import the project file with its model name.",
         )
     probe = {**doc, "model": "mobilenet-v2"} if real_model in custom_ids else doc
+    device_ref = doc.get("device")
+    if isinstance(device_ref, str) and device_ref.startswith("custom-") and device_ref not in load_devices(ws):
+        raise HTTPException(422, f"device '{device_ref}' is not in this workspace")
     try:
-        p = load_project(probe)
+        p = load_project(probe, ws)
     except ProjectFileError as e:
         raise HTTPException(422, str(e)) from e
     spec = p.spec.model_copy(update={"model_id": real_model})
@@ -117,7 +120,9 @@ async def inspect_file(
     filename: str = Query(min_length=1, max_length=200),
     supply_v: float | None = Query(None, gt=0),
     db: Session = Depends(get_db),
+    ctx: Ctx = Depends(require_writer),
 ) -> dict[str, Any]:
+    ws = ctx.workspace_id
     data = await request.body()
     if len(data) > MAX_FILE_BYTES:
         raise HTTPException(413, f"file too large (limit {MAX_FILE_BYTES // 1024 // 1024} MB)")
@@ -141,7 +146,7 @@ async def inspect_file(
             ) from e
         except DatasheetError as e:
             raise HTTPException(422, str(e)) from e
-        draft = hw.store_draft(db, filename.rsplit(".", 1)[0], ex, [f"uploaded:{filename}"])
+        draft = hw.store_draft(db, filename.rsplit(".", 1)[0], ex, [f"uploaded:{filename}"], ws)
         return {"kind": "datasheet", "draft": draft}
 
     text = data.decode("utf-8", errors="replace")
@@ -158,7 +163,7 @@ async def inspect_file(
             return {"kind": "hardware_spec", "spec": spec.model_dump(mode="json", exclude_none=True),
                     "preview": preview.model_dump(mode="json")}  # fmt: skip
         if "model" in doc and ("device" in doc or "custom" in doc):
-            return _import_project(db, doc)
+            return _import_project(db, doc, ws)
         if {"peak_tflops", "power_modes", "cooling_options"} <= doc.keys():
             try:
                 prof = HardwareProfile.model_validate(doc)
@@ -197,10 +202,10 @@ async def inspect_file(
 
 @router.post("/hardware/profile", status_code=201, response_model=HardwareProfile)
 def register_profile(
-    body: HardwareProfile, db: Session = Depends(get_db)
+    body: HardwareProfile, db: Session = Depends(get_db), ctx: Ctx = Depends(require_writer)
 ) -> HardwareProfile:
     """Register a full device profile the user uploaded (after seeing what it contains)."""
     if body.id in load_devices() and not body.id.startswith("custom-"):
         raise HTTPException(409, f"'{body.id}' is a built-in device; choose another id")
     prof = body if body.id.startswith("custom-") else body.model_copy(update={"id": f"custom-{body.id}"})
-    return hw.register_profile(db, prof)
+    return hw.register_profile(db, prof, ctx.workspace_id)

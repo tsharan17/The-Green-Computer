@@ -9,11 +9,11 @@ import json
 import zipfile
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.agent.client import ChatReply, ToolCall
 from app.integrations.tavily import SearchHit
 from app.main import create_app
+from tests.helpers import AuthedClient
 
 P = "/api/v1"
 
@@ -58,7 +58,7 @@ class Brain:
 @pytest.fixture()
 def app(tmp_path, monkeypatch):
     monkeypatch.setenv("TOKEN_FACTORY_API_KEY", "k")
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'journey.db'}")) as c:
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 'journey.db'}")) as c:
         c.app.state.llm_factory = lambda: Brain()
         c.app.state.tavily_factory = lambda: Tavily()
         yield c
@@ -125,7 +125,7 @@ def test_the_whole_journey(app):
 
     # 9. Everything survives a restart of the server (same database).
     url = str(c.app.state.session_factory.kw["bind"].url)
-    with TestClient(create_app(url)) as c2:
+    with AuthedClient(create_app(url)) as c2:
         assert c2.get(f"{P}/projects/{pid}").status_code == 200
         assert any(x["id"] == dev["id"] for x in c2.get(f"{P}/hardware/library").json())
         assert c2.get(f"{P}/projects/{pid}/report").status_code == 200

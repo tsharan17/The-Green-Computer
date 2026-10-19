@@ -1,14 +1,14 @@
 import pytest
-from fastapi.testclient import TestClient
 
 from app.main import create_app
+from tests.helpers import AuthedClient
 
 P = "/api/v1"
 
 
 @pytest.fixture()
 def client(tmp_path):
-    with TestClient(create_app(f"sqlite:///{tmp_path / 't.db'}")) as c:
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 't.db'}")) as c:
         yield c
 
 

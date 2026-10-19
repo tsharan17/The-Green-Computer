@@ -30,15 +30,54 @@ def load_dotenv(paths: list[Path] | None = None) -> None:
                 os.environ[key] = value
 
 
+def _flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 @dataclass(frozen=True)
 class Settings:
     db_url: str
     api_prefix: str = "/api/v1"
+    # development | production. Development shows password-reset links in the API response
+    # (there is no mail server); production never does.
+    environment: str = "development"
+    # Where uploaded files are kept (blob store). Default: next to a SQLite file, else ./gc_data.
+    data_dir: str | None = None
+    session_days: int = 14
+    cookie_secure: bool = False
+    # Base URL used in emails (password reset links).
+    public_url: str = "http://localhost:8000"
+    auto_migrate: bool = True
+    # Extra browser origins allowed to call the API with a session cookie (the Vite dev server).
+    allowed_origins: tuple[str, ...] = ()
+    allow_signup: bool = True
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment == "production"
 
 
 def get_settings() -> Settings:
     load_dotenv()
-    return Settings(db_url=os.environ.get("GC_DB_URL", "sqlite:///./green_computer.db"))
+    env = os.environ.get
+    environment = (env("GC_ENV") or "development").strip().lower()
+    origins = tuple(o.strip() for o in (env("GC_ALLOWED_ORIGINS") or "").split(",") if o.strip())
+    if environment != "production":
+        origins += ("http://localhost:5173", "http://127.0.0.1:5173")
+    return Settings(
+        db_url=env("GC_DB_URL", "sqlite:///./green_computer.db"),
+        environment=environment,
+        data_dir=env("GC_DATA_DIR") or None,
+        session_days=int(env("GC_SESSION_DAYS") or 14),
+        cookie_secure=_flag("GC_COOKIE_SECURE", environment == "production"),
+        public_url=(env("GC_PUBLIC_URL") or "http://localhost:8000").rstrip("/"),
+        auto_migrate=_flag("GC_AUTO_MIGRATE", True),
+        allowed_origins=origins,
+        allow_signup=_flag("GC_ALLOW_SIGNUP", True),
+    )
 
 
 # --- LLM provider (Nebius Token Factory by default; any OpenAI-compatible endpoint works) -----

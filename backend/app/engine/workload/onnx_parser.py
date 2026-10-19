@@ -115,9 +115,18 @@ def parse_onnx(
     seen_init: set[str] = set()
     layers: list[Layer] = []
     pending_flops = 0.0
+    # Tensor wiring for lifetimes: in-place (fused elementwise) and view ops alias their output to
+    # an existing buffer, so they never allocate.
+    alias: dict[str, str] = {}
+    pending_inputs: list[str] = []
 
     def elems(t: str) -> int:
         return _prod(shapes[t]) if t in shapes else 0
+
+    def canon(t: str) -> str:
+        while t in alias:
+            t = alias[t]
+        return t
 
     for idx, node in enumerate(g.node):
         op = node.op_type
@@ -125,14 +134,26 @@ def parse_onnx(
         ins = [i for i in node.input if i]
         out_e = sum(elems(o) for o in outs)
 
+        acts = [canon(i) for i in ins if i not in init_names]
         if op in VIEW_OPS:
+            if acts:
+                for o in outs:
+                    alias[o] = acts[0]
             continue
         if op in FUSED_ELEMENTWISE:
             f = float(out_e)
             if layers:
                 layers[-1].flops += f
+                last = layers[-1]
+                last.in_tensors.extend(
+                    a for a in acts if a not in last.in_tensors and a not in last.out_tensors
+                )
             else:
                 pending_flops += f
+                pending_inputs.extend(acts)
+            if acts:
+                for o in outs:
+                    alias[o] = acts[0]
             continue
 
         act_in = sum(elems(i) for i in ins if i not in init_names)
@@ -179,8 +200,11 @@ def parse_onnx(
             flops=2.0 * macs + pending_flops,
             params=params,
             act_elems=float(act_in + out_e),
+            in_tensors=list(dict.fromkeys([*pending_inputs, *acts])),
+            out_tensors=list(outs),
         )
         pending_flops = 0.0
+        pending_inputs = []
         layers.append(layer)
 
     if not layers:
@@ -191,6 +215,11 @@ def parse_onnx(
     total_act = sum(layer.act_elems for layer in layers)
     first_input = next((vi for vi in g.input if vi.name not in init_names), None)
     in_shape = shapes.get(first_input.name) if first_input else None
+    produced = {t for layer in layers for t in layer.out_tensors}
+    used = {t for layer in layers for t in layer.in_tensors}
+    tensors = {t: float(elems(t)) for t in produced | used}
+    graph_inputs = [vi.name for vi in g.input if vi.name not in init_names]
+    graph_outputs = list(dict.fromkeys(canon(vi.name) for vi in g.output))
 
     profile = ModelProfile(
         id="",  # assigned on storage
@@ -206,6 +235,9 @@ def parse_onnx(
         fidelity="graph",
         resolution_scalable=bool(in_shape and len(in_shape) == 4),
         layers=layers,
+        tensors=tensors,
+        graph_inputs=graph_inputs,
+        graph_outputs=graph_outputs,
         notes="Parsed from ONNX at batch 1. Elementwise ops assumed fused.",
     )
     # De-duplicate repeated warnings.

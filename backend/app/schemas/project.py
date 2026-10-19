@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -46,3 +47,8 @@ class ProjectSpec(BaseModel):
 class ProjectOut(BaseModel):
     id: int
     spec: ProjectSpec
+    version: int = 1
+    workspace_id: int | None = None
+    archived: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

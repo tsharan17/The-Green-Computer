@@ -114,7 +114,7 @@ def _model(ref: Any, base: Path) -> ModelProfile:
     return parsed.profile
 
 
-def _device(data: dict[str, Any]) -> HardwareProfile:
+def _device(data: dict[str, Any], workspace_id: int | None = None) -> HardwareProfile:
     if "custom" in data:
         try:
             return build_custom(CustomHardwareSpec.model_validate(data["custom"]), "custom-project")
@@ -124,17 +124,17 @@ def _device(data: dict[str, Any]) -> HardwareProfile:
     if not isinstance(dev, str):
         raise ProjectFileError("give `device:` (a library id, see `gc devices`) or a `custom:` block")
     try:
-        return get_device(dev)
+        return get_device(dev, workspace_id)
     except KeyError:
         raise ProjectFileError(
-            f"unknown device '{dev}'. Known: {', '.join(sorted(load_devices()))}"
+            f"unknown device '{dev}'. Known: {', '.join(sorted(load_devices(workspace_id)))}"
         ) from None
 
 
-def load_project(source: str | Path | dict[str, Any]) -> Project:
+def load_project(source: str | Path | dict[str, Any], workspace_id: int | None = None) -> Project:
     data, base = _read(source)
     model = _model(data.get("model"), base)
-    hw = _device(data)
+    hw = _device(data, workspace_id)
     try:
         wl = Workload.model_validate(data.get("workload", {}))
         cons = Constraints.model_validate(data.get("requirements", {}))

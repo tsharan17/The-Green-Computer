@@ -6,23 +6,33 @@ import zipfile
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 from app.agent.client import ChatReply, ToolCall
 from app.agent.datasheet import clean_extraction
-from app.agent.loop import run_turn
+from app.agent.loop import run_turn as _run_turn
 from app.agent.router import ResolvedModels
 from app.agent.tools import TOOL_SCHEMAS
 from app.integrations.tavily import SearchHit, TavilyClient, TavilyError
 from app.main import create_app
+from tests.helpers import AuthedClient
 
 P = "/api/v1"
 
 
 @pytest.fixture()
 def client(tmp_path):
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'd.db'}")) as c:
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 'd.db'}")) as c:
+        _WS[0] = c.me["active_workspace_id"]
         yield c
+
+
+_WS: list[int | None] = [None]
+
+
+def run_turn(*a, **kw):
+    """Run the agent as the signed-in test user's workspace (as the API does)."""
+    kw.setdefault("workspace_id", _WS[0])
+    return _run_turn(*a, **kw)
 
 
 def pid(c):
@@ -186,13 +196,13 @@ def test_user_can_reject_and_manual_entry_uses_the_same_gate(hw_client):
 
 def test_confirmed_devices_survive_a_restart(tmp_path, monkeypatch):
     url = f"sqlite:///{tmp_path / 'r.db'}"
-    with TestClient(create_app(url)) as c:
+    with AuthedClient(create_app(url)) as c:
         d = c.post(f"{P}/hardware/manual", json={"name": "Keep Me", "peak_tflops": {"fp16": 3.0},
                                                  "mem_bw_gbs": 50, "mem_gb": 4, "tdp_w": 12}).json()
         c.post(f"{P}/hardware/drafts/{d['id']}/confirm", json={})
-    with TestClient(create_app(url)) as c2:
+    with AuthedClient(create_app(url)) as c2:
         assert any(x["id"] == "custom-hw-keep-me" for x in c2.get(f"{P}/hardware/library").json())
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'other.db'}")) as c3:  # another db: no leak
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 'other.db'}")) as c3:  # another db: no leak
         assert all(not x["id"].startswith("custom-hw") for x in c3.get(f"{P}/hardware/library").json())
 
 

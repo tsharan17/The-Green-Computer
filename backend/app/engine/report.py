@@ -47,6 +47,8 @@ def build_report_md(
     a = out.append
     a(f"# The Green Computer report: {model.name} on {hw.name}")
     a("")
+    a(f"Project: {spec.name}")
+    a("")
     if generated_at:
         a(f"_Generated {generated_at:%Y-%m-%d %H:%M} UTC from the stored analysis. Engine "
           f"{res.baseline.engine_version}._")
@@ -102,31 +104,31 @@ def build_report_md(
     a("## 4. Recommendations")
     a("")
     for tier, title in TIER_TITLES.items():
-        items = [x for x in res.advice if x.tier == tier]
+        items = [adv for adv in res.advice if adv.tier == tier]
         if not items:
             continue
         a(f"### {title}")
         a("")
-        for x in items:
-            a(f"- **{x.title}** ({x.gain}; confidence {x.confidence}; effort {x.effort})")
-            a(f"  - Do: {x.action}")
-            a(f"  - Why: {x.why}")
-            for t in x.tradeoffs:
+        for adv in items:
+            a(f"- **{adv.title}** ({adv.gain}; confidence {adv.confidence}; effort {adv.effort})")
+            a(f"  - Do: {adv.action}")
+            a(f"  - Why: {adv.why}")
+            for t in adv.tradeoffs:
                 a(f"  - Trade-off: {t}")
-            a(f"  - How sure: {x.confidence_reason}")
-            if x.validate_steps:
-                a("  - Check it: " + "; ".join(x.validate_steps))
+            a(f"  - How sure: {adv.confidence_reason}")
+            if adv.validate_steps:
+                a("  - Check it: " + "; ".join(adv.validate_steps))
         a("")
     a("## 5. Other models and hardware")
     a("")
     if res.alternatives:
         a("| Option | Result | Power | Latency | Energy saving | Accuracy vs current |")
         a("|---|---|---|---|---|---|")
-        for x in res.alternatives:
-            acc = f"{x.accuracy_retention * 100:.0f}%" if x.accuracy_retention else "n/a"
-            sav = f"{x.energy_saving_percent:.0f}% (vs {x.compared_with})" if x.energy_saving_percent is not None else "n/a"
-            a(f"| {_cell(x.name)} | {x.feasibility.value.replace('_', ' ')} | {x.power_w:.1f} W | "
-              f"{x.latency_ms:.0f} ms | {sav} | {acc} |")
+        for alt in res.alternatives:
+            acc = f"{alt.accuracy_retention * 100:.0f}%" if alt.accuracy_retention else "n/a"
+            sav = f"{alt.energy_saving_percent:.0f}% (vs {alt.compared_with})" if alt.energy_saving_percent is not None else "n/a"
+            a(f"| {_cell(alt.name)} | {alt.feasibility.value.replace('_', ' ')} | {alt.power_w:.1f} W | "
+              f"{alt.latency_ms:.0f} ms | {sav} | {acc} |")
     else:
         a("No alternatives were evaluated.")
     a("")

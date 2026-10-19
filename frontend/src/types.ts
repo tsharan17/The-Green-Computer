@@ -298,6 +298,107 @@ export interface ProjectSpec {
 export interface ProjectOut {
   id: number;
   spec: ProjectSpec;
+  version: number;
+  workspace_id: number | null;
+  archived: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface Workspace {
+  id: number;
+  name: string;
+  personal: boolean;
+  legacy: boolean;
+  role: "owner" | "editor" | "viewer";
+}
+
+export interface Me {
+  user: { id: number; email: string; display_name: string; created_at: string };
+  workspaces: Workspace[];
+  active_workspace_id: number | null;
+  role: string | null;
+}
+
+export interface AuthConfig {
+  signup_allowed: boolean;
+  environment: string;
+  email_delivery: string;
+  password_min_length: number;
+  demo_mode: boolean;
+}
+
+export interface VersionItem {
+  id: number;
+  version: number;
+  spec: ProjectSpec;
+  note: string;
+  created_by: number | null;
+  created_at: string;
+}
+
+export interface RunItem {
+  id: number;
+  kind: string;
+  engine_version: string;
+  version: number | null;
+  created_at: string;
+  user_id: number | null;
+  summary: Record<string, unknown>;
+}
+
+export interface AuditItem {
+  id: number;
+  action: string;
+  target_type: string;
+  target_id: string;
+  detail: Record<string, unknown>;
+  user_id: number | null;
+  created_at: string;
+}
+
+export interface ArtifactItem {
+  id: number;
+  kind: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  sha256: string;
+  status: "valid" | "invalid" | "needs_review" | "unsupported";
+  validation: Record<string, unknown>;
+  project_id: number | null;
+  stored: boolean;
+  uploaded_by: number | null;
+  created_at: string;
+}
+
+export interface UsageSummary {
+  period_start: string;
+  this_period: Record<string, number>;
+  all_time: Record<string, number>;
+  units: Record<string, string>;
+  storage_bytes_in_use: number;
+  platform_cost: {
+    rates: Record<string, number>;
+    currency: string;
+    lines: Record<string, number>;
+    total: number;
+    configured: boolean;
+    note: string;
+  };
+  device_energy_note: string;
+}
+
+export interface SessionItem {
+  id: number;
+  kind: string;
+  label: string;
+  user_agent: string;
+  ip: string;
+  created_at: string;
+  last_seen_at: string;
+  expires_at: string;
+  current: boolean;
 }
 
 export interface ModelProfile {
@@ -327,15 +428,21 @@ export interface HardwareProfile {
   verified?: boolean;
   kind: string;
   role: string;
-  mem_gb?: number;
+  mem_gb: number;
   idle_w: number;
-  mem_bw_gbs?: number;
+  mem_bw_gbs: number;
+  dyn_w_max?: number;
+  mem_w_max?: number;
+  leak_w_25c?: number;
+  t_throttle_c?: number;
+  t_shutdown_c?: number;
   weights_mem_gb?: number | null;
+  onchip_weights_mb?: number | null;
   notes?: string;
   sources?: Record<string, string>;
   extras?: Record<string, number | string>;
-  cooling_options: { id: string; name: string }[];
-  power_modes: { id: string; name: string; cap_w: number }[];
+  cooling_options: { id: string; name: string; r_th_k_per_w: number; fan_w: number; c_th_j_per_k?: number }[];
+  power_modes: { id: string; name: string; cap_w: number; freq_scale?: number; mem_scale?: number }[];
   peak_tflops: Record<string, number>;
   default_cooling: string;
 }
@@ -438,4 +545,193 @@ export interface ReportParse {
   power_w_idle?: number;
   power_w_peak?: number;
   samples?: number;
+}
+
+export interface FileFormat {
+  id: string;
+  name: string;
+  extensions: string[];
+  status: "supported" | "planned" | "unsupported";
+  gives: string;
+  required: string;
+}
+
+export interface FormatCatalogue {
+  model: FileFormat[];
+  categories: { id: string; name: string; kinds: string[]; examples: string; formats: FileFormat[] }[];
+  max_bytes: Record<string, number>;
+}
+
+export interface IntakeReport {
+  // onnx
+  inputs?: { name: string; dtype: string; shape: (number | string)[] }[];
+  outputs?: { name: string; dtype: string; shape: (number | string)[] }[];
+  opsets?: Record<string, number>;
+  n_nodes?: number;
+  op_histogram?: Record<string, number>;
+  producer?: string;
+  // device profile
+  ok?: boolean;
+  errors?: string[];
+  warnings?: string[];
+  notes?: string[];
+  profile?: Record<string, unknown> | null;
+  // elf
+  machine?: string;
+  flash_bytes?: number;
+  ram_bytes?: number;
+  sections?: { name: string; size: number; region: string }[];
+  checks?: { name: string; used_kb: number; limit_kb: number; share: number; status: string }[];
+  device?: string;
+  note?: string;
+  // datasheet
+  scanned_pages?: number[];
+  ocr?: { available: boolean; detail: string; pages_read: number[] } | null;
+  candidates?: { field: string; value: number; unit: string; qualifier: string | null; page: number; line: string }[];
+  // power / vendor report
+  power_w_active?: number;
+  power_w_idle?: number;
+  tool?: string;
+  fields?: Record<string, number>;
+}
+
+export interface IntakeResult {
+  artifact_id: number | null;
+  kind: string;
+  status: "valid" | "invalid" | "needs_review" | "unsupported";
+  message: string;
+  required?: string;
+  format?: FileFormat;
+  model?: ModelProfile;
+  report?: IntakeReport;
+  warnings?: string[];
+  spec?: Record<string, unknown>;
+  project?: { spec: ProjectSpec; hardware_created: string | null; warnings: string[] };
+  needs_dynamic_dim?: boolean;
+  records?: Record<string, unknown>[];
+}
+
+export interface Capability {
+  group: string;
+  id: string;
+  name: string;
+  status: "available" | "needs_credential" | "unavailable" | "disabled" | "planned";
+  detail: string;
+  enable: string;
+  location?: string;
+  measures?: string[];
+}
+
+export interface PlanChange {
+  id: string;
+  kind: "config" | "model" | "device" | "design" | "cooling";
+  tier: string;
+  title: string;
+  params: Record<string, unknown>;
+  risk: string;
+  confidence: string;
+  directional: boolean;
+}
+
+export interface MetricJson { value: number; unit: string; low: number; high: number; provenance: string }
+
+export interface ScenarioView {
+  label: string;
+  feasibility: string;
+  bottleneck: string;
+  throttled: boolean;
+  checks: { name: string; status: string; limit: number; unit: string; pessimistic: number }[];
+  notes: string[];
+  metrics: Record<string, MetricJson>;
+  parameters: Record<string, string | number>;
+  config: Config;
+}
+
+export interface DiffRows {
+  parameters: { name: string; unit: string; baseline: string | number; plan: string | number; changed: boolean }[];
+  metrics: { name: string; unit: string; baseline: MetricJson; plan: MetricJson; change_percent: number | null; better: boolean | null; provenance_changed: boolean }[];
+}
+
+export interface PlanAnalysis {
+  source_run_id: number;
+  project_version: number;
+  changes: PlanChange[];
+  baseline: ScenarioView;
+  singles: { change: PlanChange; view: ScenarioView; notes: string[]; diff: DiffRows }[];
+  plan: ScenarioView;
+  diff: DiffRows;
+  applied: { model_id: string; device_id: string; config: Config; hardware_changes: Record<string, unknown>; notes: string[]; applied: string[]; skipped: string[] };
+  accuracy: string;
+  risks: { change: string; risk: string; confidence: string }[];
+  directional: string[];
+  summary: Record<string, unknown>;
+}
+
+export interface SavedPlan {
+  id: number;
+  name: string;
+  version: number;
+  note: string;
+  changes: { id: string; title: string; kind: string }[];
+  summary: Record<string, { baseline: number; plan: number; change_percent: number | null } | string>;
+  project_version: number | null;
+  created_at: string;
+  analysis?: PlanAnalysis;
+}
+
+export interface ExportCatalogItem {
+  kind: string;
+  name: string;
+  label: "generated_validated" | "generated" | "template";
+  label_text: string;
+  needs_plan: boolean;
+  needs_upload?: boolean;
+  available: boolean;
+  reason: string | null;
+}
+
+export interface ExportItem {
+  id: number;
+  kind: string;
+  filename: string;
+  label: string;
+  label_text: string;
+  size_bytes: number;
+  sha256: string;
+  plan_id: number | null;
+  validation: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface CoolingRow {
+  id: string;
+  change_id: string | null;
+  name: string;
+  type: string;
+  r_th_k_per_w: number;
+  active_w: number;
+  temperature_c: number;
+  unthrottled_c: number;
+  throttled: boolean;
+  clock_factor: number;
+  power_w: number;
+  energy_mj: number;
+  feasibility: string;
+  meets_requirements: boolean;
+  operational_kgco2e_per_year: number;
+  embodied_kgco2e_per_year: number;
+  lifetime_kgco2e_per_year: number;
+  electricity_kwh_per_year: number;
+  cost_usd: { low: number; high: number } | null;
+  noise_dba: number | null;
+  materials: string;
+  recyclability: string | null;
+  maintainability: string;
+  lifetime_years: number | null;
+  confidence: string;
+  source: string;
+  r_th_range: { low: number; typical: number; high: number } | null;
+  modifier: boolean;
+  rating: string;
+  explanation: string;
 }

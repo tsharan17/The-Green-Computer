@@ -12,8 +12,10 @@ Exit code 0 = every non-skipped step passed.
 
 from __future__ import annotations
 
+import http.cookiejar
 import io
 import json
+import secrets
 import sys
 import urllib.error
 import urllib.request
@@ -22,14 +24,20 @@ import zipfile
 BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000").rstrip("/")
 API = BASE + "/api/v1"
 results: list[tuple[str, str, str]] = []
+# A throwaway account per run: the session cookie lives in this jar, and the account is deleted
+# again at the end, so running the check leaves nothing behind on the server.
+JAR = http.cookiejar.CookieJar()
+OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(JAR))
+EMAIL = f"acceptance-{secrets.token_hex(4)}@example.com"
+PASSWORD = "acceptance " + secrets.token_hex(8)
 
 
 def call(method: str, path: str, body=None, raw: bool = False, timeout: float = 90.0):
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(API + path, data=data, method=method,
-                                 headers={"Content-Type": "application/json"})  # fmt: skip
+                                 headers={"Content-Type": "application/json", "X-GC-CSRF": "1"})  # fmt: skip
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with OPENER.open(req, timeout=timeout) as r:
             payload = r.read()
             return r.status, (payload if raw else json.loads(payload.decode() or "null")), r.headers
     except urllib.error.HTTPError as e:
@@ -65,6 +73,12 @@ def main() -> int:
                 f"v{health.get('version')} demo_mode={health.get('demo_mode')}" if health else ""):  # fmt: skip
         return 1
     agent_on = bool(health["agent"]["configured"])
+
+    code, _, _ = call("GET", "/projects")
+    step("data needs an account", code == 401)
+    code, me, _ = call("POST", "/auth/signup", {"email": EMAIL, "password": PASSWORD})
+    if not step("a visitor can create an account", code == 201 and bool(me), EMAIL):
+        return 1
 
     code, projects, _ = call("GET", "/projects")
     tpl = next((p for p in projects or [] if p["spec"]["name"].startswith("Example")), None)
@@ -144,6 +158,8 @@ def main() -> int:
     else:
         step("GPU benchmark launch is reachable", code in (200, 202, 422), f"HTTP {code}")
 
+    code, _, _ = call("POST", "/auth/account/delete", {"password": PASSWORD, "confirm": "DELETE"})
+    step("the account and its data can be deleted", code == 200)
     failed = [r for r in results if r[0] == "FAIL"]
     print(f"\n{sum(r[0] == 'PASS' for r in results)} passed, {len(failed)} failed, "
           f"{sum(r[0] == 'SKIP' for r in results)} skipped")  # fmt: skip

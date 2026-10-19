@@ -3,12 +3,12 @@
 import json
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.agent.client import ChatReply, LLMError, ToolCall
-from app.agent.loop import run_turn
+from app.agent.loop import run_turn as _run_turn
 from app.agent.router import ResolvedModels
 from app.main import create_app
+from tests.helpers import AuthedClient
 
 P = "/api/v1"
 MODELS = ResolvedModels(
@@ -55,8 +55,18 @@ class ScriptedLLM:
 
 @pytest.fixture()
 def client(tmp_path):
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'a.db'}")) as c:
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 'a.db'}")) as c:
+        _WS[0] = c.me["active_workspace_id"]
         yield c
+
+
+_WS: list[int | None] = [None]
+
+
+def run_turn(*a, **kw):
+    """Run the agent as the signed-in test user's workspace (as the API does)."""
+    kw.setdefault("workspace_id", _WS[0])
+    return _run_turn(*a, **kw)
 
 
 @pytest.fixture()

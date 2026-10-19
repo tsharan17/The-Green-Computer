@@ -13,3 +13,6 @@ backend/app/static/
 bench/models/
 bench/variants/
 bench/*.json
+gc_data/
+frontend/test-results/
+frontend/playwright-report/

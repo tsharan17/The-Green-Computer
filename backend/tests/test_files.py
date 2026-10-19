@@ -2,17 +2,17 @@ import json
 
 import pytest
 import yaml
-from fastapi.testclient import TestClient
 
 from app.data_loader import clear_custom_devices
 from app.main import create_app
+from tests.helpers import AuthedClient
 
 P = "/api/v1"
 
 
 @pytest.fixture
 def client(tmp_path):
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'f.db'}")) as c:
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 'f.db'}")) as c:
         yield c
     clear_custom_devices()
 

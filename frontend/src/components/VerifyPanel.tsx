@@ -89,7 +89,7 @@ export default function VerifyPanel({
     setMsg(null);
     try {
       const params: Record<string, string> = {};
-      if (importFormat !== "bench_json") {
+      if (["nvidia_smi_csv", "tegrastats"].includes(importFormat)) {
         params.device_id = form.device_id;
         params.model_id = form.model_id;
         params.precision = form.precision;
@@ -239,10 +239,12 @@ export default function VerifyPanel({
           <label className="field"><span>Format</span>
             <select value={importFormat} onChange={(e) => setImportFormat(e.target.value)}>
               <option value="bench_json">bench/run_benchmark.py JSON</option>
+              <option value="json">JSON list of measurements</option>
+              <option value="csv">CSV, one measurement per row (device_id, model_id, precision, batch, latency_ms, power_w...)</option>
               <option value="nvidia_smi_csv">nvidia-smi CSV power trace</option>
               <option value="tegrastats">tegrastats log (Jetson)</option>
             </select></label>
-          {importFormat !== "bench_json" && <p className="hint">Power traces use the device, model, precision, batch and latency from the form above.</p>}
+          {["nvidia_smi_csv", "tegrastats"].includes(importFormat) && <p className="hint">Power traces use the device, model, precision, batch and latency from the form above.</p>}
           <textarea rows={6} value={importText} onChange={(e) => setImportText(e.target.value)} placeholder="Paste the file contents here" />
           <button disabled={!importText.trim()} onClick={submitImport}>Import</button>
         </details>

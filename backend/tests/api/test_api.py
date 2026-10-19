@@ -1,7 +1,7 @@
 import pytest
-from fastapi.testclient import TestClient
 
 from app.main import create_app
+from tests.helpers import AuthedClient
 
 P = "/api/v1"
 
@@ -9,7 +9,7 @@ P = "/api/v1"
 @pytest.fixture()
 def client(tmp_path):
     app = create_app(f"sqlite:///{tmp_path / 't.db'}")
-    with TestClient(app) as c:
+    with AuthedClient(app) as c:
         yield c
 
 
@@ -53,9 +53,9 @@ def test_create_update_validate(client):
 
 def test_projects_persist_across_restart(tmp_path):
     url = f"sqlite:///{tmp_path / 'p.db'}"
-    with TestClient(create_app(url)) as c:
+    with AuthedClient(create_app(url)) as c:
         c.post(f"{P}/projects", json={"name": "keep", "model_id": "yolov8n", "device_id": "jetson-orin-nano"})
-    with TestClient(create_app(url)) as c:
+    with AuthedClient(create_app(url)) as c:
         names = [p["spec"]["name"] for p in c.get(f"{P}/projects").json()]
         assert "keep" in names and len([n for n in names if n.startswith("Example")]) == 1
 

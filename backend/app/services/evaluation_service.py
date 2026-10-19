@@ -14,32 +14,40 @@ from app.services.model_lookup import resolve_model
 
 
 def evaluate_project(
-    db: Session, project_id: int, spec: ProjectSpec, config: Config | None
-) -> EvaluationResult:
-    model, hw = resolve_model(db, spec.model_id), get_device(spec.device_id)
+    db: Session, project_id: int, spec: ProjectSpec, config: Config | None,
+    workspace_id: int | None = None, user_id: int | None = None,
+) -> EvaluationResult:  # fmt: skip
+    ws = workspace_id
+    model, hw = resolve_model(db, spec.model_id, ws), get_device(spec.device_id, ws)
     cfg = config or spec.baseline or baseline_config(hw, spec.cooling_id)
-    cals = ms.active_calibrations(db, hw.id)
-    meas = ms.measurements_for(db, hw.id, model.id)
-    ret = ms.measured_retention(db, model.id)
+    cals = ms.active_calibrations(db, hw.id, ws)
+    meas = ms.measurements_for(db, hw.id, model.id, ws)
+    ret = ms.measured_retention(db, model.id, ws)
     result = evaluate(
         model, hw, cfg, spec.workload, spec.constraints, ret.get(cfg.precision),
         calibration=cals.get(cfg.precision),
         measured=next((m for m in meas if matches(m, hw, model.id, cfg)), None),
     )  # fmt: skip
-    repo.save_run(db, project_id, "evaluate", result.engine_version, result.model_dump(mode="json"))
+    repo.save_run(db, project_id, "evaluate", result.engine_version, result.model_dump(mode="json"),
+                  user_id)  # fmt: skip
     return result
 
 
-def optimise_project(db: Session, project_id: int, spec: ProjectSpec) -> OptimisationResult:
-    model, hw = resolve_model(db, spec.model_id), get_device(spec.device_id)
+def optimise_project(
+    db: Session, project_id: int, spec: ProjectSpec, workspace_id: int | None = None,
+    user_id: int | None = None,
+) -> OptimisationResult:  # fmt: skip
+    ws = workspace_id
+    model, hw = resolve_model(db, spec.model_id, ws), get_device(spec.device_id, ws)
     result = optimise(
         spec, model, hw,
-        measured=ms.measured_retention(db, model.id),
-        calibrations=ms.active_calibrations(db, hw.id),
-        measurements=ms.measurements_for(db, hw.id, model.id),
+        measured=ms.measured_retention(db, model.id, ws),
+        calibrations=ms.active_calibrations(db, hw.id, ws),
+        measurements=ms.measurements_for(db, hw.id, model.id, ws),
     )  # fmt: skip
-    advisor_service.enrich(db, spec, model, hw, result)
+    advisor_service.enrich(db, spec, model, hw, result, ws)
     repo.save_run(
-        db, project_id, "optimise", result.baseline.engine_version, result.model_dump(mode="json")
+        db, project_id, "optimise", result.baseline.engine_version, result.model_dump(mode="json"),
+        user_id,
     )
     return result

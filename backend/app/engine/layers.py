@@ -87,7 +87,7 @@ def layer_profile(
         }
     n = len(layers)
     flops = np.array([layer.flops for layer in layers])
-    rows = []
+    rows: list[dict[str, Any]] = []
     for i, layer in enumerate(layers):
         compute_bound = bool(t_c[i] >= t_m[i])
         rows.append({
@@ -106,7 +106,7 @@ def layer_profile(
     ops = sorted(
         ({"op": k, "time_ms": v["time_ms"], "count": int(v["count"]),
           "share": v["time_ms"] / (total_t * 1e3) if total_t > 0 else 0.0} for k, v in by_op.items()),
-        key=lambda d: -d["time_ms"],
+        key=lambda d: -float(d["time_ms"]),  # type: ignore[arg-type]
     )  # fmt: skip
     top = sorted(rows, key=lambda r: -r["time_ms"])[:10]
     overhead_ms = rf.t_overhead_s * 1e3

@@ -25,12 +25,14 @@ def enrich(
     model: ModelProfile,
     hw: HardwareProfile,
     res: OptimisationResult,
+    workspace_id: int | None = None,
 ) -> OptimisationResult:
+    ws = workspace_id
     ev = make_evaluator(
         model, hw, spec.workload, spec.constraints,
-        measured=ms.measured_retention(db, model.id),
-        calibrations=ms.active_calibrations(db, hw.id),
-        measurements=ms.measurements_for(db, hw.id, model.id),
+        measured=ms.measured_retention(db, model.id, ws),
+        calibrations=ms.active_calibrations(db, hw.id, ws),
+        measurements=ms.measurements_for(db, hw.id, model.id, ws),
     )  # fmt: skip
 
     def ev_hw(hw2: HardwareProfile, cfg: Config) -> EvaluationResult:
@@ -42,13 +44,13 @@ def enrich(
     res.whatifs = make_whatifs(ev_hw, hw, best_cfg, base_cfg)
     res.limiting_factor = limiting_factor(ev_hw, hw, base_cfg)
 
-    models = [*load_models().values(), *repo.list_custom_models(db)]
-    devices = list(load_devices().values())
-    cals = ms.active_calibrations(db, hw.id)
+    models = [*load_models().values(), *repo.list_custom_models(db, ws)]
+    devices = list(load_devices(ws).values())
+    cals = ms.active_calibrations(db, hw.id, ws)
     res.alternatives = [
         *model_alternatives(spec, model, hw, models, res.baseline, cals, res.best),
         *device_alternatives(
-            spec, model, hw, devices, res.baseline, lambda d: ms.active_calibrations(db, d),
+            spec, model, hw, devices, res.baseline, lambda d: ms.active_calibrations(db, d, ws),
             res.best,
         ),
     ]

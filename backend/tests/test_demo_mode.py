@@ -1,11 +1,11 @@
 """Public-demo safeguards: billed actions off, rate limits, caps, privacy and security headers."""
 
 import pytest
-from fastapi.testclient import TestClient
 
 import app.security as sec
 from app.agent.client import ChatReply
 from app.main import create_app
+from tests.helpers import AuthedClient
 
 P = "/api/v1"
 
@@ -20,13 +20,13 @@ def fresh_limiter():
 @pytest.fixture()
 def demo(tmp_path, monkeypatch):
     monkeypatch.setenv("GC_PUBLIC_DEMO", "1")
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'demo.db'}")) as c:
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 'demo.db'}")) as c:
         yield c
 
 
 @pytest.fixture()
 def local(tmp_path):
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'local.db'}")) as c:
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 'local.db'}")) as c:
         yield c
 
 
@@ -64,12 +64,14 @@ def test_the_same_actions_are_not_blocked_locally(local):
     assert local.post(f"{P}/hardware/import", json={"name": "Some Board"}).status_code == 503
 
 
-def test_visitors_only_see_the_shared_example_project_in_demo(demo):
+def test_visitors_never_see_each_others_projects_in_demo(demo):
     other = demo.post(f"{P}/projects", json={"name": "Alice private", "model_id": "yolov8s",
                                              "device_id": "jetson-orin-nx"}).json()  # fmt: skip
-    names = [p["spec"]["name"] for p in demo.get(f"{P}/projects").json()]
-    assert names and all(n.startswith("Example") for n in names)
-    assert demo.get(f"{P}/projects/{other['id']}").status_code == 200  # reachable by its own id
+    with AuthedClient(demo.app, email="bob@example.com") as bob:
+        names = [p["spec"]["name"] for p in bob.get(f"{P}/projects").json()]
+        assert names and "Alice private" not in names
+        assert bob.get(f"{P}/projects/{other['id']}").status_code == 404
+    assert demo.get(f"{P}/projects/{other['id']}").status_code == 200
     assert demo.get(f"{P}/health").json()["demo_mode"] is True
 
 

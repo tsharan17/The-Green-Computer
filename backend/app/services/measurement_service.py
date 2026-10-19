@@ -26,56 +26,61 @@ class MeasurementError(ValueError):
     """A measurement refers to something the system does not know."""
 
 
-def _check_refs(db: Session, m: MeasurementIn) -> None:
-    if m.device_id not in load_devices():
+def _check_refs(db: Session, m: MeasurementIn, ws: int | None = None) -> None:
+    if m.device_id not in load_devices(ws):
         raise MeasurementError(f"unknown device '{m.device_id}'")
     try:
-        resolve_model(db, m.model_id)
+        resolve_model(db, m.model_id, ws)
     except KeyError as e:
         raise MeasurementError(str(e)) from e
-    hw = get_device(m.device_id)
+    hw = get_device(m.device_id, ws)
     if m.power_mode_id and m.power_mode_id not in {p.id for p in hw.power_modes}:
         raise MeasurementError(f"unknown power mode '{m.power_mode_id}' for {hw.id}")
     if hw.peak_tflops.get(m.precision, 0) <= 0:
         raise MeasurementError(f"{hw.id} has no {m.precision} support in its profile")
 
 
-def build_items(db: Session, device_id: str, precision: str) -> list[CalibItem]:
+def build_items(
+    db: Session, device_id: str, precision: str, ws: int | None = None
+) -> list[CalibItem]:
     items = []
-    for m in repo.list_measurements(db, device_id=device_id, precision=precision):
+    for m in repo.list_measurements(db, device_id=device_id, precision=precision, workspace_id=ws):
         if m.batch_latency_ms is None or m.synthetic:
             continue
         try:
-            model = resolve_model(db, m.model_id)
+            model = resolve_model(db, m.model_id, ws)
         except KeyError:
             continue
         items.append(CalibItem(m.id, model, MeasurementIn.model_validate(m.model_dump())))
     return items
 
 
-def refit(db: Session, device_id: str, precision: str) -> CalibrationReport:
-    """Fit from all measurements for (device, precision); store the version (accepted or not)."""
-    items = build_items(db, device_id, precision)
-    version = repo.next_calibration_version(db, device_id, precision)
-    report = fit_calibration(items, get_device(device_id), device_id, precision, version)
-    repo.save_calibration(db, report)
+def refit(db: Session, device_id: str, precision: str, ws: int | None = None) -> CalibrationReport:
+    """Fit from every measurement the scope can see for (device, precision): library data, plus the
+    workspace's own when `ws` is set. Stores the version (accepted or not) in that scope."""
+    items = build_items(db, device_id, precision, ws)
+    version = repo.next_calibration_version(db, device_id, precision, ws)
+    report = fit_calibration(items, get_device(device_id, ws), device_id, precision, version)
+    repo.save_calibration(db, report, ws)
     return report
 
 
-def ingest(db: Session, records: list[MeasurementIn]) -> tuple[list[MeasurementOut], int, list]:
+def ingest(
+    db: Session, records: list[MeasurementIn], ws: int | None = None
+) -> tuple[list[MeasurementOut], int, list]:
     """Store measurements (idempotent on external_id) and refit each affected (device, precision)."""
     for m in records:
-        _check_refs(db, m)
+        _check_refs(db, m, ws)
     stored: list[MeasurementOut] = []
     created = 0
     touched: set[tuple[str, str]] = set()
     for m in records:
-        out, was_new = repo.add_measurement(db, m)
+        out, was_new = repo.add_measurement(db, m, ws)
         stored.append(out)
         if was_new:
             created += 1
             touched.add((m.device_id, m.precision))
-    reports = [refit(db, d, p) for d, p in sorted(touched)]
+    reports = [refit(db, d, p, ws) for d, p in sorted(touched)]
     return stored, created, reports
 
 
@@ -93,47 +98,60 @@ def replay_committed(db: Session) -> tuple[int, int]:
     if not records:
         return 0, 0
     _, created, _ = ingest(db, records)
+    # Library fits must exist even when nothing new was imported (e.g. after the 0002 migration
+    # moved fits that included a user's own data into that user's workspace).
+    for d, p in sorted({(r.device_id, r.precision) for r in records}):
+        if not repo.has_calibration(db, d, p, None):
+            refit(db, d, p, None)
     return created, len(records) - created
 
 
-def active_calibrations(db: Session, device_id: str) -> dict[str, Calibration]:
+def active_calibrations(
+    db: Session, device_id: str, ws: int | None = None
+) -> dict[str, Calibration]:
     out: dict[str, Calibration] = {}
     for prec in ("fp32", "fp16", "int8"):
-        c = repo.active_calibration(db, device_id, prec)
+        c = repo.active_calibration(db, device_id, prec, ws)
         if c is not None:
             out[prec] = c
     return out
 
 
-def measurements_for(db: Session, device_id: str, model_id: str) -> list[MeasurementIn]:
+def measurements_for(
+    db: Session, device_id: str, model_id: str, ws: int | None = None
+) -> list[MeasurementIn]:
     return [
-        MeasurementIn.model_validate(m.model_dump())
-        for m in repo.list_measurements(db, device_id=device_id, model_id=model_id)
+        MeasurementIn.model_validate(m.model_dump(exclude={"id", "created_at", "library"}))
+        for m in repo.list_measurements(db, device_id=device_id, model_id=model_id, workspace_id=ws)
         if not m.synthetic
     ]
 
 
-def measured_retention(db: Session, model_id: str) -> dict[str, float]:
+def measured_retention(db: Session, model_id: str, ws: int | None = None) -> dict[str, float]:
     """Latest measured accuracy retention per precision for this model."""
     out: dict[str, float] = {}
-    for m in repo.list_measurements(db, model_id=model_id):
+    for m in repo.list_measurements(db, model_id=model_id, workspace_id=ws):
         if m.accuracy_retention is not None and m.resolution_scale == 1.0 and not m.synthetic:
             out[m.precision] = m.accuracy_retention  # list is id-ordered: later wins
     return out
 
 
-def verify(db: Session, device_id: str | None = None) -> VerifyOut:
+def verify(db: Session, device_id: str | None = None, ws: int | None = None) -> VerifyOut:
     rows: list[VerifyRow] = []
     summaries: list[VerifySummary] = []
-    all_m = repo.list_measurements(db, device_id=device_id)
+    all_m = repo.list_measurements(db, device_id=device_id, workspace_id=ws)
     groups = sorted({(m.device_id, m.precision) for m in all_m if m.batch_latency_ms is not None})
     for dev, prec in groups:
-        items = build_items(db, dev, prec)
+        items = build_items(db, dev, prec, ws)
         if not items:
             continue
-        active = repo.active_calibration(db, dev, prec)
+        try:
+            hw = get_device(dev, ws)
+        except KeyError:
+            continue  # a measurement of a device that was since removed
+        active = repo.active_calibration(db, dev, prec, ws)
         version = active.version if active else 0
-        report = fit_calibration(items, get_device(dev), dev, prec, version)
+        report = fit_calibration(items, hw, dev, prec, version)
         by_id = {m.id: m for m in all_m}
         inside: list[bool] = []
         for p in report.points:

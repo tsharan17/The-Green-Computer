@@ -8,7 +8,6 @@ import json
 import subprocess
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.data_loader import get_device
 from app.integrations.jobs import (
@@ -19,6 +18,7 @@ from app.integrations.jobs import (
     extract_result_json,
 )
 from app.main import create_app
+from tests.helpers import AuthedClient
 
 HW = get_device("nebius-l40s")
 SPEC = JobSpec("nebius-l40s", "resnet-50", "fp32", (1, 8, 32), 40)
@@ -133,7 +133,7 @@ def test_a_finished_job_is_ingested_once_and_calibrates(tmp_path):
     ]
     from app.services import benchmark_service as bench
 
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'j.db'}")) as c:
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 'j.db'}")) as c:
         db = c.app.state.session_factory()
         jobs = make_jobs(replies)
         row = bench.submit(db, SPEC, jobs)

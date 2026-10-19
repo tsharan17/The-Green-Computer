@@ -77,6 +77,8 @@ class MeasurementIn(BaseModel):
 class MeasurementOut(MeasurementIn):
     id: int
     created_at: datetime
+    # True for measurements committed with the app (shared, read-only); False for your own.
+    library: bool = False
 
 
 class Calibration(BaseModel):

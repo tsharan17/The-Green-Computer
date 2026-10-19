@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.agent.client import LLM, LLMError, TokenFactoryClient
 from app.agent.loop import run_turn
 from app.agent.router import ResolvedModels, resolve_models
-from app.api.v1.routes import get_db
+from app.auth.deps import Ctx, get_db, require_ctx, require_writer
 from app.config import get_llm_settings
 from app.db import repository as repo
 from app.security import limit_agent
@@ -52,7 +52,7 @@ def _models(request: Request, llm: LLM) -> ResolvedModels:
 
 
 @router.get("/agent/status")
-def agent_status(request: Request) -> dict[str, Any]:
+def agent_status(request: Request, _ctx: Ctx = Depends(require_ctx)) -> dict[str, Any]:
     s = get_llm_settings()
     out: dict[str, Any] = {"configured": s.configured, "base_url": s.base_url, "detail": None}
     if not s.configured:
@@ -89,10 +89,12 @@ def agent_chat(
     body: ChatIn,
     request: Request,
     db: Session = Depends(get_db),
+    ctx: Ctx = Depends(require_writer),
     _rl: None = Depends(limit_agent),
 ) -> StreamingResponse:
-    if repo.get_project(db, body.project_id) is None:
+    if repo.get_project(db, body.project_id, ctx.workspace_id) is None:
         raise HTTPException(404, "project not found")
+    ws_id, user_id = ctx.workspace_id, ctx.user_id
     s = get_llm_settings()
     try:
         llm = _llm(request)
@@ -111,7 +113,7 @@ def agent_chat(
             run_turn(
                 thread_db, body.project_id, body.message,
                 [m.model_dump() for m in body.history], llm, models, q.put, s.max_tool_calls,
-                tavily_factory,
+                tavily_factory, ws_id, user_id,
             )  # fmt: skip
         except Exception as e:  # noqa: BLE001  never leave the stream hanging
             q.put({"type": "error", "text": f"agent failed: {type(e).__name__}: {e}"})

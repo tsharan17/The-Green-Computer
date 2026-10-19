@@ -1,89 +1,118 @@
 # The Green Computer
 
-Predict how an AI model will behave on a given hardware setup **before anything is built**, then recommend the changes that meet your requirements on the least energy: to the AI model, to how you run it, to the hardware you choose, and to the chip or board itself. *Predict. Optimise. Verify. Make every computation count.*
+A vendor-neutral AI and hardware co-design platform. Describe or upload an AI model and a hardware
+system, set what must be true, and see how the model will execute on that hardware before anything
+is built: latency, memory, power, energy, heat, throttling, cost and carbon, operator by operator.
+Then choose software and hardware changes, compare the result against today, run the model for
+real where you can, and export what you decided.
 
-> **Honest status (release 0.7.0).** The product works end to end and is tested (196 backend tests, an end-to-end journey test, an acceptance script). Its numbers are **predictions** from a physics model with stated assumptions; the only real measurements so far are ResNet-50 and MobileNetV2 latency on the developer's CPU. The Green Agent (Nemotron on Nebius Token Factory), the Nebius GPU job launcher and datasheet import (Tavily) were built from the vendors' documentation and tested against fakes: **they have not been run against the live services.** The Docker image and the Nebius endpoint deployment have never been built or run. See [docs/for-judges.md](docs/for-judges.md) and the table at the end.
+It runs entirely on your own machine. NVIDIA GPUs, Nebius cloud jobs and an AI assistant are
+optional accelerators, never requirements.
 
-## How to use it (3 steps)
+## What you can do
 
-1. **Describe.** Pick the AI model, the hardware and what must be true (frames per second, watts, accuracy, delay, room temperature), or try an example, or tell the Green Agent in words.
-2. **Results.** A plain-language verdict ("your current setup fails because it overheats and slows to 70%"), the cheapest fix, and recommendations at four levels: **change the AI model** (quantise, prune, smaller input, a lighter model), **change how you run it** (batching, power mode, clocks), **choose better hardware** (another board, better cooling) and **redesign the chip or board** (what-if ideas with their modelled effect). Each recommendation says what it gains, why, what it costs, how sure we are and how to check it.
-3. **Export.** A shareable report (Markdown / web page / PDF via print) and a recipe: scripts to convert the model, build a TensorRT engine, set the Jetson power mode, measure on the board, plus design notes for hardware engineers.
+1. **Workspace.** Create an account; projects live in a private or a team workspace. Every change of
+   inputs is a version; every analysis, plan, upload and export is in the project's history.
+2. **Model and hardware.** Upload an ONNX model (validated, with a graph summary) or pick one of the
+   library models; pick a board, MCU, FPGA or accelerator from the library or describe your own.
+   Each hardware category lists exactly which files it accepts: device profiles (YAML/JSON, values
+   may carry units), Vivado / ST Edge AI / Vela reports, power and telemetry logs, firmware ELF
+   files, datasheets (read offline; scans go to OCR when installed, otherwise manual review).
+   Schematics, PCBs, RTL, netlists and assembly are shown as planned, with what to send instead.
+3. **Constraints and environment.** Throughput, power, latency, memory and accuracy limits; ambient
+   temperature, cooling, hours of use, electricity price and grid carbon; how it runs today.
+4. **Analysis.** A predicted execution trace drives five views: a **system map** (model stages on the
+   hardware, memory paths, heat, bottlenecks, step-through playback), an **execution timeline**,
+   a **memory map** (tensor lifetimes, peak working set against capacity, bandwidth pressure),
+   **thermal and cooling** (warm-up, throttling, cooling needed, catalogue options ranked by stated
+   sustainability criteria) and **energy and performance** (energy by cause and stage, every metric
+   with its range and source). Charts have tooltips, table views and CSV/JSON export.
+5. **Recommendations and plans.** Changes at five levels: the AI model, how it runs, hardware
+   settings, hardware or cooling choice, and directional chip/board ideas. Select any of them into a
+   design plan; the engine re-analyses today, each change alone and the combination, and shows every
+   parameter and output old versus new. Plans are saved as immutable versions.
+6. **Verify, history, export.** Run the model on this server's CPU (ONNX Runtime, isolated and
+   time-limited) for measured latency and a measured operator trace; import measurements (bench
+   JSON, CSV, JSON, nvidia-smi, tegrastats); compare predicted with measured and calibrate. Export
+   the engineering report (Markdown, HTML, PDF), plan JSON, comparisons and recommendations
+   (CSV/JSON), traces, a hardware change specification, a deployment configuration, the recipe
+   scripts, a complete plan package, and an INT8 ONNX model when quantisation runs and its outputs
+   match the original.
 
-Two more pages: **Technical details** (every number with its best-case to worst-case range and source, the heat model, all options tried) and **Real measurements** (predicted vs measured; calibration applied only if it predicts held-out measurements better).
+## Honesty rules
 
-## Who it is for
-
-- **Hardware engineers** with boards, microcontrollers, FPGAs and accelerators: pick one of 22 devices (Jetson, Raspberry Pi, Hailo, Coral, STM32/nRF/ESP32, Kria FPGA, Apple/Qualcomm/Intel/AMD NPUs, L4/T4/H100...) or *describe your own* (flash and SRAM limits, DSP slices and BRAM, on-chip model memory, battery), paste Vivado / ST Edge AI / Vela reports or a power-meter CSV, and get predictions, design what-ifs and a deployment recipe for your toolchain.
-- **Software engineers** optimising models: a per-layer view of where the time goes and which layers are fragile to int8, a sensitivity script to run on your data, and a CLI and library (`gc check`) with budgets in a `greencomputer.yaml` and a CI template that comments on pull requests.
-
-Details and honest limits: [docs/for-engineers.md](docs/for-engineers.md).
+- Every number carries its range and its source: analytical, calibrated, measured, vendor
+  specification or assumed. Predicted traces are labelled predicted; only real runs or imported logs
+  are measured, and the two are never mixed.
+- Exports are labelled *generated and validated*, *generated* or *template*. No changed PCB, RTL or
+  chip-design file is ever produced; chip and board ideas are directional what-ifs.
+- Accuracy effects of quantisation or pruning are priors with stated risk, never promises.
+- The optional AI assistant cannot produce numbers; the engine computes all of them.
 
 ## Quick start
 
-One command (installs, builds the UI, serves http://localhost:8000):
-
 ```powershell
-scripts/dev.ps1          # Windows
+scripts/dev.ps1          # Windows: installs, builds the UI, serves http://localhost:8000
 ```
 ```bash
 scripts/dev.sh           # macOS / Linux / Git Bash
 ```
 
-Or step by step: `cd backend && python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"`, `cd frontend && npm install && npm run build`, then `cd backend && .venv/Scripts/python -m uvicorn app.main:app --port 8000`.
+Open http://localhost:8000, create an account (it comes with an example project), and press
+Analyse. Optional: `python scripts/demo_data.py http://localhost:8000` fills a demo account with
+analysed projects, a plan, exports and a local run.
 
-Check a running copy end to end (local or the deployed URL): `python scripts/acceptance.py http://localhost:8000`.
+Production-like stack with PostgreSQL: `docker compose up --build` (see `docker-compose.yml`).
+Configuration is by environment variables; `.env.example` lists every one. Never commit `.env`.
 
-Optional keys go in `.env` (copy `.env.example`; never commit it): `TOKEN_FACTORY_API_KEY` for the Green Agent, `TAVILY_API_KEY` for datasheet import, `NEBIUS_PROJECT_ID` plus the `nebius` CLI for GPU jobs. Then run `backend/.venv/Scripts/python scripts/check_nebius.py`; see [docs/connecting-nebius.md](docs/connecting-nebius.md). The app works without any of them.
-
-## How it fits together
+## Architecture
 
 ```
- Browser (React)  ── /api/v1 ──►  FastAPI ──► Engine (pure Python, no network)
-   Describe / Results / Export        │         roofline → power ⇄ temperature ⇄ throttling
-   Technical details / Measurements   │         uncertainty corners → certification → search
-                                      │         repair · what-ifs · advice · report · recipe
-                                      ├──► SQLite: projects, runs, measurements, calibrations, drafts
-                                      ├──► Green Agent ──► Nemotron on Nebius Token Factory (tools only)
-                                      ├──► Tavily (datasheet search) ──► Nemotron (extract) ──► you confirm
-                                      └──► `nebius ai job` ──► Serverless Job on an NVIDIA GPU (bench/)
+ Browser (React + Vite, hash routes)
+   │  /api/v1  (cookie session + CSRF header, or bearer token; X-GC-Workspace)
+   ▼
+ FastAPI ── auth/ (accounts, sessions, workspaces) ── services/ ── db/ (SQLAlchemy, Alembic)
+   │                                                     │            SQLite locally, PostgreSQL in production
+   ├── engine/   pure, deterministic: roofline, power⇄temperature⇄throttling solver, uncertainty,
+   │             search, advice, plans, cooling catalogue, intake validators, report/PDF writers
+   ├── twin/     predicted and measured execution traces (schema green-computer.trace/1)
+   ├── providers/  ExecutionBackend (local CPU required; CUDA/TensorRT/Nebius optional; remote device
+   │               planned), AIProvider (optional), BlobStore (local disk), EmailSender (log or SMTP),
+   │               ArtifactGenerator labels
+   └── execution/  isolated worker process: benchmark with profiler, INT8 quantisation, comparison
 ```
 
-The agent never computes a number: it plans and explains by calling the engine as tools, a guardrail rejects any figure not found in a tool result, and the user's requirements are read-only to it.
+Repository map: `backend/app` (API, engine, twin, providers, migrations), `backend/tests`,
+`frontend/src` (pages, twin views, components), `frontend/e2e` (Playwright), `bench/` (benchmark
+scripts for GPU hosts), `scripts/` (dev, acceptance, demo data, API docs, e2e server), `docs/`.
 
-## Repository map
+## Checks
 
-| Path | What |
-|---|---|
-| `backend/app/engine/` | The deterministic engine and the advice, repair, what-if, recipe and report logic |
-| `backend/app/agent/` | Token Factory client, router, tools, loop, guardrail, datasheet extraction |
-| `backend/app/api/`, `services/`, `db/`, `integrations/`, `security.py` | API, orchestration, storage, Nebius/Tavily clients, public-demo safeguards |
-| `backend/app/data/` | Device and model library (YAML), committed real measurements |
-| `frontend/` | The React app |
-| `bench/` | Benchmark scripts and the Nebius job entrypoint |
-| `deploy/`, `Dockerfile`, `docker-compose.yml` | Container and Nebius endpoint deployment (never built or run) |
-| `scripts/` | `dev.*`, `check_nebius.py`, `acceptance.py`, a fake model server for credential-free development |
-| `docs/` | Assumptions, connecting Nebius, judge guide, demo script, Devpost draft, credits and cost |
+```
+cd backend && .venv/Scripts/python -m pytest -q        # unit, API, integration (PostgreSQL with GC_TEST_PG_URL)
+cd backend && .venv/Scripts/python -m ruff check . && .venv/Scripts/python -m mypy app
+cd frontend && npm run lint && npm run build && npx playwright test
+python scripts/acceptance.py http://localhost:8000     # against a running server
+```
 
-## Public demo mode
-
-`GC_PUBLIC_DEMO=1` turns off the actions that spend money (GPU jobs, datasheet search), rate limits the agent and the analysis per address, caps uploads and gives each visitor their own project. See [deploy/endpoint.md](deploy/endpoint.md).
+Details: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [docs/api.md](docs/api.md),
+[docs/security.md](docs/security.md), [docs/assumptions.md](docs/assumptions.md),
+[docs/connecting-nebius.md](docs/connecting-nebius.md).
 
 ## What is and is not verified
 
 | Piece | Status |
 |---|---|
-| Engine, API, UI, report, recipes' syntax, calibration, safeguards | Tested (unit, API, end-to-end journey, acceptance script, browser checks) |
-| Parser | Reproduces the published parameter and FLOP counts of ResNet-50 and MobileNetV2 |
-| Real measurements | CPU latency only, on the development machine. **No GPU, Jetson or power data** |
-| Green Agent, Nebius jobs, Tavily import | Built from vendor docs, tested with fakes. **Never run live** |
-| Recipes | Syntax-checked, never run on a device |
-| Docker image, Nebius endpoint | Written, **never built or deployed** |
-| Chip-design what-ifs | Directional: the model has no on-chip memory hierarchy |
-| Non-Jetson devices, MCU / FPGA / accelerator models | Tested for sanity and consistency; **no device measured**. Vendor TOPS are marketing figures, several bandwidth and power values are estimates (flagged per entry) |
-| Vendor report readers (Vivado, ST Edge AI, Vela, power CSV) | Tested on synthetic samples from documented layouts, **not on real tool output** |
-| `gc` CLI, library, CI template | CLI and library tested; the CI workflow template was **never run** in a real repository |
-| Ecosystem recipes (OpenVINO, QNN, Core ML, Hailo, Edge TPU, TFLM, hls4ml...) | Templates from public docs; Python syntax-checked, **never run on devices** |
+| Engine, API, accounts, tenancy, intake, twin, plans, exports | Tested: backend unit/API/integration tests, Playwright browser journeys, axe accessibility checks, acceptance script |
+| PostgreSQL | Migrations and a full journey tested against PostgreSQL 16; SQLite is the local default |
+| Local execution | Real ONNX Runtime CPU runs tested; measures latency and operator time, not power or temperature |
+| Predictions | Analytical with stated assumptions; the only measurements so far are CPU latencies on the development machine |
+| CUDA / TensorRT backends | Detected and gated; never run here (no NVIDIA GPU) |
+| Nebius jobs, AI assistant, datasheet web search | Built from vendor documentation, tested with fakes; off unless configured |
+| OCR for scanned PDFs | Implemented; untested here (no Tesseract installed) |
+| Docker image and compose stack | Written; not built in the development environment |
+| Recipes and deployment configs | Templates; syntax-checked, not run on devices |
+| Chip/board what-ifs | Directional analytical what-ifs, not designs |
 
 ## Licence
 

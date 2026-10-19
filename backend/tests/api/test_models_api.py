@@ -1,8 +1,7 @@
 import pytest
-from fastapi.testclient import TestClient
 
 from app.main import create_app
-from tests.helpers import tiny_cnn_bytes
+from tests.helpers import AuthedClient, tiny_cnn_bytes
 
 P = "/api/v1"
 OCT = {"Content-Type": "application/octet-stream"}
@@ -10,7 +9,7 @@ OCT = {"Content-Type": "application/octet-stream"}
 
 @pytest.fixture()
 def client(tmp_path):
-    with TestClient(create_app(f"sqlite:///{tmp_path / 't.db'}")) as c:
+    with AuthedClient(create_app(f"sqlite:///{tmp_path / 't.db'}")) as c:
         yield c
 
 

@@ -37,44 +37,51 @@ def _view(row: BenchmarkJobRow) -> dict:
     }
 
 
+def _row(db: Session, row_id: int, ws: int | None) -> BenchmarkJobRow:
+    row = db.get(BenchmarkJobRow, row_id)
+    if row is None or row.workspace_id != ws:
+        raise JobsError("benchmark job not found")
+    return row
+
+
 def submit(
-    db: Session, spec: JobSpec, jobs: NebiusJobs | None = None
+    db: Session, spec: JobSpec, jobs: NebiusJobs | None = None, ws: int | None = None
 ) -> dict:
     jobs = jobs or get_jobs()
-    if spec.device_id not in load_devices():
+    if spec.device_id not in load_devices(ws):
         raise JobsError(f"unknown device '{spec.device_id}'")
     st = jobs.status()
     if not st.configured:
         raise JobsError(f"Nebius Serverless Jobs unavailable: {st.reason}")
-    name, job_id = jobs.submit(spec, get_device(spec.device_id))
+    name, job_id = jobs.submit(spec, get_device(spec.device_id, ws))
     row = BenchmarkJobRow(
         job_name=name, job_id=job_id, device_id=spec.device_id, model_id=spec.model_id,
         precision=spec.precision, batches=list(spec.batches), state="running",
-        measurement_ids=[],
+        measurement_ids=[], workspace_id=ws,
     )  # fmt: skip
     db.add(row)
     db.commit()
     return _view(row)
 
 
-def list_jobs(db: Session) -> list[dict]:
-    rows = db.scalars(select(BenchmarkJobRow).order_by(BenchmarkJobRow.id.desc()))
+def list_jobs(db: Session, ws: int | None = None) -> list[dict]:
+    col = BenchmarkJobRow.workspace_id
+    q = select(BenchmarkJobRow).where(col.is_(None) if ws is None else col == ws)
+    rows = db.scalars(q.order_by(BenchmarkJobRow.id.desc()))
     return [_view(r) for r in rows]
 
 
-def refresh(db: Session, row_id: int, jobs: NebiusJobs | None = None) -> dict:
+def refresh(db: Session, row_id: int, jobs: NebiusJobs | None = None, ws: int | None = None) -> dict:
     """Poll the job; when it has succeeded, read its logs and ingest the measurements once."""
     jobs = jobs or get_jobs()
-    row = db.get(BenchmarkJobRow, row_id)
-    if row is None:
-        raise JobsError("benchmark job not found")
+    row = _row(db, row_id, ws)
     if row.state in TERMINAL and (row.ingested or row.state != "succeeded"):
         return _view(row)
     try:
         row.state = jobs.get(row.job_id).state
         if row.state == "succeeded" and not row.ingested:
             records = parse_bench_json(extract_result_json(jobs.logs(row.job_id)))
-            stored, _created, _reports = ms.ingest(db, records)
+            stored, _created, _reports = ms.ingest(db, records, ws)
             row.ingested = True
             row.measurement_ids = [m.id for m in stored]
             row.error = None
@@ -84,11 +91,9 @@ def refresh(db: Session, row_id: int, jobs: NebiusJobs | None = None) -> dict:
     return _view(row)
 
 
-def cancel(db: Session, row_id: int, jobs: NebiusJobs | None = None) -> dict:
+def cancel(db: Session, row_id: int, jobs: NebiusJobs | None = None, ws: int | None = None) -> dict:
     jobs = jobs or get_jobs()
-    row = db.get(BenchmarkJobRow, row_id)
-    if row is None:
-        raise JobsError("benchmark job not found")
+    row = _row(db, row_id, ws)
     jobs.cancel(row.job_id)
     row.state = "cancelled"
     db.commit()

@@ -90,3 +90,35 @@ def parse_tegrastats(text: str) -> PowerTrace:
         temperature_c_max=max(temps) if temps else None,
         samples=len(powers),
     )
+
+
+CSV_FIELDS = set(MeasurementIn.model_fields)
+_ALIASES = {"device": "device_id", "model": "model_id", "latency_ms": "latency_ms_mean", "latency": "latency_ms_mean",
+            "power_w": "power_w_avg", "power": "power_w_avg", "temperature_c": "temperature_c_max",
+            "fps": "throughput_fps", "runs": "n_runs"}  # fmt: skip
+
+
+def parse_measurement_csv(text: str) -> list[MeasurementIn]:
+    """A plain CSV with one measurement per row. Header names are MeasurementIn fields (or common
+    aliases such as `latency_ms`, `power_w`, `device`, `model`); unknown columns are refused so a
+    typo never silently drops a measured value. Empty cells stay empty."""
+    import csv
+    import io
+
+    rows = list(csv.DictReader(io.StringIO(text.strip())))
+    if not rows:
+        raise MeasurementParseError("expected a header row and at least one measurement row")
+    header = [h.strip() for h in (rows[0].keys())]
+    mapped = {h: _ALIASES.get(h.lower(), h.lower()) for h in header}
+    unknown = [h for h, f in mapped.items() if f not in CSV_FIELDS]
+    if unknown:
+        raise MeasurementParseError(f"unknown column(s): {', '.join(unknown)} (use measurement field names such "
+                                    "as device_id, model_id, precision, batch, latency_ms_mean, power_w_avg)")  # fmt: skip
+    out = []
+    for i, r in enumerate(rows, 2):
+        rec = {mapped[k.strip()]: v.strip() for k, v in r.items() if k and v is not None and v.strip() != ""}
+        try:
+            out.append(MeasurementIn.model_validate(rec))
+        except ValueError as e:
+            raise MeasurementParseError(f"line {i}: {str(e).splitlines()[0]}") from e
+    return out

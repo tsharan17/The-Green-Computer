@@ -101,7 +101,7 @@ def fit_calibration(
 ) -> CalibrationReport:
     lat_items = [it for it in items if it.m.batch_latency_ms is not None]
     n = len(lat_items)
-    meas = [it.m.batch_latency_ms for it in lat_items]  # type: ignore[misc]
+    meas = [float(it.m.batch_latency_ms or 0.0) for it in lat_items]  # filtered non-None above
     s_i = [_solve_eta(it, hw, ms) for it, ms in zip(lat_items, meas, strict=True)]
     uncal = [_t_ms(it, hw, NOMINAL) for it in lat_items]
     err_before = _mare(list(zip(uncal, meas, strict=True))) if n else None

@@ -122,6 +122,30 @@ CSP = (
 )
 
 
+class OriginCheck(BaseHTTPMiddleware):
+    """Refuse state-changing API calls whose Origin is neither this server nor an allowed origin
+    (defence in depth on top of the SameSite cookie and the CSRF header)."""
+
+    def __init__(self, app, allowed: tuple[str, ...] = ()) -> None:
+        super().__init__(app)
+        self.allowed = {o.rstrip("/") for o in allowed}
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        origin = request.headers.get("origin")
+        if (
+            origin
+            and request.method not in ("GET", "HEAD", "OPTIONS")
+            and request.url.path.startswith("/api/")
+        ):
+            own = f"{request.url.scheme}://{request.headers.get('host', '')}"
+            if origin.rstrip("/") not in self.allowed | {own}:
+                return Response(
+                    '{"detail":"Cross-origin request refused."}', status_code=403,
+                    media_type="application/json",
+                )  # fmt: skip
+        return await call_next(request)
+
+
 class SecurityHeaders(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         resp = await call_next(request)

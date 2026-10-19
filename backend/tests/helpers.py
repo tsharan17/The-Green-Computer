@@ -6,7 +6,7 @@ import numpy as np
 from onnx import TensorProto, helper, numpy_helper
 
 
-def tiny_cnn_bytes(dynamic: bool = False) -> bytes:
+def tiny_cnn_bytes(dynamic: bool = False, random_weights: bool = False) -> bytes:
     """Conv(3->4, 3x3, pad 1) -> Relu -> GlobalAveragePool -> Flatten -> Gemm(4->10) on 1x3x8x8.
 
     Hand-computed expectations (see test_onnx_parser):
@@ -19,10 +19,15 @@ def tiny_cnn_bytes(dynamic: bool = False) -> bytes:
     x = helper.make_tensor_value_info("x", TensorProto.FLOAT, shape)
     y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [None, 10] if dynamic else [1, 10])
 
+    rng = np.random.default_rng(0)
+
+    def w(shape):
+        return rng.standard_normal(shape).astype(np.float32) if random_weights else np.zeros(shape, np.float32)
+
     inits = [
-        numpy_helper.from_array(np.zeros((4, 3, 3, 3), np.float32), "conv_w"),
-        numpy_helper.from_array(np.zeros((4, 10), np.float32), "fc_w"),
-        numpy_helper.from_array(np.zeros((10,), np.float32), "fc_b"),
+        numpy_helper.from_array(w((4, 3, 3, 3)), "conv_w"),
+        numpy_helper.from_array(w((4, 10)), "fc_w"),
+        numpy_helper.from_array(w((10,)), "fc_b"),
     ]
     nodes = [
         helper.make_node("Conv", ["x", "conv_w"], ["c"], pads=[1, 1, 1, 1], name="conv"),
@@ -34,3 +39,33 @@ def tiny_cnn_bytes(dynamic: bool = False) -> bytes:
     graph = helper.make_graph(nodes, "tiny", [x], [y], initializer=inits)
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
     return model.SerializeToString()
+
+
+# --- authenticated API clients ------------------------------------------------------------
+
+TEST_PASSWORD = "a long test password"
+
+try:
+    from fastapi.testclient import TestClient as _TestClient
+except ImportError:  # pragma: no cover
+    _TestClient = object  # type: ignore[assignment,misc]
+
+
+class AuthedClient(_TestClient):  # type: ignore[misc,valid-type]
+    """A TestClient that signs up (or signs in, if the account exists) when entered and sends the
+    CSRF header on every request, like the web app does."""
+
+    def __init__(self, app, email: str = "tester@example.com", **kw):
+        super().__init__(app, **kw)
+        self._email = email
+
+    def __enter__(self):
+        c = super().__enter__()
+        c.headers["X-GC-CSRF"] = "1"
+        body = {"email": self._email, "password": TEST_PASSWORD}
+        r = c.post("/api/v1/auth/signup", json=body)
+        if r.status_code == 409:
+            r = c.post("/api/v1/auth/signin", json=body)
+        assert r.status_code in (200, 201), r.text
+        c.me = r.json()
+        return c

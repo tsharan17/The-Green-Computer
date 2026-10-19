@@ -73,7 +73,7 @@ class CustomHardwareSpec(BaseModel):
 
     @model_validator(mode="after")
     def _need_fields(self) -> CustomHardwareSpec:
-        need: dict[str, list[str]] = {
+        need: list[str] = {
             "generic": ["mem_bw_gbs", "mem_gb", "tdp_w"],
             "accelerator": ["mem_bw_gbs", "mem_gb", "tdp_w"],
             "mcu": ["core_mhz", "int8_macs_per_cycle", "flash_kb", "sram_kb", "run_power_mw"],

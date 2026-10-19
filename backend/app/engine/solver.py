@@ -133,7 +133,9 @@ def simulate(
             theta, rf, pw, t, conv, iters, f = lo, rf_lo, pw_lo, t_lo, conv_lo, it_lo, f_lo
             overheated = True
         else:
-            best = (lo, rf_lo, pw_lo, t_lo, conv_lo, it_lo, f_lo)
+            best: tuple[float, RooflineResult, PowerResult, float, bool, int, float] = (
+                lo, rf_lo, pw_lo, t_lo, conv_lo, it_lo, f_lo
+            )
             for _ in range(A.BISECT_ITERS):
                 mid = 0.5 * (lo + hi)
                 state = _steady(model, hw, cfg, wl, corner, mid)

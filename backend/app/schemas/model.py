@@ -15,6 +15,9 @@ class Layer(BaseModel):
     flops: float  # FLOPs (2 x MACs)
     params: float  # weight elements read by this layer
     act_elems: float  # activation elements read + written (unfused traffic)
+    # Graph wiring for tensor lifetimes (canonical tensor names; empty for older stored profiles).
+    in_tensors: list[str] = []
+    out_tensors: list[str] = []
 
 
 class ModelProfile(BaseModel):
@@ -35,5 +38,10 @@ class ModelProfile(BaseModel):
     # Whether input resolution can be scaled (vision models).
     resolution_scalable: bool = True
     layers: list[Layer] | None = None
+    # Canonical activation tensors (elements per sample) and the graph's inputs/outputs, so the
+    # digital twin can derive tensor lifetimes. None for library or manual models.
+    tensors: dict[str, float] | None = None
+    graph_inputs: list[str] = []
+    graph_outputs: list[str] = []
     sources: dict[str, Provenance] = {}
     notes: str = ""
