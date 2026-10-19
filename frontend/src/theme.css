@@ -567,3 +567,21 @@ button.primary, .btn-link.primary { background: var(--kelly); border-color: var(
 .auth-example .ae-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; color: var(--ink); font-size: 14px; }
 .auth-example .ae-line { color: var(--ink); font-size: 15px; margin: 4px 0; }
 .tbl td.actions-cell { display: table-cell; text-align: right; white-space: nowrap; }
+
+/* Hardware graph */
+.hg-summary { font-size: 16px; max-width: 75ch; }
+.hg-add { margin: 8px 0 14px; }
+.file-picks { list-style: none; padding: 0; margin: 6px 0 10px; display: grid; gap: 2px; }
+.field.inline { display: inline-flex; gap: 8px; align-items: center; }
+.kind-counts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 0; margin: 4px 0 10px; }
+.conf { font-size: 12px; padding: 1px 6px; border-left: 3px solid var(--line-strong); background: var(--sunk); white-space: nowrap; }
+.conf.measured, .conf.parsed { border-left-color: var(--kelly); }
+.conf.assumed { border-left-color: var(--warn); color: var(--warn); }
+.tbl.attrs { margin: 4px 0 8px; font-size: 13px; }
+.facts-row > td { background: var(--sunk); }
+.board-view { margin: 10px 0; max-width: 640px; }
+.board-view svg { width: 100%; height: auto; display: block; background: var(--sunk); }
+.bv-board { fill: var(--panel); stroke: var(--ink); stroke-width: 0.4; }
+.bv-part.top { fill: var(--s1); }
+.bv-part.bottom { fill: none; stroke: var(--s2); stroke-width: 0.4; }
+.bv-label { fill: var(--ink); font-family: var(--font); }

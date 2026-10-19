@@ -36,6 +36,7 @@ from app.db.models import (
     ProjectVersionRow,
     RunRow,
     SessionRow,
+    SystemGraphRow,
     UsageEventRow,
     UserRow,
     WorkspaceRow,
@@ -289,7 +290,7 @@ def reset_password(db: Session, token: str, new: str) -> UserRow:
 # Every table that holds workspace-owned rows, in an order that respects foreign keys. Later
 # phases append their tables here (see app.auth.service.register_owned_table).
 # Deleted first-to-last in reverse, so list parents before children: exports reference plans.
-_EXTRA_WORKSPACE_TABLES: list[Any] = [ExecutionTraceRow, DesignPlanRow, ExportRow, ExecutionJobRow]
+_EXTRA_WORKSPACE_TABLES: list[Any] = [ExecutionTraceRow, DesignPlanRow, ExportRow, ExecutionJobRow, SystemGraphRow]
 _EXTRA_PROJECT_TABLES: list[Any] = []
 
 
@@ -390,7 +391,7 @@ def delete_account(
 # Later phases register (model, column) pairs that reference users and must be anonymised.
 _USER_REFERENCES: list[tuple[Any, str]] = [
     (ExecutionTraceRow, "created_by"), (DesignPlanRow, "created_by"), (ExportRow, "created_by"),
-    (ExecutionJobRow, "created_by"),
+    (ExecutionJobRow, "created_by"), (SystemGraphRow, "created_by"),
 ]
 
 

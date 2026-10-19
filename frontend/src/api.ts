@@ -405,3 +405,41 @@ export const guide = {
   health: () => req<Health[]>("/projects-health"),
   search: (q: string) => req<SearchHit[]>(`/search?q=${encodeURIComponent(q)}`),
 };
+
+// --- hardware system graph ---------------------------------------------------------------------
+
+export type GraphConfidence = "stated" | "parsed" | "derived" | "assumed" | "measured";
+export interface GraphAttr { value: number | string | boolean | null; unit: string | null; origin: string; confidence: GraphConfidence; artifact_id: number | null; note: string }
+export interface GraphComponent {
+  id: string; name: string; kind: string; parent: string | null; attributes: Record<string, GraphAttr>;
+  origin: string; confidence: GraphConfidence; artifact_id: number | null; trace_component: string | null;
+  logical: { x: number; y: number; w: number; h: number; z: number } | null;
+  physical: { x_mm: number; y_mm: number; rotation_deg: number; side: "top" | "bottom"; width_mm: number | null; height_mm: number | null } | null;
+}
+export interface GraphConnection { id: string; source: string; target: string; kind: string; label: string; attributes: Record<string, GraphAttr>; origin: string; confidence: GraphConfidence; artifact_id: number | null }
+export interface SystemGraph {
+  schema_id: string; device_id: string; device_name: string; components: GraphComponent[]; connections: GraphConnection[];
+  sources: { origin: string; artifact_id: number | null; filename: string | null; components: number; connections: number; attributes: number }[];
+  warnings: string[]; limitations: string[];
+}
+export interface GraphLinks { trace_id: number; kind: string; provenance: string; label: string; components: Record<string, { events: number; busy_ms: number; heat_w?: number }> }
+export interface GraphState {
+  version: number; saved: boolean; outdated?: boolean; note?: string; created_at?: string; source_artifacts?: number[];
+  graph: SystemGraph; links: GraphLinks | null;
+}
+export interface GraphVersion { id: number; version: number; note: string; created_at: string; components: number; connections: number; source_artifacts: number[] }
+export interface GraphSourceFile { id: number; filename: string; tool: string; kind: string; project_id: number | null; created_at: string }
+export interface GraphDiff {
+  from: number; to: number; components_added: string[]; components_removed: string[]; connections_added: string[]; connections_removed: string[];
+  attributes_changed: { component: string; attribute: string; from: unknown; to: unknown }[];
+}
+
+export const systemGraph = {
+  current: (pid: number) => req<GraphState>(`/projects/${pid}/system-graph`),
+  version: (pid: number, v: number) => req<GraphState>(`/projects/${pid}/system-graph/${v}`),
+  versions: (pid: number) => req<GraphVersion[]>(`/projects/${pid}/system-graph/versions`),
+  sources: (pid: number) => req<GraphSourceFile[]>(`/projects/${pid}/system-graph/sources`),
+  fromFiles: (pid: number, artifact_ids: number[], note = "") =>
+    req<GraphVersion>(`/projects/${pid}/system-graph/from-files`, { method: "POST", body: JSON.stringify({ artifact_ids, note }) }),
+  diff: (pid: number, from: number, to: number) => req<GraphDiff>(`/projects/${pid}/system-graph/diff?from=${from}&to=${to}`),
+};

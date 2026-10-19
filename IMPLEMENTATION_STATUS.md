@@ -260,6 +260,66 @@ Verification (2026-10-19)
 - `npx tsc --noEmit`, `npm run lint`, `npm run build`: clean.
 - `npx playwright test`: 9 passed (7 journeys + 2 accessibility scans covering both modes).
 
+## Release 2, slice B: hardware system graph and bounded design-file parsers (done)
+
+What works
+- Versioned system graph per project (`green-computer.system-graph/1`, `schemas/system_graph.py`,
+  table `system_graphs`, migration `0007_system_graphs`, additive). Components and connections with
+  attributes; every component, connection and attribute names its origin (library profile, file,
+  hand entry) and a confidence (stated / parsed / derived / assumed / measured). Logical diagram
+  positions and physical board positions (mm) are separate fields and never mixed.
+- Version 0 is built from the device profile (`engine/system_graph.py`, pure): compute, memory, power,
+  cooling, plus flash and on-chip memory when present, each linked to the execution trace component
+  of the same role. The latest trace adds per-component event counts, busy time and heat.
+- Parsers (`engine/design_parsers.py`, pure, size/depth/count bounded), routed by the upload door:
+  - KiCad 6+ schematic (.kicad_sch): parts, title block, sub-sheets, labels. Wires are not traced.
+  - KiCad board (.kicad_pcb, v5+): outline size, copper layers, thickness, footprints with x/y,
+    rotation and side, nets between parts (wide nets such as GND summarised).
+  - Verilog-2001 / SystemVerilog subset (.v, .sv): modules, parameters, ANSI and non-ANSI ports
+    with widths, instance hierarchy, external modules. Widths use a literal-only arithmetic
+    evaluator (no `eval`).
+  - Vivado report_timing_summary: WNS/TNS/WHS/THS/WPWS, endpoints, clocks, "constraints met".
+  - Vitis/Vivado HLS csynth.rpt and csynth.xml: latency and interval in cycles, target/estimated
+    clock, resource estimates and availability.
+  - Already supported and now merged into the graph: Vivado utilisation and power reports.
+- Bad files are refused with a reason and recorded without keeping the bytes (truncated or
+  unbalanced S-expressions, KiCad 5 legacy .sch, VHDL, no modules, unknown reports). VHDL, other
+  EDA formats, netlists and Gerbers stay "planned" and name the format that works today.
+- API: `GET /projects/{id}/system-graph`, `/versions`, `/{version}`, `/sources`, `/diff?from=&to=`,
+  `POST /system-graph/from-files` (merge uploaded files into a new version), `POST /system-graph`
+  (save an edited graph; validated for unique ids, existing parents and connection ends, no
+  parent cycles, same device as the project). A new fact for an existing attribute is kept next to
+  the old one with its own origin, never silently replaced.
+- UI: a "Hardware graph" section on the System map page with a plain summary, version picker,
+  "add uploaded design files", Explain (counts by kind, board layout drawn to scale in mm, with top
+  and bottom shown by shape), and Engineering detail (filterable parts table with source,
+  confidence, trace events, every fact; connections table; limitations).
+
+Tested
+- `tests/engine/test_design_parsers.py` (16): every parser on realistic fixtures
+  (`tests/fixtures/design/`), refusal of nine kinds of bad input, safe width arithmetic, graph
+  build/merge/validate/diff, provenance kept on merge.
+- `tests/api/test_system_graph.py` (3): upload answers, invalid uploads not stored, versions, diff,
+  save and validation errors, trace links, other-workspace access returns 404 on every graph route,
+  another workspace's file cannot be merged, unauthenticated 401, rows removed on account deletion.
+- PostgreSQL journey now uploads Verilog and builds a graph; deletion check includes `system_graphs`.
+- Playwright: a journey uploads Verilog, adds it to the graph and finds its part and source in the
+  engineering table; axe scans the System map page (with the graph) in both modes and schemes.
+- Checked in the browser with the KiCad, Verilog, Vivado timing and HLS fixtures on the FPGA demo.
+
+What is not claimed
+- No electrical, thermal, timing or functional simulation is run on any design file. Timing values
+  are shown only as "Vivado static timing analysis" from an uploaded Vivado report; HLS figures are
+  labelled as pre-implementation estimates.
+- The Verilog reader is a subset parser (no preprocessor, generate elaboration or SystemVerilog
+  interfaces/packages); it warns when such constructs are present.
+
+Verification (2026-10-19)
+- `pytest -q --basetemp <scratch>`: 281 passed, 2 skipped (PostgreSQL, run separately);
+  `GC_TEST_PG_URL=... pytest tests/test_postgres.py`: 2 passed.
+- `ruff check .`, `mypy app` (116 files): clean. `tsc`, `eslint`, `vite build`: clean.
+- `npx playwright test`: 10 passed.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no

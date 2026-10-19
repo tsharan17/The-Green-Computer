@@ -98,8 +98,8 @@ test("upload an ONNX model and get an honest answer for unsupported files", asyn
   await page.getByRole("tab", { name: "FPGA" }).click();
   const chooser2 = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Choose files" }).click();
-  await (await chooser2).setFiles({ name: "core.sv", mimeType: "text/plain", buffer: Buffer.from("module m; endmodule") });
-  const sv = page.locator(".intake-item", { hasText: "core.sv" });
+  await (await chooser2).setFiles({ name: "core.vhd", mimeType: "text/plain", buffer: Buffer.from("entity m is end m;") });
+  const sv = page.locator(".intake-item", { hasText: "core.vhd" });
   await expect(sv.getByText("unsupported", { exact: true })).toBeVisible();
   await expect(sv.getByText(/What works today:.*report_utilization|What works today:.*Vivado/)).toBeVisible();
 });
@@ -204,4 +204,28 @@ test("example projects, project health and global search", async ({ page }) => {
   await search.press("Enter");
   await expect(page).toHaveURL(/#\/p\/\d+\/summary/);
   await expect(page.getByRole("heading", { name: /Voice command on a microcontroller/ })).toBeVisible();
+});
+
+test("design files build a versioned hardware graph with sources", async ({ page }) => {
+  await signUp(page, email("graph"));
+  await page.goto("/#/");
+  await page.getByRole("button", { name: /Add five example projects/ }).click();
+  await page.getByRole("link", { name: /Demo: Inspection on an FPGA/ }).click();
+  const pid = page.url().match(/#\/p\/(\d+)/)![1];
+  const verilog = "module top(input wire clk, input wire [7:0] a, output wire [7:0] y);\n  sub u0 (.clk(clk));\n  assign y = a;\nendmodule\nmodule sub(input clk);\nendmodule\n";
+  const up = await page.request.post(`/api/v1/intake/upload?filename=top.v&project_id=${pid}`, {
+    headers: { "X-GC-CSRF": "1", "Content-Type": "application/octet-stream" }, data: verilog,
+  });
+  expect((await up.json()).status).toBe("valid");
+
+  await page.goto(`/#/p/${pid}/system-map`);
+  const graph = page.getByRole("region", { name: "Hardware graph" });
+  await expect(graph.getByText(/from the device profile\./)).toBeVisible();
+  await graph.getByRole("checkbox", { name: /top\.v/ }).check();
+  await graph.getByRole("button", { name: /Add 1 to the graph/ }).click();
+  await expect(graph.getByText(/Saved as version 1/)).toBeVisible();
+  await expect(graph.getByText(/from the device profile and 1 design file/)).toBeVisible();
+  await graph.locator("details.level-block.engineering > summary").click();
+  await expect(graph.getByRole("cell", { name: /^top rtl:top/ })).toBeVisible();
+  await expect(graph.getByRole("cell", { name: "Verilog: top.v" }).first()).toBeVisible();
 });

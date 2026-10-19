@@ -20,6 +20,7 @@ from app.api.v1.intake import router as intake_router
 from app.api.v1.measurements import router as measurement_router
 from app.api.v1.plans import router as plans_router
 from app.api.v1.routes import router
+from app.api.v1.system_graph import router as system_graph_router
 from app.api.v1.twin import router as twin_router
 from app.api.v1.workspace import router as workspace_router
 from app.config import get_settings
@@ -74,7 +75,7 @@ def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAP
     app.state.email_sender = make_email_sender()
     for r in (auth_router, workspace_router, router, measurement_router, agent_router,
               export_router, hardware_router, files_router, intake_router, twin_router, plans_router,
-              executions_router, guide_router):  # fmt: skip
+              executions_router, guide_router, system_graph_router):  # fmt: skip
         app.include_router(r, prefix=settings.api_prefix)
 
     if STATIC_DIR.is_dir():

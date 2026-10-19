@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
@@ -70,6 +71,14 @@ def test_full_journey_on_postgres(pg_url, tmp_path):
             assert any(h["analysed"] for h in c.get(f"{P}/projects-health").json())
             assert c.get(f"{P}/search", params={"q": "voice"}).json()
             assert c.put(f"{P}/auth/preferences", json={"mode": "engineering"}).json()["mode"] == "engineering"
+            # Release 2 slice B: a design file into a versioned system graph.
+            v = (Path(__file__).parent / "fixtures" / "design" / "accel.v").read_bytes()
+            up = c.post(f"{P}/intake/upload?filename=accel.v&project_id={pid}", content=v,
+                        headers={"Content-Type": "application/octet-stream"}).json()  # fmt: skip
+            assert up["status"] == "valid"
+            g = c.post(f"{P}/projects/{pid}/system-graph/from-files", json={"artifact_ids": [up["artifact_id"]]})
+            assert g.status_code == 201 and g.json()["version"] == 1
+            assert c.get(f"{P}/projects/{pid}/system-graph").json()["links"] is not None
         with AuthedClient(app, email="other@x.io") as o:
             assert o.get(f"{P}/projects/{pid}").status_code == 404
             assert not [h for h in o.get(f"{P}/search", params={"q": "voice"}).json() if h["type"] == "project"]
@@ -77,7 +86,7 @@ def test_full_journey_on_postgres(pg_url, tmp_path):
             r = c.post(f"{P}/auth/account/delete", json={"password": TEST_PASSWORD, "confirm": "DELETE"})
             assert r.status_code == 200, r.text
         with sa.create_engine(pg_url).connect() as conn:
-            for t in ("projects", "design_plans", "exports", "execution_traces", "runs"):
+            for t in ("projects", "design_plans", "exports", "execution_traces", "runs", "system_graphs"):
                 assert conn.execute(sa.text(f"SELECT COUNT(*) FROM {t} WHERE project_id = :p" if t != "projects"
                                             else "SELECT COUNT(*) FROM projects WHERE id = :p"), {"p": pid}).scalar() == 0
     finally:

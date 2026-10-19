@@ -100,7 +100,7 @@ def test_every_category_lists_supported_and_honest_planned_formats():
         assert "supported" in statuses
         for f in cat["formats"]:
             assert f["required"] and f["gives"]
-    for name in ("board.kicad_pcb", "top.sv", "net.edf", "boot.s", "fw.hex", "model.pt", "m.tflite"):
+    for name in ("board.brd", "top.vhd", "net.edf", "boot.s", "fw.hex", "model.pt", "m.tflite"):
         assert unsupported_for(name) is not None, name
     for name in ("model.onnx", "profile.yaml", "fw.elf", "util.rpt", "power.csv", "ds.pdf"):
         assert unsupported_for(name) is None, name
@@ -175,7 +175,7 @@ def test_formats_template_validation_and_capabilities_endpoints(client):
     assert caps["database"]["status"] == "available"
 
 
-@pytest.mark.parametrize("fname", ["board.kicad_pcb", "core.sv", "design.edf", "main.s", "fw.hex", "m.pt"])
+@pytest.mark.parametrize("fname", ["board.brd", "core.vhd", "design.edf", "main.s", "fw.hex", "m.pt"])
 def test_unsupported_formats_get_an_honest_answer_and_are_recorded(client, fname):
     r = client.post(f"{P}/intake/upload?filename={fname}", content=b"whatever", headers=OCTET)
     body = r.json()

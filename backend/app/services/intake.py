@@ -23,7 +23,8 @@ from app.services import audit
 CONTENT_TYPES = {
     ".onnx": "application/octet-stream", ".json": "application/json", ".yaml": "application/yaml",
     ".yml": "application/yaml", ".csv": "text/csv", ".pdf": "application/pdf", ".txt": "text/plain",
-    ".rpt": "text/plain", ".log": "text/plain", ".md": "text/markdown",
+    ".rpt": "text/plain", ".log": "text/plain", ".md": "text/markdown", ".kicad_sch": "text/plain",
+    ".kicad_pcb": "text/plain", ".v": "text/plain", ".sv": "text/plain", ".xml": "application/xml",
 }  # fmt: skip
 
 

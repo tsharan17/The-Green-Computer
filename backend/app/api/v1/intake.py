@@ -24,6 +24,15 @@ from app.api.v1.routes import project_for
 from app.auth.deps import Ctx, get_db, require_ctx, require_writer
 from app.data_loader import load_devices
 from app.engine.datasheet_scan import scan_datasheet
+from app.engine.design_parsers import (
+    DesignParseError,
+    detect_design_report,
+    parse_hls,
+    parse_kicad_pcb,
+    parse_kicad_sch,
+    parse_verilog,
+    parse_vivado_timing,
+)
 from app.engine.elf_report import ElfError, check_against, elf_footprint
 from app.engine.hw_validate import template, validate_profile
 from app.engine.hwbuild import CustomHardwareSpec, build_custom
@@ -70,6 +79,42 @@ def capability_report(request: Request, _ctx: Ctx = Depends(require_ctx)) -> lis
 def _answer(art, kind: str, status: str, message: str, **extra: Any) -> dict[str, Any]:
     return {"artifact_id": art.id if art is not None else None, "kind": kind, "status": status,
             "message": message, **extra}  # fmt: skip
+
+
+def _design_message(rep: dict[str, Any]) -> str:
+    t = rep["tool"]
+    if t == "kicad_sch":
+        return (f"KiCad schematic: {len(rep['parts'])} parts, {len(rep['sheets'])} sub-sheet(s). Metadata only; "
+                "add it to the system graph to place the parts.")  # fmt: skip
+    if t == "kicad_pcb":
+        o = rep.get("outline")
+        size = f"{o['width_mm']:g} × {o['height_mm']:g} mm, " if o else ""
+        return (f"KiCad board: {size}{len(rep['copper_layers'])} copper layers, {len(rep['parts'])} footprints, "
+                f"{rep['net_count']} nets. Metadata only: nothing was simulated.")  # fmt: skip
+    if t == "verilog":
+        return (f"Verilog: {len(rep['modules'])} module(s), top: {', '.join(rep['top_modules'][:4]) or 'none'}. "
+                "Structure only: not simulated or synthesised.")  # fmt: skip
+    if t == "vivado_timing":
+        s = rep["summary"]
+        return (f"Vivado timing: WNS {s.get('wns_ns'):g} ns, TNS {s.get('tns_ns', 0):g} ns; constraints "
+                f"{'met' if rep['constraints_met'] else 'NOT met'} according to Vivado.")  # fmt: skip
+    lat = rep.get("latency_cycles") or {}
+    g = lambda v: "?" if v is None else f"{v:g}"  # noqa: E731
+    return (f"HLS report for {rep.get('top')}: latency {g(lat.get('best'))}–{g(lat.get('worst'))} cycles at an "
+            f"estimated {g(rep.get('estimated_clock_ns'))} ns clock (HLS estimate, before implementation).")  # fmt: skip
+
+
+def _design_summary(rep: dict[str, Any]) -> dict[str, Any]:
+    """The upload answer carries a short summary; the full parse stays in the artifact's report."""
+    out = {k: v for k, v in rep.items() if k not in ("parts", "connections", "modules")}
+    if "parts" in rep:
+        out["parts_sample"] = rep["parts"][:25]
+        out["parts_total"] = len(rep["parts"])
+    if "modules" in rep:
+        out["modules_sample"] = [{k: m[k] for k in ("name", "port_count", "clocks", "line")} | {"instances": len(m["instances"])}
+                                 for m in rep["modules"][:25]]  # fmt: skip
+        out["modules_total"] = len(rep["modules"])
+    return out
 
 
 @router.post("/intake/upload")
@@ -142,6 +187,19 @@ async def upload(
         return _answer(art, "firmware_elf", "valid",
                        f"{fp['machine']} {fp['type']}: {fp['flash_bytes'] / 1024:.1f} KB flash, "
                        f"{fp['ram_bytes'] / 1024:.1f} KB RAM (static).", report=fp)  # fmt: skip
+
+    design = {".kicad_sch": ("kicad_schematic", parse_kicad_sch), ".kicad_pcb": ("kicad_pcb", parse_kicad_pcb),
+              ".v": ("verilog", parse_verilog), ".sv": ("verilog", parse_verilog)}  # fmt: skip
+    ext = next((e for e in design if name.endswith(e)), None)
+    if ext is not None or (name.endswith(".xml") and detect_design_report(data[:200_000].decode("utf-8", "replace")) == "hls_report"):
+        kind, parser = design[ext] if ext is not None else ("hls_report", parse_hls)
+        try:
+            rep = parser(data.decode("utf-8", errors="replace"))
+        except DesignParseError as e:
+            art = store(kind, "invalid", {"errors": [str(e)]}, keep=False)
+            return _answer(art, kind, "invalid", str(e))
+        art = store(kind, "valid", rep)
+        return _answer(art, kind, "valid", _design_message(rep), report=_design_summary(rep), warnings=rep.get("warnings", []))
 
     if name.endswith(".pdf"):
         rep = scan_datasheet(data)
@@ -229,11 +287,21 @@ async def upload(
             rep = {"source": "tegrastats", **tr.__dict__}
             art = store("telemetry_log", "valid", rep)
             return _answer(art, "telemetry_log", "valid", f"tegrastats log: {tr.samples} samples.", report=rep)
+        dtool = detect_design_report(text)
+        if dtool is not None:
+            kind = "hls_report" if dtool == "hls_report" else "vendor_report"
+            try:
+                rep = parse_hls(text) if dtool == "hls_report" else parse_vivado_timing(text)
+            except DesignParseError as e:
+                art = store(kind, "invalid", {"errors": [str(e)]}, keep=False)
+                return _answer(art, kind, "invalid", str(e))
+            art = store(kind, "valid", rep)
+            return _answer(art, kind, "valid", _design_message(rep), report=rep)
         tool = detect(text)
         if tool is None:
             art = store("vendor_report", "invalid", {"errors": ["unrecognised report"]}, keep=False)
             return _answer(art, "vendor_report", "invalid",
-                           "Could not tell which tool wrote this report. Supported: Vivado utilisation/power, "
+                           "Could not tell which tool wrote this report. Supported: Vivado utilisation/power/timing, HLS csynth, "
                            "ST Edge AI analyze, Arm Vela summary, tegrastats.")  # fmt: skip
         try:
             rep = parse_report(text, tool)

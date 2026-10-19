@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Figure, bytes, ms, num } from "./chart";
+import HardwareGraph from "./HardwareGraph";
 import { TraceBar, useTrace } from "./TraceBar";
 import type { Component, ExecutionTrace } from "./types";
 
@@ -193,6 +194,7 @@ export default function SystemMapPage({ projectId, version, hasBest }: { project
           </details>
         </>
       )}
+      <HardwareGraph projectId={projectId} />
     </div>
   );
 }

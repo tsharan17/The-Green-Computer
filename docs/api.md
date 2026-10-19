@@ -143,6 +143,18 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `POST` | `/api/v1/projects/{project_id}/plans/analyse` | session | Re-analyse a selection: baseline, each change alone, and all of them combined (not saved). |
 | `POST` | `/api/v1/projects/{project_id}/plans` | session | Save Plan |
 
+## System Graph
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | `/api/v1/projects/{project_id}/system-graph/diff` | session | Graph Diff |
+| `GET` | `/api/v1/projects/{project_id}/system-graph/sources` | session | Uploaded, parsed design files and reports in this workspace that the graph can take in. |
+| `GET` | `/api/v1/projects/{project_id}/system-graph/versions` | session | Graph Versions |
+| `GET` | `/api/v1/projects/{project_id}/system-graph/{version}` | session | Graph Version |
+| `GET` | `/api/v1/projects/{project_id}/system-graph` | session | The latest saved graph, or version 0 built from the device profile (not saved). |
+| `POST` | `/api/v1/projects/{project_id}/system-graph/from-files` | session | Add what uploaded design files state (KiCad, Verilog, Vivado, HLS) as a new graph version. |
+| `POST` | `/api/v1/projects/{project_id}/system-graph` | session | Save an edited graph as a new version (validated: unique ids, existing parents and ends). |
+
 ## Workspace
 
 | Method | Path | Auth | What it does |

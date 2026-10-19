@@ -89,21 +89,44 @@ _ELF: FileFormat = {
 }
 
 
+KICAD_SCH: FileFormat = {
+    "id": "kicad_sch", "name": "KiCad schematic", "extensions": [".kicad_sch"], "status": "supported",
+    "gives": "Parts (reference, value, footprint, symbol), title block and sub-sheets, added to the "
+             "system graph. Metadata only: wires are not traced and nothing is simulated.",
+    "required": "KiCad 6 or later. KiCad 5 .sch files: open and save them in KiCad 6+ first.",
+}
+KICAD_PCB: FileFormat = {
+    "id": "kicad_pcb", "name": "KiCad board", "extensions": [".kicad_pcb"], "status": "supported",
+    "gives": "Board size, copper layers, thickness, every footprint's position and side, and the nets "
+             "between parts, added to the system graph with physical placement. Copper, current and "
+             "heat spreading are not analysed.",
+    "required": "The .kicad_pcb file saved by KiCad 5 or later.",
+}
+VERILOG: FileFormat = {
+    "id": "verilog", "name": "Verilog / SystemVerilog source (structure)", "extensions": [".v", ".sv"],
+    "status": "supported",
+    "gives": "Modules, parameters, ports with widths and the instance hierarchy, added to the system "
+             "graph. A subset of the language; not elaborated, simulated or synthesised.",
+    "required": "Plain Verilog-2001 or SystemVerilog modules; upload each file of the hierarchy. For "
+                "resources, power and timing upload the Vivado reports.",
+}
+
+
 def _planned(fid: str, name: str, exts: list[str], required: str) -> FileFormat:
     return {"id": fid, "name": name, "extensions": exts, "status": "planned",
             "gives": "No parser for this format exists in the platform yet, so it is not analysed.",
             "required": required}  # fmt: skip
 
 
-SCHEMATIC = _planned("schematic", "Schematic", [".sch", ".kicad_sch", ".schdoc", ".dsn"],
-                     "Today: describe the power rails and regulators in the device profile "
+SCHEMATIC = _planned("schematic", "Schematic (other tools)", [".sch", ".schdoc", ".dsn"],
+                     "Today: KiCad 6+ schematics (.kicad_sch) are read; from other tools, describe the power rails and regulators in the device profile "
                      "(idle_w, regulator_efficiency) or upload a power log measured on the board.")  # fmt: skip
-PCB = _planned("pcb", "PCB layout / Gerber", [".kicad_pcb", ".brd", ".pcbdoc", ".gbr", ".gtl", ".gbl"],
-               "Today: give the cooling as thermal resistance (K/W) in the profile's cooling options; "
+PCB = _planned("pcb", "PCB layout (other tools) / Gerber", [".brd", ".pcbdoc", ".gbr", ".gtl", ".gbl"],
+               "Today: KiCad boards (.kicad_pcb) are read; otherwise give the cooling as thermal resistance (K/W) in the profile's cooling options; "
                "a board thermal simulation export (e.g. a CSV of junction-to-ambient vs airflow) can be "
                "entered as cooling options.")  # fmt: skip
-RTL = _planned("rtl", "RTL source", [".v", ".sv", ".vhd", ".vhdl"],
-               "Today: upload the synthesis/implementation report instead (Vivado report_utilization "
+RTL = _planned("rtl", "VHDL source", [".vhd", ".vhdl"],
+               "Today: Verilog (.v, .sv) structure is read; for VHDL upload the synthesis/implementation report instead (Vivado report_utilization "
                "and report_power .rpt) — those numbers are parsed.")  # fmt: skip
 NETLIST = _planned("netlist", "Netlist", [".edf", ".edif", ".net", ".vqm"],
                    "Today: upload the Vivado utilisation and power reports (.rpt).")  # fmt: skip
@@ -123,24 +146,33 @@ VENDOR_REPORTS: list[FileFormat] = [
     {"id": "vela", "name": "Arm Vela summary (Ethos-U)", "extensions": [".txt", ".csv"], "status": "supported",
      "gives": "SRAM/flash use, cycles and inferences/s estimated by Vela.",
      "required": "vela model.tflite --output-format tflite (the summary printed to the console)."},
+    {"id": "vivado_timing", "name": "Vivado timing summary", "extensions": [".rpt", ".txt"], "status": "supported",
+     "gives": "WNS/TNS/WHS, failing endpoints and clocks, from Vivado's own static timing analysis.",
+     "required": "report_timing_summary -file timing.rpt (after implementation for final numbers)."},
+    {"id": "hls_report", "name": "Vitis / Vivado HLS synthesis report", "extensions": [".rpt", ".xml"],
+     "status": "supported",
+     "gives": "Latency and interval in cycles, target and estimated clock, resource estimates of the HLS top.",
+     "required": "solution/syn/report/<top>_csynth.rpt or csynth.xml."},
 ]
 
 CATEGORIES: list[dict] = [
     {"id": "board_soc", "name": "Board / SoC", "kinds": ["edge_soc", "sbc", "laptop_soc", "datacenter_gpu"],
      "examples": "Jetson Orin, Raspberry Pi 5, Snapdragon, Apple M-series, NVIDIA L4",
-     "formats": [_PROFILE, _DESCRIPTION, _DATASHEET, _POWER_LOG, _TELEMETRY, SCHEMATIC, PCB]},
+     "formats": [_PROFILE, _DESCRIPTION, _DATASHEET, _POWER_LOG, _TELEMETRY, KICAD_SCH, KICAD_PCB, SCHEMATIC, PCB]},
     {"id": "mcu", "name": "Microcontroller", "kinds": ["mcu"],
      "examples": "STM32H7/N6, nRF52840, ESP32-S3",
      "formats": [_PROFILE, _DESCRIPTION, _ELF, VENDOR_REPORTS[1], VENDOR_REPORTS[2], _POWER_LOG, _DATASHEET,
-                 ASSEMBLY, FIRMWARE_RAW, SCHEMATIC]},
+                 KICAD_SCH, KICAD_PCB, ASSEMBLY, FIRMWARE_RAW, SCHEMATIC]},
     {"id": "fpga", "name": "FPGA", "kinds": ["fpga"], "examples": "Kria KV260, Zynq UltraScale+",
-     "formats": [_PROFILE, _DESCRIPTION, VENDOR_REPORTS[0], _POWER_LOG, _DATASHEET, RTL, NETLIST]},
+     "formats": [_PROFILE, _DESCRIPTION, VENDOR_REPORTS[0], VENDOR_REPORTS[3], VENDOR_REPORTS[4], VERILOG,
+                 KICAD_PCB, _POWER_LOG, _DATASHEET, RTL, NETLIST]},
     {"id": "accelerator", "name": "AI accelerator", "kinds": ["accelerator"],
      "examples": "Hailo-8, Coral Edge TPU, Ethos-U NPUs",
-     "formats": [_PROFILE, _DESCRIPTION, VENDOR_REPORTS[2], _POWER_LOG, _DATASHEET, RTL]},
+     "formats": [_PROFILE, _DESCRIPTION, VENDOR_REPORTS[2], _POWER_LOG, _DATASHEET, VERILOG, RTL]},
     {"id": "custom_system", "name": "Custom system", "kinds": ["custom"],
      "examples": "Your own board or chip, a prototype, a design study",
-     "formats": [_PROFILE, _DESCRIPTION, _DATASHEET, _POWER_LOG, _ELF, SCHEMATIC, PCB, RTL, NETLIST]},
+     "formats": [_PROFILE, _DESCRIPTION, _DATASHEET, _POWER_LOG, _ELF, KICAD_SCH, KICAD_PCB, VERILOG,
+                 VENDOR_REPORTS[0], VENDOR_REPORTS[3], VENDOR_REPORTS[4], SCHEMATIC, PCB, RTL, NETLIST]},
 ]
 
 MAX_BYTES = {"model": 100 * 1024 * 1024, "hardware": 20 * 1024 * 1024}

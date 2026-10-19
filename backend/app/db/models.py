@@ -381,3 +381,22 @@ class ExecutionJobRow(Base):
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SystemGraphRow(Base):
+    """A saved version of a project's hardware system graph (immutable; saving adds a version)."""
+
+    __tablename__ = "system_graphs"
+    __table_args__ = (UniqueConstraint("project_id", "version", name="uq_system_graphs_project_version"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    device_id: Mapped[str] = mapped_column(String(120))
+    schema_id: Mapped[str] = mapped_column(String(60))
+    note: Mapped[str] = mapped_column(String(1000), default="")
+    source_artifacts: Mapped[list] = mapped_column(JSON, default=list)
+    graph: Mapped[dict] = mapped_column(JSON)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
