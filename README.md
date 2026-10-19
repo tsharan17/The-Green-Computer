@@ -9,6 +9,17 @@ real where you can, and export what you decided.
 It runs entirely on your own machine. NVIDIA GPUs, Nebius cloud jobs and an AI assistant are
 optional accelerators, never requirements.
 
+## Start it
+
+- **Windows:** double-click **`Start The Green Computer.bat`** in this folder.
+- **macOS / Linux:** run `./start.sh`.
+
+It opens http://localhost:8000 in your browser. Keep the window open while you use the app, and
+press Ctrl+C there to stop. The first start takes a few minutes: it creates the Python environment
+and builds the interface, and needs Python 3.11+ and Node.js 20+. Later starts take seconds. Your
+data stays in `green_computer.db` and `gc_data/` in this folder. Options: `--port 8080`,
+`--rebuild`, `--no-browser`.
+
 ## What you can do
 
 1. **Workspace.** Create an account; projects live in a private or a team workspace. Every change of

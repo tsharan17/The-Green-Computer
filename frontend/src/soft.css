@@ -1,0 +1,194 @@
+/* The Green Computer: soft green and white, bold and large, loaded last.
+   Layout borrows the familiar social-feed pattern: a white top bar with a rounded search, a left
+   column of round-icon shortcuts on a soft green page, and the content as white rounded cards.
+   Colour pairs are chosen for WCAG AA: white on --accent (5.0:1), --accent-strong on white (7.0:1),
+   --muted on the page background (6.3:1). State still uses icon + words, never colour alone. */
+
+:root {
+  color-scheme: light;
+  --bg: #eef6ef;           /* soft green page */
+  --panel: #ffffff;        /* white cards */
+  --sunk: #e3f1e6;         /* soft green wells, hover */
+  --ink: #102418;
+  --muted: #3f5546;
+  --line: #d4e6d8;
+  --line-strong: #b5d3bc;
+  --kelly: #23803a;
+  --accent: #23803a;       /* buttons: white text on this */
+  --accent-ink: #ffffff;
+  --accent-strong: #1a6e2f;/* links and active text: 7.0:1 on white, 5.2:1 on soft green */
+  --accent-soft: #d8eedd;  /* active shortcut, selected pills */
+  --soft-btn: #e1f1e4;     /* secondary buttons */
+  --soft-btn-hover: #d1e9d6;
+  --ok: #1d6d31; --ok-bg: #dff2e3;
+  --warn: #7a4f00; --warn-bg: #fff1d6;
+  --bad: #a61f17; --bad-bg: #fde7e5;
+  --info: #1f5f8f; --info-bg: #e5f0fa;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgba(16, 36, 24, 0.12), 0 1px 1px rgba(16, 36, 24, 0.04);
+  --shadow-lift: 0 4px 14px rgba(16, 36, 24, 0.12);
+  --font: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, "IBM Plex Sans", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0f1a12;
+    --panel: #18251c;
+    --sunk: #213126;
+    --ink: #eaf5ec;
+    --muted: #b1c8b6;
+    --line: #2b3f31;
+    --line-strong: #3b5442;
+    --kelly: #57c46f;
+    --accent: #57c46f;
+    --accent-ink: #06150a;
+    --accent-strong: #8fdca0;
+    --accent-soft: #1f3a27;
+    --soft-btn: #24392b;
+    --soft-btn-hover: #2c4634;
+    --ok: #8fdca0; --ok-bg: #1d3524;
+    --warn: #f3c86b; --warn-bg: #3a2c0c;
+    --bad: #ff9d94; --bad-bg: #3d1916;
+    --info: #9cc8f0; --info-bg: #15283b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-lift: 0 4px 14px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* --- Type: big and bold --------------------------------------------------------------------- */
+body { font-family: var(--font); font-size: 17px; font-weight: 500; line-height: 1.5; background: var(--bg); color: var(--ink); }
+h1, h2, h3, h4 { font-weight: 800; letter-spacing: -0.01em; color: var(--ink); }
+h1 { font-size: 34px; line-height: 1.15; }
+h2, .panel h2 { font-size: 23px; font-weight: 800; }
+h3 { font-size: 18px; font-weight: 700; color: var(--ink); }
+strong, b { font-weight: 700; }
+.hint, small, .muted { font-size: 15px; }
+small.block, .db-sub, .lb-lim, .gs-sub { font-size: 14px; }
+a { color: var(--accent-strong); font-weight: 600; }
+.field { font-size: 15px; font-weight: 700; color: var(--ink); }
+.tbl { font-size: 16px; }
+.tbl th { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: none; }
+
+/* --- Cards on a soft green page --------------------------------------------------------------- */
+.panel, .side, .level, .tile, .rec, .draft, .preset, .card {
+  background: var(--panel); border: none; border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.panel { padding: 20px 22px; margin: 0 0 16px; border-top: none; }
+.content > main { max-width: 1120px; }
+.verdict-band, .bottleneck, .next-step, .decision-bar, .hero-start, .guide-head + .guide-steps {
+  background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.verdict-band, .bottleneck, .next-step { padding: 18px 22px; border-top: none; }
+.next-step { border-left: 6px solid var(--accent); }
+.decision-bar { border: none; border-top: none; padding: 4px 18px; margin: 8px 0 18px; }
+.db-label { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
+.db-cell strong { font-size: 18px; }
+.hero-start { padding: 26px 28px; border-bottom: none; }
+.hero-start h1 { font-size: 36px; }
+.level-block { border-top: 1px solid var(--line); }
+.level-tag { font-size: 13px; font-weight: 800; }
+
+/* --- Buttons: rounded, bold; primary green with white, secondary soft green -------------------- */
+button, a.button, .btn-link {
+  font-family: var(--font); font-size: 16px; font-weight: 700; border-radius: var(--radius-sm);
+  background: var(--soft-btn); color: var(--ink); border: 1px solid transparent; padding: 9px 16px;
+}
+button:hover:not(:disabled), a.button:hover, .btn-link:hover { background: var(--soft-btn-hover); border-color: transparent; }
+button.primary, .btn-link.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+button.primary:hover:not(:disabled), .btn-link.primary:hover { background: var(--accent); filter: brightness(0.92); }
+.btn-link.big, button.big { font-size: 18px; padding: 12px 22px; }
+button.link { background: none; padding: 2px 4px; color: var(--accent-strong); font-weight: 700; }
+button.link:hover:not(:disabled) { background: none; text-decoration: underline; }
+.choice { border-radius: var(--radius); border: 2px solid var(--line); box-shadow: var(--shadow); font-size: 16px; }
+.choice strong { font-size: 18px; }
+.choice[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: none; }
+
+/* --- Inputs: soft rounded fields -------------------------------------------------------------- */
+input, select, textarea {
+  font-family: var(--font); font-size: 16px; font-weight: 500; border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink); padding: 9px 12px;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* --- Top bar: white, sticky, rounded search in the middle ------------------------------------- */
+.topbar {
+  position: sticky; top: 0; z-index: 25; background: var(--panel); box-shadow: var(--shadow);
+  margin: 0 -28px 20px; padding: 10px 28px; border-bottom: none; gap: 14px;
+}
+.topbar { flex-wrap: nowrap; }
+.topbar > * { flex-shrink: 0; }
+.topbar > .gsearch { flex: 1 1 200px; min-width: 160px; max-width: 560px; flex-shrink: 1; }
+.ws-switch select { min-width: 0; max-width: 230px; }
+.account-menu > button { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gsearch input { border-radius: 999px; background: var(--bg); border: 1px solid transparent; padding: 11px 18px; font-size: 16px; }
+.gsearch input:focus { background: var(--panel); }
+.seg { border: none; background: var(--bg); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button { border-radius: 999px; padding: 7px 14px; font-size: 15px; background: transparent; }
+.seg button.on, .seg button[aria-checked="true"], .seg.mode-switch button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
+.account-menu > button { border-radius: 999px; }
+.ws-switch select { border-radius: 999px; font-weight: 700; }
+
+/* --- Left column: shortcuts with round icons, active one in soft green ------------------------- */
+.sidebar { background: transparent; border-right: none; padding: 16px 10px; gap: 10px; }
+.brand { padding: 4px 8px; }
+.brand strong { font-size: 20px; font-weight: 800; color: var(--accent-strong); }
+.brand small { font-size: 13px; font-weight: 600; }
+.side-nav { gap: 4px; }
+.nav-item { border: none; border-left: none; border-radius: var(--radius-sm); padding: 8px 10px; gap: 12px; }
+.nav-item i {
+  width: 36px; height: 36px; font-size: 15px; font-weight: 800; border: none;
+  background: var(--soft-btn); color: var(--accent-strong);
+}
+.nav-item strong { font-size: 16px; font-weight: 700; }
+.nav-item small { font-size: 13px; }
+.nav-item:hover { background: var(--sunk); }
+.nav-item.on { background: var(--accent-soft); border-left: none; }
+.nav-item.on i { background: var(--accent); color: var(--accent-ink); }
+.nav-group, details.nav-more > summary { font-size: 14px; font-weight: 700; }
+.agent-btn { border-radius: 999px; }
+
+/* --- Tabs: bold, green underline like a feed's section tabs ----------------------------------- */
+.tabs { border-bottom: none; gap: 6px; background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow); padding: 4px 6px; }
+.tab { font-size: 16px; font-weight: 700; border-radius: var(--radius-sm); border-bottom: 3px solid transparent; color: var(--muted); padding: 10px 16px; background: none; }
+.tab:hover { background: var(--sunk); }
+.tab.on, .tab[aria-selected="true"] { color: var(--accent-strong); border-bottom-color: var(--accent); background: none; }
+
+/* --- Badges and outcomes: pills ---------------------------------------------------------------- */
+.outcome { border-radius: 999px; border-left: none; padding: 3px 12px; font-size: 15px; font-weight: 800; }
+.outcome.lg { font-size: 19px; padding: 6px 16px; }
+.chip, .badge, .tag, .conf { border-radius: 999px; font-weight: 700; }
+
+/* --- Sign-in page --------------------------------------------------------------------------- */
+.auth-card { border: none; border-top: none; border-radius: var(--radius); box-shadow: var(--shadow-lift); padding: 24px; background: var(--panel); }
+.auth-intro h1 { font-size: 40px; font-weight: 800; color: var(--accent-strong); }
+.auth-steps { font-size: 18px; }
+.auth-example { border-left: none; border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); }
+
+/* --- Decision bar cells, summary, KPIs -------------------------------------------------------- */
+.db-cell { border-left: 1px solid var(--line); }
+.vb-sentence { font-size: 26px; font-weight: 800; }
+.kpis > div { background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow); border-left: none; padding: 12px 16px; }
+.kpis strong { font-size: 24px; font-weight: 800; }
+
+/* --- Phones: the left column becomes a row of round shortcuts --------------------------------- */
+@media (max-width: 900px) {
+  .sidebar { background: var(--panel); box-shadow: var(--shadow); border-bottom: none; }
+  .topbar { margin: 0 -16px 16px; padding: 8px 16px; position: static; flex-wrap: wrap; }
+  .topbar > .gsearch { flex-basis: 100%; order: 3; max-width: none; }
+  .sidebar { padding: 10px 14px; gap: 8px; }
+  .brand { flex: 1 1 auto; min-width: 0; }
+  .brand strong { font-size: 18px; white-space: nowrap; }
+  .brand small, .cap-link, .sidebar .statusbar { display: none; }
+  .agent-btn { padding: 6px 12px; font-size: 14px; }
+  .nav-item { padding: 6px 8px; gap: 8px; }
+  .nav-item i { width: 30px; height: 30px; font-size: 13px; }
+  .nav-item strong { font-size: 15px; }
+  .topbar { gap: 8px; }
+  .topbar .seg button { padding: 6px 10px; font-size: 14px; }
+  .ws-switch select { max-width: 44vw; font-size: 14px; padding: 7px 10px; }
+  .account-menu > button { max-width: 34vw; font-size: 14px; padding: 7px 12px; }
+  h1 { font-size: 28px; }
+  .hero-start h1 { font-size: 28px; }
+  .vb-sentence { font-size: 22px; }
+}
