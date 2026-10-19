@@ -128,6 +128,14 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `POST` | `/api/v1/intake/upload` | session | Upload |
 | `POST` | `/api/v1/intake/validate/device-profile` | session | Validate Device Profile |
 
+## Physics And Evidence
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | `/api/v1/calibration/quality` | session | Calibration Quality |
+| `GET` | `/api/v1/projects/{project_id}/evidence` | session | Every headline metric with its band, provenance, the profile facts and inputs behind it, and |
+| `GET` | `/api/v1/projects/{project_id}/physics` | session | Multi-node thermal attribution (labelled against the lumped decision model and any measured |
+
 ## Plans And Exports
 
 | Method | Path | Auth | What it does |

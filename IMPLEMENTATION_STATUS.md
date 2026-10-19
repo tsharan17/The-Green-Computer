@@ -366,6 +366,84 @@ Verification (2026-10-19)
 - `npx tsc --noEmit`, `npm run lint`, `npm run build`: clean. `npx playwright test`: 11 passed.
 - `npm audit --omit=dev`: 0 vulnerabilities. No backend changes in this slice; backend suite as in B.
 
+## Release 2, slice D: thermal attribution, runtime effects, evidence and calibration quality (done)
+
+What works
+- Multi-node thermal view (`engine/thermal_nodes.py`, pure): compute die, memory, voltage
+  regulators, package and heatsink/board, solved as a resistor network by nodal analysis. Every
+  number is labelled:
+  - lumped: the decision model, unchanged and still the only one used for pass/fail;
+  - attribution: the lumped heat split over the network. Resistances inside the package are
+    assumptions unless the profile's extras state `r_jc_k_per_w` / `r_cs_k_per_w`. The
+    sink-to-ambient resistance is derived, so all heat at the die reproduces the lumped temperature
+    exactly. Heat inputs are scaled to the lumped power;
+  - measured: a temperature from a real run at the same operating point;
+  - validated / not validated: the lumped prediction is within 3 °C of that measurement, or not.
+  The summary names the warmer of die and memory. The regulators' temperature rests on an assumed
+  coupling and is presented as a prompt to check.
+- Memory hierarchy (`engine/runtime_effects.py`): on-chip memory, main memory or SRAM, flash
+  (weights in place) and the host link for discrete GPUs and accelerators. Each level has
+  capacity, bandwidth, what it holds, whether it fits, traffic per batch, time at bandwidth and
+  the source of the figure.
+- Runtime effects, each marked whether the headline latency includes it and whether it is
+  analytical or assumed:
+  - included in the headline: launch/framework overhead and operator fusion;
+  - not included: host transfer (unknown without an operator graph), model loading at start-up,
+    batch fill wait, and queueing;
+  - queueing: 0 for steady arrivals, an M/D/1 mean wait for random arrivals, and "piles up" when
+    utilisation is at or above 100%;
+  - offline mode reports time per 1000 inputs instead;
+  - a from-arrival-to-answer estimate when the queue is stable.
+- Evidence per value (`GET /projects/{id}/evidence`): every headline metric for today and the
+  plan, with value, band, provenance, the profile facts and user inputs behind it (with each
+  fact's source from the profile), and whether and which calibration version was applied.
+- Calibration quality (`GET /calibration/quality?device_id=`, also inside evidence): per precision
+  the latency and power fit grades (none / too few / rejected / fair / good / strong) with the
+  reason, leave-one-out errors, runs, batches covered and runs that carry a temperature.
+- `GET /projects/{id}/physics?which=baseline|best` returns thermal, memory and runtime together.
+  It is read-only and nothing is stored.
+- UI:
+  - Thermal page: "Heat by part", with a temperature ladder (lumped bar plus attribution bars,
+    each tagged), measured/validated status with icon and words, label meanings, and the
+    resistor network with sources;
+  - Energy page: "Around the model: runtime and memory" (plain sentence, runtime effects table,
+    memory hierarchy) and "Evidence for every number" (expandable rows, today/plan switch,
+    calibration quality table).
+
+Tested
+- `tests/engine/test_thermal_runtime.py` (5):
+  - all heat at the die reproduces the lumped model exactly;
+  - labels, and heat scaled to the lumped power;
+  - the die is never hotter than lumped;
+  - validated vs not validated;
+  - profile resistances replace assumptions;
+  - memory levels for SoC, MCU (flash) and GPU (host link);
+  - queueing stable, unstable and offline;
+  - unknown transfer size without a graph.
+- `tests/api/test_physics.py` (2):
+  - evidence before and after analysis;
+  - 409 for the plan's physics before analysis;
+  - a measured temperature at today's exact setup turns status to validated or not validated
+    with its source;
+  - calibration quality counts runs and temperatures;
+  - unknown device returns 404;
+  - another workspace gets 404 and an anonymous caller gets 401.
+- PostgreSQL journey calls physics, evidence and calibration quality.
+- Playwright journey for the new sections. axe passes on the Thermal and Energy pages in both
+  modes and colour schemes.
+- Checked in the browser on the robot example (heat-limited today).
+
+Not claimed
+- The multi-node temperatures are an attribution of the lumped model with assumed internal
+  resistances, not a thermal simulation; nothing here is used for pass/fail. Storage and host-link
+  speeds and runtime set-up times are named assumptions. Queueing uses textbook models (D/D/1,
+  M/D/1), not measured arrival traces.
+
+Verification (2026-10-19)
+- `pytest -q --basetemp <scratch>`: 288 passed, 2 skipped; PostgreSQL: 2 passed.
+- `ruff`, `mypy app` (120 files), `tsc`, `eslint`, `vite build`: clean.
+- `npx playwright test`: 12 passed.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no

@@ -1,3 +1,4 @@
+import { EvidencePanel, RuntimeAndMemory, ThermalNodes } from "./PhysicsSections";
 import CoolingOptions from "../components/CoolingOptions";
 import ExplorePage from "../pages/ExplorePage";
 import type { OptimisationResult, ProjectSpec } from "../types";
@@ -99,6 +100,7 @@ export function ThermalPage({ projectId, version, hasBest }: { projectId: number
       <Figure title="Where the heat comes from" note={th.note}>
         <HBars unit="W" rows={heat.map((c) => ({ label: c.name, value: c.heat_w, color: "var(--s2)" }))} />
       </Figure>
+      <ThermalNodes projectId={projectId} which={state.which} version={version} />
       <CoolingOptions projectId={projectId} which={state.which} />
     </div>
   );
@@ -159,6 +161,8 @@ export function EnergyPage({
           </Figure>
         </>
       )}
+      <RuntimeAndMemory projectId={projectId} which={state.which} version={version} />
+      <EvidencePanel projectId={projectId} version={version} />
       {res ? (
         <section className="explore-embed">
           <h2 className="section-title">Every metric, with its range and source</h2>

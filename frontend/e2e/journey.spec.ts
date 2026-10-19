@@ -268,3 +268,32 @@ test("3D map: layouts, overlays, today vs plan, keyboard and table fallback", as
   await map.getByRole("radio", { name: "Physical (board)" }).click();
   await expect(map.getByText(/No physical positions yet\. Upload a KiCad board/)).toBeVisible();
 });
+
+test("thermal attribution, runtime effects and evidence are labelled", async ({ page }) => {
+  await signUp(page, email("physics"));
+  const pid = await openExample(page);
+  await page.getByRole("region", { name: "Decision summary" }).getByRole("button", { name: /^Analyse/ }).click();
+  await expect(page).toHaveURL(new RegExp(`#/p/${pid}/summary`));
+
+  await page.goto(`/#/p/${pid}/thermal`);
+  const heat = page.getByRole("region", { name: "Heat by part" });
+  await expect(heat.getByText(/The decision model puts the chip at .* °C \(lumped\)/)).toBeVisible();
+  await expect(heat.getByText("Predicted only: no measured temperature for this setup yet")).toBeVisible();
+  await expect(heat.locator(".tag.attribution").first()).toBeVisible();
+  await heat.locator("details.level-block.engineering > summary").click();
+  await expect(heat.getByRole("cell", { name: "assumed" }).first()).toBeVisible();
+
+  await page.goto(`/#/p/${pid}/energy`);
+  const rt = page.getByRole("region", { name: "Around the model: runtime and memory" });
+  await expect(rt.locator(".tn-summary")).toContainText(/busy .*% of the time/);
+  await rt.locator("details.level-block.explain > summary").click();
+  await expect(rt.getByRole("cell", { name: /Kernel launch and framework overhead/ })).toBeVisible();
+  await expect(rt.getByRole("cell", { name: /Loading the model at start-up/ })).toBeVisible();
+
+  const ev = page.getByRole("region", { name: "Evidence for every number" });
+  await expect(ev.getByText(/no calibration from real runs is applied yet/)).toBeVisible();
+  await ev.getByText("Latency per input").click();
+  await expect(ev.getByRole("cell", { name: "Peak compute" }).first()).toBeVisible();
+  await ev.getByRole("radio", { name: "With the plan" }).click();
+  await expect(ev.getByText("Latency per input")).toBeVisible();
+});

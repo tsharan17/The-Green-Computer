@@ -79,6 +79,11 @@ def test_full_journey_on_postgres(pg_url, tmp_path):
             g = c.post(f"{P}/projects/{pid}/system-graph/from-files", json={"artifact_ids": [up["artifact_id"]]})
             assert g.status_code == 201 and g.json()["version"] == 1
             assert c.get(f"{P}/projects/{pid}/system-graph").json()["links"] is not None
+            # Release 2 slice D: physics views, evidence and calibration quality (the measurement above counts).
+            assert c.get(f"{P}/projects/{pid}/physics").json()["thermal"]["status"] in ("lumped only", "validated", "not validated")
+            assert c.get(f"{P}/projects/{pid}/evidence").json()["setups"]
+            q = c.get(f"{P}/calibration/quality", params={"device_id": "jetson-orin-nano"}).json()
+            assert any(p["measurements"] >= 1 for p in q["precisions"])
         with AuthedClient(app, email="other@x.io") as o:
             assert o.get(f"{P}/projects/{pid}").status_code == 404
             assert not [h for h in o.get(f"{P}/search", params={"q": "voice"}).json() if h["type"] == "project"]

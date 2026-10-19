@@ -443,3 +443,53 @@ export const systemGraph = {
     req<GraphVersion>(`/projects/${pid}/system-graph/from-files`, { method: "POST", body: JSON.stringify({ artifact_ids, note }) }),
   diff: (pid: number, from: number, to: number) => req<GraphDiff>(`/projects/${pid}/system-graph/diff?from=${from}&to=${to}`),
 };
+
+// --- physics views and evidence ------------------------------------------------------------------
+
+export interface ThermalNode { id: string; name: string; temperature_c: number; heat_w: number; label: string }
+export interface ThermalResistor { a: string; b: string; k_per_w: number; source: string; note: string }
+export interface ThermalNodesView {
+  ambient_c: number; lumped_c: number; lumped_power_w: number; heat_scale: number; nodes: ThermalNode[]; resistors: ThermalResistor[];
+  hottest: string; labels: Record<string, string>; status: "lumped only" | "validated" | "not validated";
+  measured: { temperature_c: number; source: string; label: string; difference_c: number; validated: boolean } | null;
+}
+export interface MemoryLevel {
+  id: string; name: string; capacity_bytes: number | null; bandwidth_gbs: number | null; holds: string; need_bytes: number | null;
+  fits: boolean | null; traffic_bytes: number | null; time_ms: number | null; source: string;
+}
+export interface RuntimeEffect { id: string; title: string; ms: number | null; per: string; in_headline: boolean; provenance: string; note: string }
+export interface Physics {
+  which: string; label: string; config: Record<string, unknown>; trace_kind: string; trace_provenance: string;
+  thermal: ThermalNodesView | null; memory: MemoryLevel[];
+  runtime: { effects: RuntimeEffect[]; headline_latency_ms: number; note: string;
+    queue: { mode: string; utilisation: number; stable?: boolean; wait_random_ms?: number; end_to_end_ms?: number | null; seconds_per_1000_inputs?: number } };
+}
+export interface CalibGrade { grade: string; why: string; n?: number; error_before?: number | null; error_after?: number | null; factor?: number }
+export interface CalibrationQuality {
+  device_id: string; device_name: string; verified_profile: boolean; note: string;
+  precisions: { precision: string; applied: boolean; version: number | null; scope: string | null; fitted_at: string | null;
+    latency: CalibGrade; power: CalibGrade; measurements: number; batches: number[]; with_temperature: number }[];
+}
+export interface EvidenceMetric {
+  key: string; value: number; low: number; high: number; unit: string; provenance: string;
+  facts: { fact: string; source: string }[]; calibrated: boolean; calibration_version: number | null;
+}
+export interface Evidence {
+  device: { id: string; name: string; verified: boolean; notes: string }; calibration: CalibrationQuality; message?: string; engine_version?: string;
+  setups: { label: string; config: Record<string, unknown>; feasibility: string; metrics: EvidenceMetric[]; notes: string[] }[];
+}
+
+const physicsCache = new Map<string, Promise<Physics>>();
+export const physics = {
+  get: (pid: number, which: "baseline" | "best", version: number) => {
+    const key = `${pid}:${which}:${version}`;
+    if (!physicsCache.has(key)) {
+      const p = req<Physics>(`/projects/${pid}/physics?which=${which}`);
+      p.catch(() => physicsCache.delete(key));
+      physicsCache.set(key, p);
+    }
+    return physicsCache.get(key)!;
+  },
+  evidence: (pid: number) => req<Evidence>(`/projects/${pid}/evidence`),
+  calibration: (deviceId: string) => req<CalibrationQuality>(`/calibration/quality?device_id=${encodeURIComponent(deviceId)}`),
+};

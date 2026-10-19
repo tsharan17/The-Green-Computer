@@ -602,3 +602,26 @@ button.primary, .btn-link.primary { background: var(--kelly); border-color: var(
 .m3-legend .sw.path { background: var(--s1); height: 4px; }
 @media (max-width: 860px) { .m3-stage { grid-template-columns: 1fr; } .m3-canvas { height: 340px; } }
 .scrub button { white-space: nowrap; }
+
+/* Physics views and evidence */
+.tn-summary { font-size: 16px; max-width: 75ch; }
+.temp-ladder { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 6px; max-width: 760px; }
+.temp-ladder li { display: grid; grid-template-columns: 220px minmax(60px, 1fr) 70px 90px; gap: 10px; align-items: center; font-size: 14px; }
+.tl-track { background: var(--sunk); height: 10px; }
+.tl-bar { display: block; height: 10px; background: var(--s2); }
+.tl-bar.lumped { background: var(--ink); }
+.tag { font-size: 11px; font-weight: 600; padding: 1px 6px; border: 1px solid var(--line-strong); white-space: nowrap; justify-self: start; }
+.tag.lumped, .tag.measured { border-color: var(--ink); }
+.tag.attribution, .tag.assumed { border-style: dashed; }
+.evidence-list { list-style: none; padding: 0; margin: 10px 0; border-top: 1px solid var(--line); }
+.evidence-list > li { border-bottom: 1px solid var(--line); }
+.evidence-list summary { display: grid; grid-template-columns: minmax(140px, 1.3fr) minmax(90px, 1fr) minmax(90px, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; cursor: pointer; }
+.ev-name { font-weight: 600; }
+.ev-body { padding: 0 0 12px 12px; font-size: 14px; }
+@media (max-width: 640px) {
+  .temp-ladder li { grid-template-columns: 1fr 70px; }
+  .temp-ladder .tl-track { grid-column: 1 / -1; order: 3; }
+  .evidence-list summary { grid-template-columns: 1fr auto; }
+  .ev-band { display: none; }
+}
+.evidence-list summary { color: var(--ink); }
