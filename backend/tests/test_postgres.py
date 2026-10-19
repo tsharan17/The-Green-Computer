@@ -84,6 +84,12 @@ def test_full_journey_on_postgres(pg_url, tmp_path):
             assert c.get(f"{P}/projects/{pid}/evidence").json()["setups"]
             q = c.get(f"{P}/calibration/quality", params={"device_id": "jetson-orin-nano"}).json()
             assert any(p["measurements"] >= 1 for p in q["precisions"])
+            # Release 2 slice E: the environment is stored in the spec JSON and drives the cooling catalogue.
+            spec = c.get(f"{P}/projects/{pid}").json()["spec"]
+            spec["environment"] = {"sealed_enclosure": True}
+            assert c.put(f"{P}/projects/{pid}", json=spec).status_code == 200
+            cool = c.get(f"{P}/projects/{pid}/cooling").json()
+            assert cool["environment"]["sealed_enclosure"] and any("sealed" in " ".join(x["reasons"]) for x in cool["excluded"])
         with AuthedClient(app, email="other@x.io") as o:
             assert o.get(f"{P}/projects/{pid}").status_code == 404
             assert not [h for h in o.get(f"{P}/search", params={"q": "voice"}).json() if h["type"] == "project"]

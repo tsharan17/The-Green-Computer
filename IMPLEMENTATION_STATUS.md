@@ -444,6 +444,60 @@ Verification (2026-10-19)
 - `ruff`, `mypy app` (120 files), `tsc`, `eslint`, `vite build`: clean.
 - `npx playwright test`: 12 passed.
 
+## Release 2, slice E: cooling catalogue v2 (done)
+
+What works
+- Catalogue v2 (`data/cooling_catalogue.yaml`, additive; v1 entries still load). Each of the 13
+  classes now records:
+  - which heat sources it reaches (die, memory, regulators);
+  - the heat load it is sized for;
+  - what it needs from the place it runs (free air, a fan path, vents, radiator room, a board
+    change, a data-centre rack, facility water) and its height;
+  - repairability, hazardous materials and on-site water use (null where it depends on the
+    facility, and said so).
+- "Where it runs" on each project (`ProjectSpec.environment`, additive JSON in the spec, no
+  migration): sealed enclosure, dusty site, noise limit, room above the board, data-centre rack,
+  facility water. Unset fields rule nothing out.
+- Ranking criteria, in order (`engine/cooling_catalogue.py`):
+  1. usable where it runs and sized for the heat;
+  2. meets the requirements;
+  3. lowest lifetime emissions;
+  4. shown for judgement, not scored: repairability, recyclability, hazardous materials, water,
+     upkeep, noise, cost.
+- Options that are ruled out are listed with their reasons, never silently dropped. Cautions
+  are shown for usable options (dust and fans, coolant handling).
+- Per-heat-source rationale: heat per source from slice D's attribution (labelled as such), its
+  share, why it matters, and which usable options reach it. Each option shows the share of the
+  heat it reaches.
+- UI:
+  - Thermal page: the cooling section opens with a plain "best fit here" sentence and the current
+    limits (with a link to change them), then the rationale under Explain, a sustainability
+    column and the ruled-out options with reasons;
+  - Constraints page: a "Where it runs" block.
+- Fixed in passing: an absolutely positioned screen-reader label inside a scrolling table widened
+  the page on narrow screens. `.table-wrap` is now a positioning context.
+
+Tested
+- `tests/api/test_cooling_v2.py` (4):
+  - every entry has the v2 fields;
+  - blockers for a sealed box, noise, height, heat load, rack and water, and that parts needing
+    no airflow stay usable;
+  - cautions, sustainability notes and the rationale wording;
+  - the API with a sealed, quiet, dusty environment: fans and vents ruled out with reasons.
+- The existing cooling test was updated for the added criterion.
+- PostgreSQL journey stores an environment and gets the ruled-out options.
+- Playwright: the Constraints page "Where it runs" changes the Thermal page's options and reasons.
+- Checked in the browser on the robot example, with and without a sealed enclosure, including
+  page width.
+
+Not claimed
+- Class heat limits, heights, repairability and water notes are planning estimates per class, not
+  product data. Confirm with the chosen part's datasheet and a temperature log.
+
+Verification (2026-10-19)
+- `pytest -q --basetemp <scratch>`: 292 passed, 2 skipped; PostgreSQL: 2 passed.
+- `ruff`, `mypy app`, `tsc`, `eslint`, `vite build`: clean. `npx playwright test`: 13 passed.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no

@@ -38,7 +38,7 @@ def _analysed(c):
 
 def test_cooling_catalogue_is_ranked_by_stated_criteria(c):
     r = c.get(f"{P}/projects/{c.pid}/cooling").json()
-    assert len(r["criteria"]) == 3 and r["rows"][0]["meets_requirements"]
+    assert len(r["criteria"]) == 4 and r["rows"][0]["meets_requirements"]
     fitted = next(x for x in r["rows"] if x["id"] == "current")
     assert fitted["throttled"] and fitted["rating"] == "does not meet requirements"
     ok = [x for x in r["rows"] if x["meets_requirements"]]

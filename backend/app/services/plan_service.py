@@ -188,7 +188,24 @@ def cooling_report(db: Session, project: ProjectOut, ws: int | None, which: str 
             cfg = res.best.config
     ev = evaluator(db, spec, ws)
     out = analyse_cooling(load_cooling_catalogue(), hw, cfg, spec.workload, spec.constraints.forbid_throttling,
-                          lambda h, c: ev(model, h, c))  # fmt: skip
+                          lambda h, c: ev(model, h, c), spec.environment, _heat_sources(db, spec, cfg, ws))  # fmt: skip
     out["config"] = cfg.model_dump()
     out["which"] = which
     return out
+
+
+def _heat_sources(db: Session, spec: ProjectSpec, cfg: Config, ws: int | None) -> dict[str, float] | None:
+    """Heat per source (die, memory, regulators) from the multi-node attribution, or None."""
+    from app.engine.thermal_nodes import thermal_view
+    from app.services.twin_service import TraceError, compute_trace
+
+    try:
+        t = compute_trace(db, spec, cfg, ws)
+    except TraceError:
+        return None
+    if t.thermal is None:
+        return None
+    hw = get_device(spec.device_id, ws)
+    v = thermal_view(hw, [c.model_dump() for c in t.components], t.thermal.ambient_c, t.thermal.steady_c,
+                     t.thermal.r_th_k_per_w)  # fmt: skip
+    return {n["id"]: n["heat_w"] for n in v["nodes"] if n["id"] in ("compute", "memory", "power")}

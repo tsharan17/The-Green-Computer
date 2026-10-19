@@ -33,6 +33,18 @@ class Constraints(BaseModel):
     forbid_throttling: bool = True
 
 
+class Environment(BaseModel):
+    """Where the device runs, as far as cooling choices are concerned. Every field is optional;
+    an unset field rules nothing out."""
+
+    sealed_enclosure: bool = False  # no vents or open fins (e.g. IP65 outdoor box)
+    dusty: bool = False  # fans and vents need filters and cleaning
+    max_noise_dba: float | None = Field(None, ge=0)
+    max_height_mm: float | None = Field(None, ge=0)  # room above the board for a heatsink
+    datacenter: bool = False  # rack with managed airflow
+    facility_water: bool = False  # a facility coolant/water loop is available
+
+
 Priority = Literal["balanced", "faster", "lower_power", "lower_heat", "lower_cost", "fit_memory"]
 
 
@@ -50,6 +62,7 @@ class ProjectSpec(BaseModel):
     baseline: Config | None = None
     workload: Workload = Workload()
     constraints: Constraints = Constraints()
+    environment: Environment = Environment()
 
 
 class ProjectOut(BaseModel):

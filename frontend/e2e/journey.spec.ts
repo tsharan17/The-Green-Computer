@@ -297,3 +297,26 @@ test("thermal attribution, runtime effects and evidence are labelled", async ({ 
   await ev.getByRole("radio", { name: "With the plan" }).click();
   await expect(ev.getByText("Latency per input")).toBeVisible();
 });
+
+test("cooling v2: where it runs rules options out, with reasons and heat sources", async ({ page }) => {
+  await signUp(page, email("cooling"));
+  const pid = await openExample(page);
+  await page.goto(`/#/p/${pid}/thermal`);
+  const cool = page.getByRole("region", { name: "Cooling options for this workload" });
+  await expect(cool.getByText(/Best fit here:/)).toBeVisible();
+  await expect(cool.getByText(/Where it runs: no limits set/)).toBeVisible();
+  await cool.locator("details.level-block.explain > summary").click();
+  await expect(cool.getByText("Voltage regulators")).toBeVisible();
+  await expect(cool.getByText(/only airflow over the board or venting reaches them|board airflow is enough/)).toBeVisible();
+
+  await page.goto(`/#/p/${pid}/constraints`);
+  await page.getByRole("checkbox", { name: /Sealed enclosure/ }).check();
+  await page.getByRole("button", { name: /Save as version 2/ }).click();
+  await expect(page.getByText(/inputs version 2/)).toBeVisible();
+
+  await page.goto(`/#/p/${pid}/thermal`);
+  await expect(cool.getByText(/Where it runs: sealed enclosure\./)).toBeVisible();
+  await cool.getByText(/Options not considered here/).click();
+  await expect(cool.getByText(/Heatsink with 40 mm fan.*needs an air path for a fan, but the enclosure is sealed/)).toBeVisible();
+  await expect(cool.getByRole("cell", { name: /Heatsink with 40 mm fan/ })).toHaveCount(0);
+});

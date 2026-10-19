@@ -297,6 +297,7 @@ export interface ProjectSpec {
   baseline: Config | null;
   workload: Workload;
   constraints: Constraints;
+  environment?: Environment;
 }
 
 export interface ProjectOut {
@@ -738,4 +739,29 @@ export interface CoolingRow {
   modifier: boolean;
   rating: string;
   explanation: string;
+  // catalogue v2
+  targets?: string[];
+  heat_share_reached?: number | null;
+  sustainability?: { repairability: string | null; recyclability: string | null; hazardous: string | null; water_l_per_year: number | null; water_note: string; embodied_note: string };
+  cautions?: string[];
+  needs?: string[];
+}
+
+export interface Environment {
+  sealed_enclosure: boolean;
+  dusty: boolean;
+  max_noise_dba: number | null;
+  max_height_mm: number | null;
+  datacenter: boolean;
+  facility_water: boolean;
+}
+
+export interface CoolingReport {
+  catalogue_version?: number;
+  criteria: string[];
+  rows: CoolingRow[];
+  assumptions: string[];
+  excluded?: { id: string; name: string; type: string; reasons: string[] }[];
+  environment?: Environment;
+  heat_sources?: { source: string; name: string; heat_w: number; share: number; why: string; reached_by: string[]; label: string }[];
 }

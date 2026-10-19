@@ -1,5 +1,7 @@
 import { GLOSSARY } from "../lib/plain";
-import type { Config, Constraints, HardwareProfile, ProjectSpec, Workload } from "../types";
+import type { Config, Constraints, Environment, HardwareProfile, ProjectSpec, Workload } from "../types";
+
+const NO_LIMITS: Environment = { sealed_enclosure: false, dusty: false, max_noise_dba: null, max_height_mm: null, datacenter: false, facility_water: false };
 
 function Num({
   label,
@@ -47,6 +49,8 @@ export default function ConstraintsPage({
 }) {
   const setW = (patch: Partial<Workload>) => setSpec({ ...spec, workload: { ...spec.workload, ...patch } });
   const setC = (patch: Partial<Constraints>) => setSpec({ ...spec, constraints: { ...spec.constraints, ...patch } });
+  const env: Environment = { ...NO_LIMITS, ...spec.environment };
+  const setE = (patch: Partial<Environment>) => setSpec({ ...spec, environment: { ...env, ...patch } });
   const num = (v: string, fallback: number) => (v === "" || Number.isNaN(Number(v)) ? fallback : Number(v));
   const c = spec.constraints;
   const w = spec.workload;
@@ -111,6 +115,26 @@ export default function ConstraintsPage({
             <input type="checkbox" checked={w.streaming} disabled={ro} onChange={(e) => setW({ streaming: e.target.checked })} />
             <span>Inputs arrive live, one at a time (a batch waits for its inputs) <small className="muted">({GLOSSARY.batch})</small></span>
           </label>
+        </div>
+      </section>
+
+      <section className="panel" aria-labelledby="where-h">
+        <div className="card-head"><span className="tag-rq">Environment</span><h2 id="where-h">Where it runs</h2></div>
+        <p className="hint">Rules out cooling that cannot be used there. Leave everything unset if any cooling is possible.</p>
+        <div className="reqs two-col">
+          {([
+            ["sealed_enclosure", "Sealed enclosure (no vents or open fins)"],
+            ["dusty", "Dusty site (fans and vents need filters)"],
+            ["datacenter", "In a data-centre rack"],
+            ["facility_water", "A facility water loop is available"],
+          ] as const).map(([k, label]) => (
+            <label key={k} className="check-row">
+              <input type="checkbox" checked={!!env[k]} disabled={ro} onChange={(e) => setE({ [k]: e.target.checked })} />
+              <span>{label}</span>
+            </label>
+          ))}
+          <Num label="Noise, at most" unit="dBA at 1 m (blank: no limit)" value={env.max_noise_dba} placeholder="no limit" onChange={(v) => setE({ max_noise_dba: v === "" ? null : Number(v) })} disabled={ro} />
+          <Num label="Room above the board" unit="mm (blank: no limit)" value={env.max_height_mm} placeholder="no limit" onChange={(v) => setE({ max_height_mm: v === "" ? null : Number(v) })} disabled={ro} />
         </div>
       </section>
 
