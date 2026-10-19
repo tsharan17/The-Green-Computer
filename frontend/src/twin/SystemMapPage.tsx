@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Figure, bytes, ms, num } from "./chart";
 import HardwareGraph from "./HardwareGraph";
+import Map3DSection from "./map3d/Map3DSection";
 import { TraceBar, useTrace } from "./TraceBar";
 import type { Component, ExecutionTrace } from "./types";
 
@@ -194,6 +195,7 @@ export default function SystemMapPage({ projectId, version, hasBest }: { project
           </details>
         </>
       )}
+      <Map3DSection projectId={projectId} state={state} hasBest={hasBest} />
       <HardwareGraph projectId={projectId} />
     </div>
   );

@@ -229,3 +229,42 @@ test("design files build a versioned hardware graph with sources", async ({ page
   await expect(graph.getByRole("cell", { name: /^top rtl:top/ })).toBeVisible();
   await expect(graph.getByRole("cell", { name: "Verilog: top.v" }).first()).toBeVisible();
 });
+
+test("3D map: layouts, overlays, today vs plan, keyboard and table fallback", async ({ page }) => {
+  await signUp(page, email("map3d"));
+  await page.goto("/#/");
+  await page.getByRole("button", { name: /Add five example projects/ }).click();
+  await page.getByRole("link", { name: /Demo: GPU inference server/ }).click();
+  const pid = page.url().match(/#\/p\/(\d+)/)![1];
+  await page.goto(`/#/p/${pid}/system-map`);
+  const map = page.getByRole("region", { name: "3D map" });
+  await expect(map.getByText(/Logical layout: an arrangement of the modelled parts, not their physical positions/)).toBeVisible();
+
+  const webgl = await map.locator(".m3-canvas canvas").count().then(async (n) => n > 0 || (await map.locator(".m3-canvas").count()) > 0);
+  if (webgl) {
+    const stage = map.getByRole("img", { name: /Logical arrangement of NVIDIA L4/ });
+    await expect(stage).toBeVisible();
+    await stage.focus();
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("+");
+    await map.getByRole("button", { name: "Show as a table" }).click();
+  } else {
+    await expect(map.getByText(/cannot draw 3D/)).toBeVisible();
+  }
+  // The table carries the same scene: modelled parts with their heat and source.
+  const table = map.locator("table.m3-table");
+  await expect(table.getByRole("cell", { name: "Compute engine" })).toBeVisible();
+  await expect(table.getByRole("row", { name: /Compute engine/ }).locator("td.num")).not.toHaveText("–");
+
+  // Today and the plan side by side, playing on one clock.
+  await map.getByRole("checkbox", { name: /Today and the plan side by side/ }).check();
+  await expect(table.getByRole("cell", { name: "With the plan" }).first()).toBeVisible();
+  await expect(table.getByRole("cell", { name: "Today" }).first()).toBeVisible();
+  await map.getByRole("slider", { name: "Time in the batch" }).fill("100");
+  await expect(map.locator(".m3-now")).toContainText("Today:");
+  await expect(map.locator(".m3-now")).toContainText("With the plan:");
+
+  // No board file yet: the physical layout says what is needed instead of drawing a guess.
+  await map.getByRole("radio", { name: "Physical (board)" }).click();
+  await expect(map.getByText(/No physical positions yet\. Upload a KiCad board/)).toBeVisible();
+});

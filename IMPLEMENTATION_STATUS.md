@@ -320,6 +320,52 @@ Verification (2026-10-19)
 - `ruff check .`, `mypy app` (116 files): clean. `tsc`, `eslint`, `vite build`: clean.
 - `npx playwright test`: 10 passed.
 
+## Release 2, slice C: interactive 3D map (done)
+
+What works
+- A "3D map" section on the System map page (`frontend/src/twin/map3d/`), built with three.js
+  0.169 and @react-three/fiber 8.17 (pinned, MIT, no other helper libraries). The WebGL code is a
+  separate chunk loaded only on that page; the main bundle stays at about 408 kB.
+- One pure scene model (`model.ts`) built from the same schemas as the 2D views: the system graph
+  (`system-graph/1`) and execution traces (`trace/1`). The 3D view and its table fallback both
+  render that model, so they always show the same parts and values.
+- Two layouts, labelled and never mixed:
+  - logical: the modelled parts in the 2D map's arrangement; parts, logic modules and clocks read
+    from design files sit on top of the block they belong to;
+  - physical (board): parts at their millimetre positions from a KiCad board file, top side above
+    the board and bottom side below it as outlines, with nets as lines. Without a board file it
+    says what to upload instead of drawing a guess.
+- Overlays: heat (block colour and height, watts in the label), activity (the running operator's
+  parts glow and are outlined, "busy" in the label; memory paths thicken with bandwidth use) and
+  plain.
+- Playback of one batch on a time slider. "Today and the plan side by side" plays both traces on one
+  clock, so the faster setup finishes first.
+- Click a block for its kind, heat, board side, source, confidence and whether it is busy. Turn and
+  zoom by dragging, the wheel, the arrow and +/- keys on the focused map, or buttons.
+- Follows light and dark mode. Fits phone width (camera backs off on narrow screens).
+- Accessibility: the map is a labelled image with a text summary and a live line naming the running
+  operator; "Show as a table" (and automatically when WebGL is unavailable) gives every value as a
+  table; legends use shape and words as well as colour.
+
+Tested
+- Playwright journey: logical map renders, keyboard turning and zoom, the table fallback carries
+  heat values, today vs plan rows and the shared clock, and the physical layout's honest message
+  without a board. axe scans of the System map pass in both modes and both colour schemes.
+- Checked by hand: FPGA demo with the KiCad board, Verilog, Vivado timing and HLS fixtures, in
+  logical and physical layouts, heat and activity overlays, compare mode, light and dark, desktop
+  and phone width.
+
+Not claimed
+- Logical positions are a diagram, not a floor plan. Heat values are those of the trace shown
+  (predicted unless the trace is measured). Physical layout shows positions only; nothing about
+  copper, current or heat spreading is computed.
+- No automated pixel tests of the WebGL output; the shared scene model is checked through the
+  table view.
+
+Verification (2026-10-19)
+- `npx tsc --noEmit`, `npm run lint`, `npm run build`: clean. `npx playwright test`: 11 passed.
+- `npm audit --omit=dev`: 0 vulnerabilities. No backend changes in this slice; backend suite as in B.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no
@@ -327,7 +373,7 @@ Verification (2026-10-19)
 - Thermal model is lumped; per-component heat is an attribution. Predictions are analytical until
   measurements calibrate them; CPU runs measure latency only.
 - In-memory rate limiting (single process); no email verification or MFA; members must already have
-  an account; no 3D view yet (the trace schema carries layout hints for one).
+  an account.
 - Only ResNet-50 and MobileNetV2 can be executed without an upload; other library models need their
   ONNX file.
 

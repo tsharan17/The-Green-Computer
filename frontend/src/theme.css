@@ -585,3 +585,20 @@ button.primary, .btn-link.primary { background: var(--kelly); border-color: var(
 .bv-part.top { fill: var(--s1); }
 .bv-part.bottom { fill: none; stroke: var(--s2); stroke-width: 0.4; }
 .bv-label { fill: var(--ink); font-family: var(--font); }
+
+/* 3D map */
+.m3-controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 8px 0; }
+.m3-now { font-size: 14px; min-height: 1.5em; margin: 4px 0 8px; }
+.m3-stage { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 14px; }
+.m3-canvas { height: 460px; border: 1px solid var(--line); touch-action: none; cursor: grab; }
+.m3-canvas:active { cursor: grabbing; }
+.m3-view-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.m3-view-buttons button { min-width: 36px; }
+.m3-detail { font-size: 13px; }
+.m3-legend { list-style: none; padding: 0; margin: 10px 0 0; font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
+.m3-legend .sw { display: inline-block; width: 14px; height: 10px; margin-right: 6px; vertical-align: middle; }
+.m3-legend .sw.heat { background: linear-gradient(90deg, var(--line-strong), var(--s2)); }
+.m3-legend .sw.act { border: 2px solid var(--kelly); }
+.m3-legend .sw.path { background: var(--s1); height: 4px; }
+@media (max-width: 860px) { .m3-stage { grid-template-columns: 1fr; } .m3-canvas { height: 340px; } }
+.scrub button { white-space: nowrap; }
