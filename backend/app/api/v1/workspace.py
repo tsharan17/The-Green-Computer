@@ -174,3 +174,47 @@ def audit_log(project_id: int | None = None, limit: int = 200, ctx: Ctx = Depend
 @router.get("/usage")
 def usage(ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> dict[str, Any]:
     return audit.usage_summary(db, ctx.workspace_id)
+
+
+# --- data: retention, export --------------------------------------------------------------------
+
+
+@router.get("/workspaces/current/retention")
+def retention_rules(ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> dict[str, Any]:
+    from app.services import workspace_data as wd
+
+    return {"rules": wd.get_retention(db, ctx.workspace_id), "labels": wd.RULES, "audit_min_days": wd.AUDIT_MIN_DAYS}
+
+
+@router.put("/workspaces/current/retention")
+def set_retention_rules(body: dict[str, int | None], ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Owner only. Days to keep each category; empty keeps it for ever."""
+    from app.services import workspace_data as wd
+
+    _owner(ctx)
+    try:
+        return {"rules": wd.set_retention(db, ctx.workspace_id, ctx.user_id, body)}
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+
+
+@router.post("/workspaces/current/retention/apply")
+def apply_retention_rules(request: Request, dry_run: bool = True, ctx: Ctx = Depends(require_ctx),
+                          db: Session = Depends(get_db)) -> dict[str, Any]:  # fmt: skip
+    """Owner only. With dry_run (the default) nothing is deleted; the counts say what would go."""
+    from app.services import workspace_data as wd
+
+    _owner(ctx)
+    return wd.apply_retention(db, request.app.state.blobs, ctx.workspace_id, ctx.user_id, dry_run)
+
+
+@router.get("/workspaces/current/export")
+def export_workspace(request: Request, ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> Response:
+    """Owner only. Everything the workspace holds, as one zip with a hashed manifest."""
+    from app.services import workspace_data as wd
+
+    _owner(ctx)
+    data, _ = wd.export_workspace(db, request.app.state.blobs, ctx.workspace_id, ctx.user_id)
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
+    return Response(data, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="workspace-{ctx.workspace_id}-{stamp}.zip"'})  # fmt: skip

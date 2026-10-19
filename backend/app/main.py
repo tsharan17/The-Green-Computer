@@ -4,8 +4,8 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
@@ -18,6 +18,7 @@ from app.api.v1.guide import router as guide_router
 from app.api.v1.hardware import router as hardware_router
 from app.api.v1.intake import router as intake_router
 from app.api.v1.measurements import router as measurement_router
+from app.api.v1.ops import router as ops_router
 from app.api.v1.physics import router as physics_router
 from app.api.v1.plans import router as plans_router
 from app.api.v1.remote import router as remote_router
@@ -69,16 +70,34 @@ def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAP
             "token from POST /api/v1/auth/tokens. Every number carries provenance and a band."
         ),
     )
+    from app.observability import Metrics, RequestObservability, configure_logging, metrics_response
+    from app.providers.errors import make_error_reporter
+
+    configure_logging()
+    app.state.metrics = Metrics()
+    app.state.error_reporter = make_error_reporter()
     app.add_middleware(SecurityHeaders)
     app.add_middleware(OriginCheck, allowed=settings.allowed_origins)
+    # Outermost: every request gets an id, a log line and a metric, and unhandled errors are reported.
+    app.add_middleware(RequestObservability, metrics=app.state.metrics, reporter=app.state.error_reporter,
+                       version=__version__)  # fmt: skip
+
+    @app.get("/metrics", include_in_schema=False)
+    def metrics(request: Request) -> Response:
+        from app.security import LIMITER
+
+        return metrics_response(request, app.state.metrics, {"gc_rate_limit_shared": 1.0 if LIMITER.kind == "database" else 0.0})
     app.state.session_factory = session_factory
     app.state.engine = engine
+    from app.security import configure_limiter
+
+    app.state.rate_limit_backend = configure_limiter(engine)
     app.state.data_dir = default_data_dir(url, data_dir or settings.data_dir)
     app.state.blobs = LocalBlobStore(app.state.data_dir / "blobs")
     app.state.email_sender = make_email_sender()
     for r in (auth_router, workspace_router, router, measurement_router, agent_router,
               export_router, hardware_router, files_router, intake_router, twin_router, plans_router,
-              executions_router, guide_router, system_graph_router, physics_router, remote_router):  # fmt: skip
+              executions_router, guide_router, system_graph_router, physics_router, remote_router, ops_router):  # fmt: skip
         app.include_router(r, prefix=settings.api_prefix)
 
     if STATIC_DIR.is_dir():

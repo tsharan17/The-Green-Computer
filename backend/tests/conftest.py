@@ -35,4 +35,6 @@ def fresh_rate_limits():
 
     sec.LIMITER.reset()
     yield
-    sec.LIMITER.reset()
+    # An app built on a test database may have pointed the shared limiter at it; that database can be
+    # gone now, so go back to the in-memory limiter for the next test.
+    sec.LIMITER.backend, sec.LIMITER.kind = sec.RateLimiter(), "memory"

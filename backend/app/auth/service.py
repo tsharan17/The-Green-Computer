@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -25,6 +25,7 @@ from app.db.models import (
     CalibrationRow,
     CustomModelRow,
     DesignPlanRow,
+    EmailVerificationRow,
     ExecutionJobRow,
     ExecutionTraceRow,
     ExportRow,
@@ -306,6 +307,8 @@ class DeletionSummary:
     memberships_removed: int = 0
     projects_deleted: int = 0
     files_deleted: int = 0
+    workspace_ids: list[int] = field(default_factory=list)
+    project_ids: list[int] = field(default_factory=list)
 
 
 def delete_workspace_data(db: Session, workspace_id: int, blobs: BlobStore | None) -> DeletionSummary:
@@ -356,8 +359,10 @@ def delete_account(
             MembershipRow.workspace_id == ws.id, MembershipRow.user_id != user.id
         )).all()  # fmt: skip
         if not others:
+            total.project_ids += list(db.scalars(select(ProjectRow.id).where(ProjectRow.workspace_id == ws.id)))
             r = delete_workspace_data(db, ws.id, blobs)
             total.workspaces_deleted += 1
+            total.workspace_ids.append(ws.id)
             total.projects_deleted += r.projects_deleted
             total.files_deleted += r.files_deleted
             continue
@@ -380,6 +385,7 @@ def delete_account(
         db.execute(update(model).where(getattr(model, col) == user.id).values({col: None}))
     db.execute(delete(SessionRow).where(SessionRow.user_id == user.id))
     db.execute(delete(PasswordResetRow).where(PasswordResetRow.user_id == user.id))
+    db.execute(delete(EmailVerificationRow).where(EmailVerificationRow.user_id == user.id))
     db.execute(delete(UserRow).where(UserRow.id == user.id))
     # Keep a trace that an account was deleted, without personal data.
     db.add(AuditLogRow(workspace_id=None, user_id=None, action="account.deleted",

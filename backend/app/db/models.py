@@ -188,6 +188,12 @@ class UserRow(Base):
     password_changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     # Presentation preferences only (display density, onboarding progress); never data access.
     preferences: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Optional TOTP: the seed is sealed with the server key (app.auth.secret_box), never stored plain.
+    mfa_secret: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    mfa_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    mfa_last_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    mfa_recovery: Mapped[list | None] = mapped_column(JSON, nullable=True)  # SHA-256 hashes, used ones removed
 
 
 class WorkspaceRow(Base):
@@ -201,6 +207,8 @@ class WorkspaceRow(Base):
     # Holds data created before accounts existed; claimed by the first account on this database.
     legacy: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    # Owner-set policies (data retention); never access control.
+    settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class MembershipRow(Base):
@@ -445,3 +453,25 @@ class RemoteJobRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class EmailVerificationRow(Base):
+    __tablename__ = "email_verifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    email: Mapped[str] = mapped_column(String(320))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RateLimitRow(Base):
+    """Shared fixed-window counters behind the sliding-window rate limiter (all processes)."""
+
+    __tablename__ = "rate_limits"
+
+    key: Mapped[str] = mapped_column(String(200), primary_key=True)
+    window_start: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)

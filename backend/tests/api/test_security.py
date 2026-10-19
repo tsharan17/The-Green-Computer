@@ -12,11 +12,11 @@ from app.main import create_app
 from tests.helpers import AuthedClient
 
 P = "/api/v1"
-# The only routes that answer without a session: health and the sign-in/up/reset flow itself.
+# The only routes that answer without a session: health and the sign-in/up/reset/verify flow itself.
 PUBLIC = {
-    ("GET", "/api/v1/health"), ("GET", "/api/v1/auth/config"), ("POST", "/api/v1/auth/signup"),
+    ("GET", "/api/v1/health"), ("GET", "/api/v1/ready"), ("GET", "/api/v1/auth/config"), ("POST", "/api/v1/auth/signup"),
     ("POST", "/api/v1/auth/signin"), ("POST", "/api/v1/auth/password/forgot"),
-    ("POST", "/api/v1/auth/password/reset"),
+    ("POST", "/api/v1/auth/password/reset"), ("POST", "/api/v1/auth/signin/mfa"), ("POST", "/api/v1/auth/email/verify"),
 }  # fmt: skip
 
 
@@ -106,3 +106,10 @@ def test_device_agent_routes_ignore_browser_sessions(app):
                 url = re.sub(r"\{[^}]+\}", "1", path)
                 r = c.request(method, url, json={})
                 assert r.status_code == 401, f"{method} {path} answered {r.status_code} to a browser session"
+
+
+
+def test_public_pre_login_routes_still_need_the_csrf_header(app):
+    with TestClient(app) as c:
+        for path in ("/api/v1/auth/signin/mfa", "/api/v1/auth/email/verify"):
+            assert c.post(path, json={"mfa_token": "x", "code": "1", "token": "x"}).status_code == 403, path

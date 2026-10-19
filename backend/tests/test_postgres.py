@@ -105,12 +105,27 @@ def test_full_journey_on_postgres(pg_url, tmp_path):
                 assert agent.get(f"{P}/device-agent/jobs/next", headers=tok).status_code == 204
                 assert c.delete(f"{P}/remote-devices/{reg['id']}").json()["status"] == "revoked"
                 assert agent.get(f"{P}/device-agent/jobs/next", headers=tok).status_code == 401
+            # Release 2 slice H: shared limiter on PostgreSQL, email confirmation, MFA, retention, export.
+            assert app.state.rate_limit_backend == "database"
+            from app.auth import totp
+
+            link = c.post(f"{P}/auth/email/resend").json()["dev_verify_url"]
+            assert c.post(f"{P}/auth/email/verify", json={"token": link.split("token=")[1]}).json()["verified"]
+            secret = c.post(f"{P}/auth/mfa/setup").json()["secret"]
+            assert c.post(f"{P}/auth/mfa/enable", json={"code": totp.code_at(secret, totp.current_step())}).json()["enabled"]
+            assert c.put(f"{P}/workspaces/current/retention", json={"exports_days": 30}).status_code == 200
+            assert c.post(f"{P}/workspaces/current/retention/apply").json()["dry_run"] is True
+            assert c.get(f"{P}/workspaces/current/export").status_code == 200
+            assert c.get(f"{P}/ready").json()["ready"]
+            off = {"password": TEST_PASSWORD, "code": totp.code_at(secret, totp.current_step() + 1)}
+            assert c.post(f"{P}/auth/mfa/disable", json=off).json()["enabled"] is False
         with AuthedClient(app, email="other@x.io") as o:
             assert o.get(f"{P}/projects/{pid}").status_code == 404
             assert not [h for h in o.get(f"{P}/search", params={"q": "voice"}).json() if h["type"] == "project"]
         with AuthedClient(app, email="pg@x.io") as c:
             r = c.post(f"{P}/auth/account/delete", json={"password": TEST_PASSWORD, "confirm": "DELETE"})
             assert r.status_code == 200, r.text
+            assert r.json()["verification"]["ok"], r.json()["verification"]
         with sa.create_engine(pg_url).connect() as conn:
             for t in ("projects", "design_plans", "exports", "execution_traces", "runs", "system_graphs", "remote_jobs"):
                 assert conn.execute(sa.text(f"SELECT COUNT(*) FROM {t} WHERE project_id = :p" if t != "projects"

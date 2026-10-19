@@ -28,10 +28,16 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `GET` | `/api/v1/auth/preferences` | session | Get Preferences |
 | `GET` | `/api/v1/auth/sessions` | session | Sessions |
 | `POST` | `/api/v1/auth/account/delete` | session | Delete Account |
+| `POST` | `/api/v1/auth/email/resend` | session | Resend Verification |
+| `POST` | `/api/v1/auth/email/verify` | session | Verify Email |
+| `POST` | `/api/v1/auth/mfa/disable` | session | Mfa Disable |
+| `POST` | `/api/v1/auth/mfa/enable` | session | Mfa Enable |
+| `POST` | `/api/v1/auth/mfa/setup` | session | Start two-step sign-in: the secret to add to an authenticator app (shown once). |
 | `POST` | `/api/v1/auth/password/change` | session | Change |
 | `POST` | `/api/v1/auth/password/forgot` | public | Forgot |
 | `POST` | `/api/v1/auth/password/reset` | public | Reset |
 | `POST` | `/api/v1/auth/sessions/{session_id}/revoke` | session | Revoke |
+| `POST` | `/api/v1/auth/signin/mfa` | session | Second step of sign-in: a code from the authenticator app, or a one-time recovery code. |
 | `POST` | `/api/v1/auth/signin` | public | Signin |
 | `POST` | `/api/v1/auth/signout` | session | Signout |
 | `POST` | `/api/v1/auth/signup` | public | Signup |
@@ -128,6 +134,13 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `POST` | `/api/v1/intake/upload` | session | Upload |
 | `POST` | `/api/v1/intake/validate/device-profile` | session | Validate Device Profile |
 
+## Operations
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | `/api/v1/ready` | session | 200 when this instance can serve: database reachable, schema at the latest migration, file |
+| `GET` | `/api/v1/telemetry/preview` | session | Exactly what would be sent, and whether sending is on (off unless the operator enabled it). |
+
 ## Physics And Evidence
 
 | Method | Path | Auth | What it does |
@@ -192,8 +205,12 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `GET` | `/api/v1/artifacts` | session | Artifacts |
 | `GET` | `/api/v1/audit` | session | Audit Log |
 | `GET` | `/api/v1/usage` | session | Usage |
+| `GET` | `/api/v1/workspaces/current/export` | session | Owner only. Everything the workspace holds, as one zip with a hashed manifest. |
 | `GET` | `/api/v1/workspaces/current/members` | session | Members |
+| `GET` | `/api/v1/workspaces/current/retention` | session | Retention Rules |
 | `GET` | `/api/v1/workspaces` | session | List Workspaces |
 | `PATCH` | `/api/v1/workspaces/current` | session | Rename Workspace |
 | `POST` | `/api/v1/workspaces/current/members` | session | Add an existing account to this workspace (it must already have signed up). |
+| `POST` | `/api/v1/workspaces/current/retention/apply` | session | Owner only. With dry_run (the default) nothing is deleted; the counts say what would go. |
 | `POST` | `/api/v1/workspaces` | session | Create Workspace |
+| `PUT` | `/api/v1/workspaces/current/retention` | session | Owner only. Days to keep each category; empty keeps it for ever. |

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { auth, workspace } from "../api";
 import type { Me, SessionItem } from "../types";
+import { SignInSecurity, WorkspaceDataPanel } from "../components/SecurityPanels";
 import { when } from "./WorkspacePage";
 
 function msg(e: unknown) {
@@ -176,6 +177,11 @@ export default function AccountPage({ me, onChanged, onDeleted }: { me: Me; onCh
             </form>
           )}
         </section>
+      </div>
+
+      <div className="ws-grid">
+        <SignInSecurity me={me} onChanged={onChanged} />
+        <WorkspaceDataPanel key={me.active_workspace_id} isOwner={me.role === "owner"} />
       </div>
 
       <section className="panel danger" aria-labelledby="del-h">

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.auth import account_security as sec
 from app.auth import service as auth
 from app.auth.deps import COOKIE, CSRF_HEADER, Ctx, get_db, require_ctx
 from app.config import get_settings
@@ -56,6 +57,8 @@ def me_view(db: Session, user: UserRow, active_ws: int | None) -> dict[str, Any]
     active = active_ws or (ws[0]["id"] if ws else None)
     return {
         "user": {"id": user.id, "email": user.email, "display_name": user.display_name,
+                 "email_verified": user.email_verified_at is not None, "mfa_enabled": sec.mfa_enabled(user),
+                 "verification_required": sec.verification_required(),
                  "created_at": user.created_at.isoformat()},
         "workspaces": ws,
         "active_workspace_id": active,
@@ -73,6 +76,7 @@ def auth_config() -> dict[str, Any]:
         "environment": s.environment,
         "email_delivery": make_email_sender().name,
         "password_min_length": 10,
+        "email_verification_required": sec.verification_required(),
         "demo_mode": demo_mode(),
     }
 
@@ -105,7 +109,11 @@ def signup(body: SignupIn, request: Request, response: Response,
                 target_id=user.id, ip=ip,
                 detail={"claimed_legacy_workspace": info["claimed_legacy_workspace"]})  # fmt: skip
     _set_cookie(request, response, token)
-    return me_view(db, user, ws_id)
+    out = me_view(db, user, ws_id)
+    vtoken = sec.send_verification(db, user, request.app.state.email_sender, s.public_url)
+    if not s.is_production and request.app.state.email_sender.name == "console":
+        out["dev_verify_url"] = f"{s.public_url}/#/verify-email?token={vtoken}"
+    return out
 
 
 class SigninIn(BaseModel):
@@ -117,7 +125,6 @@ class SigninIn(BaseModel):
 def signin(body: SigninIn, request: Request, response: Response,
            db: Session = Depends(get_db)) -> dict[str, Any]:  # fmt: skip
     _csrf(request)
-    s = get_settings()
     ip = client_ip(request)
     _limit(request, "signin-ip", ip, _int_env("GC_SIGNIN_RATE_PER_15MIN", 30, 60), 900.0)
     _limit(request, "signin-email", body.email.strip().lower()[:320], 10, 900.0)
@@ -127,12 +134,120 @@ def signin(body: SigninIn, request: Request, response: Response,
         audit.audit(db, "account.signin_failed", workspace_id=None, user_id=None, ip=ip,
                     detail={"reason": "bad credentials"})  # fmt: skip
         _raise(e)
+    if sec.mfa_enabled(user):
+        # Password is right; the session starts only after the second step.
+        audit.audit(db, "account.signin_mfa_challenge", workspace_id=None, user_id=user.id, ip=ip)
+        return {"mfa_required": True, "mfa_token": sec.challenge_token(_key(request), user)}
+    return _start(request, response, db, user, ip)
+
+
+def _key(request: Request) -> bytes:
+    return sec.key_for(request.app.state.data_dir)
+
+
+def _start(request: Request, response: Response, db: Session, user: UserRow, ip: str, how: str = "") -> dict[str, Any]:
+    s = get_settings()
     token, _ = auth.create_session(db, user, days=s.session_days, user_agent=request.headers.get(
         "user-agent", ""), ip=ip)  # fmt: skip
     ws = auth.default_workspace_id(db, user.id)
-    audit.audit(db, "account.signed_in", workspace_id=ws, user_id=user.id, ip=ip)
+    audit.audit(db, "account.signed_in", workspace_id=ws, user_id=user.id, ip=ip, detail={"second_factor": how} if how else None)
     _set_cookie(request, response, token)
     return me_view(db, user, ws)
+
+
+class MfaSigninIn(BaseModel):
+    mfa_token: str = Field(max_length=300)
+    code: str = Field(max_length=40)
+
+
+@router.post("/signin/mfa")
+def signin_mfa(body: MfaSigninIn, request: Request, response: Response, db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Second step of sign-in: a code from the authenticator app, or a one-time recovery code."""
+    _csrf(request)
+    ip = client_ip(request)
+    _limit(request, "mfa-ip", ip, 30, 900.0)
+    try:
+        user = sec.challenge_user(db, _key(request), body.mfa_token)
+        _limit(request, "mfa-user", str(user.id), 8, 900.0)
+        how = sec.check_second_factor(db, user, _key(request), body.code)
+    except auth.AuthError as e:
+        audit.audit(db, "account.signin_failed", workspace_id=None, user_id=None, ip=ip, detail={"reason": "second factor"})
+        _raise(e)
+    return _start(request, response, db, user, ip, how)
+
+
+class EmailTokenIn(BaseModel):
+    token: str = Field(max_length=200)
+
+
+@router.post("/email/verify")
+def verify_email(body: EmailTokenIn, request: Request, db: Session = Depends(get_db)) -> dict[str, Any]:
+    _csrf(request)
+    _limit(request, "verify-email", client_ip(request), 30, 3600.0)
+    try:
+        user = sec.confirm_email(db, body.token)
+    except auth.AuthError as e:
+        _raise(e)
+    audit.audit(db, "account.email_verified", workspace_id=auth.default_workspace_id(db, user.id), user_id=user.id)
+    return {"verified": True, "email": user.email}
+
+
+@router.post("/email/resend")
+def resend_verification(request: Request, ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> dict[str, Any]:
+    s = get_settings()
+    _limit(request, "verify-resend", str(ctx.user_id), 5, 3600.0)
+    if ctx.user.email_verified_at is not None:
+        return {"sent": False, "message": "This email is already confirmed."}
+    token = sec.send_verification(db, ctx.user, request.app.state.email_sender, s.public_url)
+    out: dict[str, Any] = {"sent": True, "message": f"A confirmation link was sent to {ctx.user.email}."}
+    if not s.is_production and request.app.state.email_sender.name == "console":
+        out["dev_verify_url"] = f"{s.public_url}/#/verify-email?token={token}"
+    return out
+
+
+@router.post("/mfa/setup")
+def mfa_setup(request: Request, ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Start two-step sign-in: the secret to add to an authenticator app (shown once)."""
+    if ctx.via != "cookie":
+        raise HTTPException(403, "Set up two-step sign-in from the web app, not with an API token.")
+    try:
+        return sec.mfa_setup(db, ctx.user, _key(request))
+    except auth.AuthError as e:
+        _raise(e)
+        raise
+
+
+class CodeIn(BaseModel):
+    code: str = Field(max_length=40)
+
+
+@router.post("/mfa/enable")
+def mfa_enable(body: CodeIn, request: Request, ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> dict[str, Any]:
+    _limit(request, "mfa-enable", str(ctx.user_id), 10, 900.0)
+    try:
+        codes = sec.mfa_enable(db, ctx.user, _key(request), body.code)
+    except auth.AuthError as e:
+        _raise(e)
+        raise
+    audit.audit(db, "account.mfa_enabled", workspace_id=ctx.workspace_id, user_id=ctx.user_id, ip=ctx.ip)
+    return {"enabled": True, "recovery_codes": codes,
+            "note": "Keep these recovery codes somewhere safe. Each works once if you lose your phone. They are not shown again."}  # fmt: skip
+
+
+class MfaOffIn(BaseModel):
+    password: str = Field(max_length=256)
+    code: str = Field("", max_length=40)
+
+
+@router.post("/mfa/disable")
+def mfa_disable(body: MfaOffIn, request: Request, ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> dict[str, Any]:
+    _limit(request, "mfa-disable", str(ctx.user_id), 10, 900.0)
+    try:
+        sec.mfa_disable(db, ctx.user, _key(request), body.password, body.code)
+    except auth.AuthError as e:
+        _raise(e)
+    audit.audit(db, "account.mfa_disabled", workspace_id=ctx.workspace_id, user_id=ctx.user_id, ip=ctx.ip)
+    return {"enabled": False}
 
 
 @router.post("/signout")
@@ -276,4 +391,8 @@ def delete_account(body: DeleteIn, response: Response, request: Request,
     except auth.AuthError as e:
         _raise(e)
     response.delete_cookie(COOKIE, path="/")
-    return {"deleted": True, **summary.__dict__}
+    from app.services.workspace_data import verify_deleted
+
+    check = verify_deleted(db, request.app.state.blobs, summary.workspace_ids, ctx.user_id, summary.project_ids)
+    return {"deleted": True, "workspaces_deleted": summary.workspaces_deleted, "memberships_removed": summary.memberships_removed,
+            "projects_deleted": summary.projects_deleted, "files_deleted": summary.files_deleted, "verification": check}

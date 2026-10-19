@@ -123,7 +123,13 @@ export const auth = {
   me: () => req<Me>("/auth/me"),
   signup: (email: string, password: string, display_name: string) =>
     req<Me>("/auth/signup", post({ email, password, display_name })),
-  signin: (email: string, password: string) => req<Me>("/auth/signin", post({ email, password })),
+  signin: (email: string, password: string) => req<Me | { mfa_required: true; mfa_token: string }>("/auth/signin", post({ email, password })),
+  signinMfa: (mfa_token: string, code: string) => req<Me>("/auth/signin/mfa", post({ mfa_token, code })),
+  verifyEmail: (token: string) => req<{ verified: boolean; email: string }>("/auth/email/verify", post({ token })),
+  resendVerification: () => req<{ sent: boolean; message: string; dev_verify_url?: string }>("/auth/email/resend", post()),
+  mfaSetup: () => req<{ secret: string; otpauth_uri: string }>("/auth/mfa/setup", post()),
+  mfaEnable: (code: string) => req<{ enabled: boolean; recovery_codes: string[]; note: string }>("/auth/mfa/enable", post({ code })),
+  mfaDisable: (password: string, code: string) => req<{ enabled: boolean }>("/auth/mfa/disable", post({ password, code })),
   signout: () => req<{ signed_out: boolean }>("/auth/signout", post()),
   forgot: (email: string) =>
     req<{ sent: boolean; message: string; dev_reset_url?: string; dev_note?: string }>("/auth/password/forgot", post({ email })),
@@ -529,4 +535,14 @@ export interface ManifestCheck { ok: boolean; problems: string[]; compared: numb
 export const handoff = {
   optimised: () => req<OptimisedModel[]>("/exports/optimised-models"),
   verify: (manifest: unknown) => req<ManifestCheck>("/reproduce/verify", { method: "POST", body: JSON.stringify(manifest) }),
+};
+
+// --- workspace data -----------------------------------------------------------------------------------
+
+export type RetentionRules = Record<string, number | null>;
+export const workspaceData = {
+  retention: () => req<{ rules: RetentionRules; labels: Record<string, string>; audit_min_days: number }>("/workspaces/current/retention"),
+  setRetention: (rules: RetentionRules) => req<{ rules: RetentionRules }>("/workspaces/current/retention", { method: "PUT", body: JSON.stringify(rules) }),
+  apply: (dryRun: boolean) =>
+    req<{ dry_run: boolean; removed: Record<string, number> }>(`/workspaces/current/retention/apply?dry_run=${dryRun}`, { method: "POST" }),
 };

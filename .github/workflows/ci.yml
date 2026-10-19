@@ -34,7 +34,7 @@ jobs:
     # Browser journeys (sign-up, upload, analysis, plan, comparison, export, access control,
     # accessibility) against a server started on a throwaway database.
     runs-on: ubuntu-latest
-    env: { E2E_CHANNEL: chromium, E2E_PYTHON: python }
+    env: { E2E_CHANNEL: chromium, E2E_PYTHON: python, GC_PYTHON: python }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -60,3 +60,16 @@ jobs:
           GC_PUBLIC_DEMO=1 GC_DB_URL=sqlite:////tmp/ci.db uvicorn app.main:app --port 8000 &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/api/v1/health && break || sleep 1; done
           cd .. && python scripts/acceptance.py http://127.0.0.1:8000
+  dependencies:
+    # Known-vulnerability scan of what ships: Python packages (pip-audit, OSV/PyPI advisories) and the
+    # UI's production npm dependencies. Fails on any finding with a fix available.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: pip install -e "backend[postgres]" pip-audit
+      - run: pip-audit --skip-editable --strict
+      - run: cd frontend && npm ci && npm audit --omit=dev --audit-level=high

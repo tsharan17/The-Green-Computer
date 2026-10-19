@@ -95,4 +95,8 @@ def require_ctx(request: Request, ctx: Ctx | None = Depends(optional_ctx)) -> Ct
 def require_writer(ctx: Ctx = Depends(require_ctx)) -> Ctx:
     if not ctx.can_write:
         raise HTTPException(403, "Your role in this workspace is read-only.")
+    from app.auth.account_security import verification_required
+
+    if verification_required() and ctx.user.email_verified_at is None:
+        raise HTTPException(403, "Confirm your email address first: open the link we sent you, or send a new one from Account.")
     return ctx

@@ -71,7 +71,88 @@ class RateLimiter:
             self._hits.clear()
 
 
-LIMITER = RateLimiter()
+class DatabaseRateLimiter:
+    """Shared across processes and machines: sliding-window counters in the `rate_limits` table.
+
+    The estimate is previous_window * (share of it still inside the window) + current_window, the
+    usual sliding-window counter. Each call increments atomically (INSERT .. ON CONFLICT DO UPDATE ..
+    RETURNING), so concurrent workers cannot both slip under the limit.
+    """
+
+    def __init__(self, engine) -> None:  # type: ignore[no-untyped-def]
+        self.engine = engine
+        self.dialect = engine.dialect.name
+        self._calls = 0
+
+    def _incr(self, conn, key: str, start: int) -> int:  # type: ignore[no-untyped-def]
+        from sqlalchemy.dialects import postgresql, sqlite
+
+        from app.db.models import RateLimitRow
+
+        t = RateLimitRow.__table__
+        ins = (postgresql.insert if self.dialect == "postgresql" else sqlite.insert)(RateLimitRow).values(key=key, window_start=start, count=1)
+        stmt = ins.on_conflict_do_update(index_elements=["key", "window_start"], set_={"count": t.c.count + 1}).returning(t.c.count)
+        return int(conn.execute(stmt).scalar_one())
+
+    def check(self, key: str, max_calls: int, window_s: float) -> float | None:
+        if max_calls <= 0:
+            return None
+        from sqlalchemy import delete, select
+
+        from app.db.models import RateLimitRow
+
+        w = max(int(window_s), 1)
+        now = time.time()
+        cur = int(now // w) * w
+        k = f"{key}|{w}"[:200]
+        t = RateLimitRow.__table__
+        with self.engine.begin() as conn:
+            n = self._incr(conn, k, cur)
+            prev = conn.execute(select(t.c.count).where(t.c.key == k, t.c.window_start == cur - w)).scalar() or 0
+            self._calls += 1
+            if self._calls % 500 == 0:  # occasional clean-up of windows nobody can still need
+                conn.execute(delete(RateLimitRow).where(RateLimitRow.window_start < int(now) - 2 * 86400))
+        estimate = prev * (1 - (now - cur) / w) + n
+        if estimate > max_calls:
+            return max(w - (now - cur), 1.0)
+        return None
+
+    def reset(self) -> None:
+        from sqlalchemy import delete
+
+        from app.db.models import RateLimitRow
+
+        with self.engine.begin() as conn:
+            conn.execute(delete(RateLimitRow))
+
+
+class SharedLimiter:
+    """The limiter every route uses; the backend is chosen when the app starts (configure_limiter)."""
+
+    def __init__(self) -> None:
+        self.backend: RateLimiter | DatabaseRateLimiter = RateLimiter()
+        self.kind = "memory"
+
+    def check(self, key: str, max_calls: int, window_s: float) -> float | None:
+        return self.backend.check(key, max_calls, window_s)
+
+    def reset(self) -> None:
+        self.backend.reset()
+
+
+LIMITER = SharedLimiter()
+
+
+def configure_limiter(engine) -> str:  # type: ignore[no-untyped-def]
+    """GC_RATE_LIMIT_BACKEND = memory | database | auto (default: database on PostgreSQL, where
+    several workers share one database; memory on SQLite, a single process)."""
+    choice = os.environ.get("GC_RATE_LIMIT_BACKEND", "auto").lower()
+    if choice == "database" or (choice == "auto" and engine.dialect.name == "postgresql"):
+        if engine.dialect.name in ("postgresql", "sqlite"):
+            LIMITER.backend, LIMITER.kind = DatabaseRateLimiter(engine), "database"
+            return LIMITER.kind
+    LIMITER.backend, LIMITER.kind = RateLimiter(), "memory"
+    return LIMITER.kind
 
 
 def _limit(request: Request, bucket: str, max_calls: int, window_s: float, what: str) -> None:

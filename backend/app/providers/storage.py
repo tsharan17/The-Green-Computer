@@ -73,6 +73,12 @@ class LocalBlobStore:
             raise ValueError("invalid namespace")
         shutil.rmtree(self.root / namespace, ignore_errors=True)
 
+    def has_namespace(self, namespace: str) -> bool:
+        if not re.fullmatch(r"ws\d+", namespace):
+            raise ValueError("invalid namespace")
+        d = self.root / namespace
+        return d.exists() and any(d.rglob("*"))
+
 
 def default_data_dir(db_url: str, configured: str | None) -> Path:
     if configured:

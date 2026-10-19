@@ -1,3 +1,4 @@
+import VerifyEmail from "./pages/VerifyEmail";
 import DevicesPanel from "./components/DevicesPanel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, auth, history, setWorkspace } from "./api";
@@ -67,6 +68,7 @@ export default function App() {
 
   const page = route.parts[0] ?? "";
   if (page === "reset") return <AuthPage mode="reset" token={route.query.get("token") ?? ""} onSignedIn={() => loadMe()} />;
+  if (page === "verify-email") return <VerifyEmail token={route.query.get("token") ?? ""} onDone={loadMe} />;
   if (me === undefined) {
     return (
       <div className="boot" aria-busy="true" aria-live="polite">
@@ -246,6 +248,11 @@ function Shell({
         </header>
 
         <main id="main" tabIndex={-1}>
+          {me.user.verification_required && !me.user.email_verified && (
+            <p className="verify-banner" role="status">
+              <span aria-hidden>!</span> Confirm your email to make changes: open the link we sent to {me.user.email}, or <a href="#/account">send a new one</a>.
+            </p>
+          )}
           <ErrorNote error={libError} onRetry={refreshLibrary} />
           <ErrorBoundary>
             {p0 === "account" ? (

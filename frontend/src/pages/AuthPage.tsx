@@ -25,6 +25,8 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ message: string; link?: string; note?: string } | null>(null);
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [code, setCode] = useState("");
 
   useEffect(() => {
     auth.config().then(setCfg).catch(() => setCfg(null));
@@ -33,6 +35,7 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
     setError(null);
     setDone(null);
     setPassword("");
+    setMfaToken(null);
   }, [mode]);
 
   async function submit(e: React.FormEvent) {
@@ -40,7 +43,14 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
     setBusy(true);
     setError(null);
     try {
-      if (mode === "signin") onSignedIn(await auth.signin(email, password));
+      if (mode === "signin" && mfaToken) onSignedIn(await auth.signinMfa(mfaToken, code));
+      else if (mode === "signin") {
+        const r = await auth.signin(email, password);
+        if ("mfa_required" in r) {
+          setMfaToken(r.mfa_token);
+          setPassword("");
+        } else onSignedIn(r);
+      }
       else if (mode === "signup") onSignedIn(await auth.signup(email, password, name));
       else if (mode === "forgot") {
         const r = await auth.forgot(email);
@@ -104,13 +114,21 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
                 <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={120} />
               </label>
             )}
-            {mode !== "reset" && (
+            {mfaToken && (
+              <label className="field">
+                Code from your authenticator app
+                <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" autoFocus required maxLength={20}
+                  aria-describedby="mfa-hint" />
+                <span id="mfa-hint" className="hint">Lost your phone? Type one of your recovery codes instead.</span>
+              </label>
+            )}
+            {mode !== "reset" && !mfaToken && (
               <label className="field">
                 Email
                 <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" autoFocus />
               </label>
             )}
-            {mode !== "forgot" && (
+            {mode !== "forgot" && !mfaToken && (
               <label className="field">
                 {mode === "reset" ? "New password" : "Password"}
                 <input
@@ -129,7 +147,7 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
             )}
             {error && <p className="error" role="alert">{error}</p>}
             <button className="primary wide" disabled={busy} type="submit">
-              {busy ? "Working…" : c.action}
+              {busy ? "Working…" : mfaToken ? "Continue" : c.action}
             </button>
           </form>
         )}

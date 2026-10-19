@@ -319,7 +319,8 @@ export interface Workspace {
 }
 
 export interface Me {
-  user: { id: number; email: string; display_name: string; created_at: string };
+  user: { id: number; email: string; display_name: string; created_at: string; email_verified?: boolean; mfa_enabled?: boolean; verification_required?: boolean };
+  dev_verify_url?: string;
   workspaces: Workspace[];
   active_workspace_id: number | null;
   role: string | null;

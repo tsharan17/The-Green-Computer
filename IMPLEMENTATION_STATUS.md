@@ -647,14 +647,128 @@ Verification (2026-10-19)
 - `ruff` (backend, agent, scripts), `mypy app` (126 files), `tsc`, `eslint`, `vite build`: clean.
 - `npx playwright test`: 15 passed.
 
+## Release 2, slice H: operations and hardening (done, except running Docker)
+
+What works
+- **Docker: not run.** Docker is not installed in this environment, so the image and the compose
+  stack were not built or started.
+  - The Dockerfile health check and a new compose health check now use `/api/v1/ready`.
+  - Both files parse as valid YAML/Dockerfile syntax, and the commands are documented in
+    `docs/deploy.md`.
+  - The first container run must be treated as a smoke test.
+- **PostgreSQL:** all migrations (now through `0009_security_operations`) and a multi-user journey
+  ran on PostgreSQL 16 (local pgserver), with every slice's features.
+- **Shared rate limiter** (`app/security.py`): sliding-window counters in the `rate_limits` table,
+  using atomic `INSERT … ON CONFLICT DO UPDATE … RETURNING` on PostgreSQL and SQLite.
+  - Chosen automatically on PostgreSQL (`GC_RATE_LIMIT_BACKEND=auto`); in memory for single-process
+    SQLite.
+  - Two app instances on one database share the limits (tested).
+- **Email confirmation**: single-use 48-hour links, stored hashed, sent at sign-up and on request,
+  with a `#/verify-email` page.
+  - Enforced for changes only with `GC_REQUIRE_EMAIL_VERIFICATION=1` (off by default, so
+    installations without mail keep working).
+  - A banner explains what to do.
+- **Optional TOTP two-step sign-in** (RFC 6238, `app/auth/totp.py`, standard library only):
+  - set-up shows the key and an `otpauth://` link; enabling needs a valid code and returns 10
+    recovery codes once, stored hashed;
+  - sign-in returns a signed five-minute challenge, then `/auth/signin/mfa` takes a newer code
+    (replay refused) or a single-use recovery code;
+  - turning it off needs the password and a code; API tokens cannot enrol;
+  - seeds are sealed at rest with an encrypt-then-MAC box (`app/auth/secret_box.py`) keyed from
+    `server.key` or `GC_SECRET_KEY`, never in source.
+- **Retention** (owners): days per category (exports, traces, device runs, unreferenced uploads,
+  audit log with a 90-day floor). Applying shows a dry run first; `scripts/retention.py` runs it on
+  a schedule.
+- **Data export** (owners): every row and stored file of the workspace in one zip with a SHA-256
+  manifest; secrets and member emails are left out.
+- **Deletion verification**: account deletion returns the rows left per table and the file
+  folders left, both expected to be empty, across every owned table.
+- **Observability** (`app/observability.py`):
+  - an `X-Request-ID` on every response (a safe inbound id is kept);
+  - one log line per request (text or JSON) by route template, with no ids, queries or addresses
+    unless `GC_LOG_IPS=1`;
+  - `/api/v1/ready` (database, schema at head, storage writable; 503 otherwise);
+  - `/metrics` in Prometheus format, off unless `GC_METRICS_TOKEN` is set, with request counts,
+    duration histograms by route template, errors, uptime and the limiter kind.
+- **Error tracking adapter** (`app/providers/errors.py`): log (default), your own webhook, or
+  Sentry if `sentry_sdk` is installed (optional, `send_default_pii=False`).
+  - Reports carry the type, a message scrubbed of emails and long tokens, and file:line frames.
+  - Users get a plain 500 with the request id.
+- **Privacy-safe telemetry**: off. It is sent only by `scripts/telemetry.py` when both
+  `GC_TELEMETRY=1` and `GC_TELEMETRY_URL` are set. The payload is aggregate counts and versions
+  under a random installation id, and `/api/v1/telemetry/preview` shows it exactly.
+- **UI**:
+  - sign-in second step;
+  - Account → Sign-in security (email status and resend; set up, turn on and off two-step sign-in;
+    recovery codes shown once);
+  - Account → Workspace data (retention rules, dry run, apply with confirmation, export download);
+  - the verify-email page.
+- **Docs**:
+  - `docs/deploy.md` (self-hosted with Compose or systemd, and Render as the managed target,
+    written but not deployed);
+  - `docs/backup-restore.md` (database, data directory and keys, with restore checks);
+  - `docs/security.md` (new sections and a threat-model table);
+  - `.env.example` (every new setting).
+- **Dependency scanning**: a CI job runs `pip-audit --strict` and `npm audit --omit=dev
+  --audit-level=high`.
+  - Locally, pip-audit on the backend's 45 pinned packages found no known vulnerabilities, and
+    `npm audit --omit=dev` found 0.
+  - Development-only npm advisories were reduced from 15 to 2 by `npm audit fix` and Vite 5.4.11 →
+    5.4.21. The two left (Vite dev-server path handling, esbuild dev-server CORS) affect only
+    `vite dev`, never the built app, and need Vite 6+ (a major upgrade, left as a follow-up).
+- Fixed in passing: route templates in logs and metrics now include the `/api/v1` prefix (newer
+  FastAPI reports included routers' own paths); the test fixture resets the shared limiter between
+  tests.
+
+Tested
+- `tests/api/test_account_security.py` (7):
+  - RFC 6238 vectors; sealed secrets refuse tampering and the wrong purpose;
+  - email confirmation, optional enforcement, resend and single use;
+  - two-step sign-in (wrong code, forged challenge, recovery code once, newer code, replay
+    refused, disable with password and code);
+  - API tokens cannot enrol;
+  - the database limiter shared by two app instances;
+  - verification rows removed on account deletion.
+- `tests/api/test_workspace_data.py` (3): validation, dry run then apply on backdated rows,
+  referenced uploads kept, export hashes and no secrets, owner-only, deletion verification.
+- `tests/api/test_operations.py` (6):
+  - readiness (including a broken storage check), request ids and the JSON log formatter;
+  - metrics off, token required, route templates only;
+  - errors scrubbed and answered with an id;
+  - telemetry off, free of personal data and stable id;
+  - both operator scripts run.
+- Route security tests updated: `/ready`, `/auth/signin/mfa` and `/auth/email/verify` are public
+  by design and still need the CSRF header (new test).
+- PostgreSQL journey: shared limiter selected, email confirmed, MFA on and off, retention dry run,
+  export, readiness, and deletion verification ok.
+- Playwright `account-security.spec.ts`: confirm the email via the dev link, turn on two-step
+  sign-in with a real TOTP code, save recovery codes, set and preview retention, sign out, sign in
+  with password and code (a wrong code is refused). axe scans the account page with the new
+  sections in both schemes.
+
+Not done or not claimed
+- Docker was not run (see above). No managed deployment was made; Render is documented only.
+- Two-step sign-in is per account; there is no policy forcing it and no WebAuthn/passkeys.
+- The workspace export cannot be re-imported automatically yet.
+- No object-store blob backend: several app machines need shared storage for the data directory.
+
+Verification (2026-10-19)
+- `GC_TEST_PG_URL=... pytest -q --basetemp <scratch>`: 322 passed (PostgreSQL included, nothing
+  skipped, no errors).
+- `ruff` (backend, scripts, agent), `mypy app` (134 files), `tsc`, `eslint`, `vite build`: clean.
+- `npx playwright test`: 16 passed.
+- `pip-audit` (backend pins): no known vulnerabilities. `npm audit --omit=dev`: 0.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no
   NVIDIA GPU), Nebius jobs and the AI assistant live (no credentials), OCR (no Tesseract).
 - Thermal model is lumped; per-component heat is an attribution. Predictions are analytical until
   measurements calibrate them; CPU runs measure latency only.
-- In-memory rate limiting (single process); no email verification or MFA; members must already have
-  an account.
+- Members must already have an account (no invitation emails). Two-step sign-in is optional per
+  account. On SQLite the rate limiter is per process; PostgreSQL shares it.
+- No object-store backend for files; a Vite 6 upgrade is pending for two development-server-only
+  advisories.
 - Only ResNet-50 and MobileNetV2 can be executed without an upload; other library models need their
   ONNX file.
 
@@ -667,4 +781,8 @@ cd backend && .venv/Scripts/python -m mypy app
 cd frontend && npm run lint && npm run build && npx playwright test
 python scripts/acceptance.py http://localhost:8000     # against a running server
 GC_TEST_PG_URL=postgresql+psycopg://user:pw@host:5432/postgres  # then pytest also covers PostgreSQL
+cd backend && .venv/Scripts/python ../scripts/reproduce.py <manifest.json>   # recompute a reproducibility manifest
+cd backend && .venv/Scripts/python ../scripts/retention.py [--apply]          # apply retention rules
+cd backend && .venv/Scripts/python ../scripts/telemetry.py                    # show the telemetry payload
+pip-audit -r <frozen backend requirements> ; cd frontend && npm audit --omit=dev
 ```
