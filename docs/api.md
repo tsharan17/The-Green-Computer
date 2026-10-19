@@ -140,6 +140,7 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
+| `GET` | `/api/v1/exports/optimised-models` | session | Optimised model files and whether the platform produces them (only real, checked ones are). |
 | `GET` | `/api/v1/projects/{project_id}/cooling` | session | Every applicable catalogue cooling option evaluated for this project, ranked by stated criteria. |
 | `GET` | `/api/v1/projects/{project_id}/exports/catalog` | session | Export Catalog |
 | `GET` | `/api/v1/projects/{project_id}/exports/{export_id}/download` | session | Download Export |
@@ -150,6 +151,7 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `POST` | `/api/v1/projects/{project_id}/exports` | session | Create Export |
 | `POST` | `/api/v1/projects/{project_id}/plans/analyse` | session | Re-analyse a selection: baseline, each change alone, and all of them combined (not saved). |
 | `POST` | `/api/v1/projects/{project_id}/plans` | session | Save Plan |
+| `POST` | `/api/v1/reproduce/verify` | session | Recompute the numbers in a reproducibility manifest with this engine and compare them. |
 
 ## Remote Devices
 

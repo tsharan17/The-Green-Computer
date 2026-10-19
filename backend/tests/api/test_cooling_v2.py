@@ -83,3 +83,19 @@ def test_cooling_report_v2_uses_the_projects_environment(c):
     assert r2["environment"]["sealed_enclosure"] is True
     # Older specs without an environment still load and default to "rules nothing out".
     assert get_device("jetson-orin-nx").kind == "edge_soc"
+
+
+def test_sealed_enclosure_keeps_fans_out_of_the_search_and_the_plan(c):
+    spec = c.get(f"{P}/projects/{c.pid}").json()["spec"]
+    spec["environment"] = {"sealed_enclosure": True}
+    assert c.put(f"{P}/projects/{c.pid}", json=spec).status_code == 200
+    res = c.post(f"{P}/projects/{c.pid}/optimise").json()
+    hw = get_device("jetson-orin-nx")
+    fans = {o.id for o in hw.cooling_options if o.fan_w > 0}
+    fitted = res["baseline"]["config"]["cooling_id"]
+    picked = {r["config"]["cooling_id"] for r in res["top"]} | ({res["best"]["config"]["cooling_id"]} if res["best"] else set())
+    assert not (picked - {fitted}) & fans
+    assert "sealed" in res["message"] and all(o.name in res["message"] for o in hw.cooling_options if o.fan_w > 0 and o.id != fitted)
+    opts = c.get(f"{P}/projects/{c.pid}/plan-options").json()
+    ids = {x["id"] for x in opts["changes"]}
+    assert "cooling:edge-heatsink-fan" not in ids and "cooling:enclosure-venting" not in ids

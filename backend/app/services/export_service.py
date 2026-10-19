@@ -7,6 +7,7 @@ history shows exactly what was handed over, when, from which plan, with which la
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
@@ -50,6 +51,15 @@ CATALOG: list[dict[str, Any]] = [
     {"kind": "plan_package_zip", "name": "Complete plan package (zip)", "label": "generated", "needs_plan": True},
     {"kind": "int8_model", "name": "INT8 ONNX model", "label": "generated_validated", "needs_plan": False,
      "needs_upload": True},
+    # Release 2
+    {"kind": "founder_md", "name": "Summary for founders and customers (Markdown)", "label": "generated", "needs_plan": False, "group": "report"},
+    {"kind": "founder_pdf", "name": "Summary for founders and customers (PDF)", "label": "generated", "needs_plan": False, "group": "report"},
+    {"kind": "engineering_full_md", "name": "Full engineering report with appendices (Markdown)", "label": "generated", "needs_plan": False, "group": "report"},
+    {"kind": "engineering_full_pdf", "name": "Full engineering report with appendices (PDF)", "label": "generated", "needs_plan": False, "group": "report"},
+    {"kind": "system_graph_json", "name": "Hardware system graph (JSON)", "label": "generated", "needs_plan": False, "group": "data"},
+    {"kind": "evidence_zip", "name": "Evidence package (zip)", "label": "generated", "needs_plan": False, "group": "package"},
+    {"kind": "manifest_json", "name": "Reproducibility manifest (JSON)", "label": "generated", "needs_plan": False, "group": "data"},
+    {"kind": "handoff_zip", "name": "Engineering handoff package (zip)", "label": "generated", "needs_plan": True, "group": "package"},
 ]  # fmt: skip
 KINDS = {c["kind"] for c in CATALOG}
 
@@ -72,6 +82,13 @@ def catalog(db: Session, project: ProjectOut, ws: int) -> list[dict[str, Any]]:
                       "no file to transform).")  # fmt: skip
         out.append({**c, "label_text": LABEL_TEXT[c["label"]], "available": reason is None, "reason": reason})
     return out
+
+
+def optimised_catalogue() -> list[dict[str, Any]]:
+    """Optimised model files: only real, checked transformations are offered."""
+    from app.services.handoff_service import OPTIMISED
+
+    return OPTIMISED
 
 
 # --- context --------------------------------------------------------------------------------
@@ -368,7 +385,101 @@ def generate(db: Session, project: ProjectOut, ws: int, kind: str, plan: DesignP
                                  "Everything for this plan; MANIFEST.json labels each file.")  # fmt: skip
     if kind == "int8_model":
         return _int8(c, blobs)
+    return _release2(db, project, ws, kind, plan, blobs, c, title)
+
+
+def _release2(db: Session, project: ProjectOut, ws: int, kind: str, plan: DesignPlanRow | None, blobs: BlobStore,
+              c: _Ctx, title: str) -> GeneratedArtifact:  # fmt: skip
+    from app.services import handoff_service as H
+    from app.services import system_graph_service
+
+    if kind in ("founder_md", "founder_pdf"):
+        md = H.founder_md(c)
+        if kind == "founder_md":
+            return GeneratedArtifact(f"{c.base}-summary.md", md.encode(), "text/markdown; charset=utf-8", "generated",
+                                     "One page in plain language: the answer, what to change, how sure we are.")  # fmt: skip
+        return GeneratedArtifact(f"{c.base}-summary.pdf", markdown_to_pdf(md, f"{c.spec.name}: summary"), "application/pdf",
+                                 "generated", "The plain-language summary as a PDF.")  # fmt: skip
+    if kind in ("engineering_full_md", "engineering_full_pdf"):
+        md = report_md(c) + H.engineering_appendix_md(c)
+        if kind == "engineering_full_md":
+            return GeneratedArtifact(f"{c.base}-engineering-report.md", md.encode(), "text/markdown; charset=utf-8", "generated",
+                                     "The engineering report plus appendices: system graph, thermal attribution, runtime "
+                                     "effects, evidence per number, calibration quality and device runs.")  # fmt: skip
+        return GeneratedArtifact(f"{c.base}-engineering-report.pdf", markdown_to_pdf(md, title), "application/pdf",
+                                 "generated", "The full engineering report as a PDF.")  # fmt: skip
+    if kind == "system_graph_json":
+        g = system_graph_service.current(db, ws, project)
+        return GeneratedArtifact(f"{c.base}-system-graph.json", json.dumps(g, indent=1, default=str).encode(), "application/json",
+                                 "generated", "The hardware system graph (current version) with the source of every part and fact.")  # fmt: skip
+    if kind == "evidence_zip":
+        return GeneratedArtifact(f"{c.base}-evidence.zip", _zip(H.evidence_files(c)), "application/zip", "generated",
+                                 "What supports each number: evidence, measurements, calibration fits, device runs, graph.")  # fmt: skip
+    if kind == "manifest_json":
+        m = H.manifest(c)
+        return GeneratedArtifact(f"{c.base}-reproducibility.json", json.dumps(m, indent=1, default=str).encode(), "application/json",
+                                 "generated", "Inputs, data hashes, versions and the expected numbers; scripts/reproduce.py "
+                                 "recomputes and checks them.", {"expected": m["expected"], "hashes": m["hashes"],
+                                                                  "stored_analysis_differs": m["stored_analysis_differs"]})  # fmt: skip
+    if kind == "handoff_zip":
+        assert plan is not None
+        parts = {k: generate(db, project, ws, k, plan, blobs) for k in
+                 ("plan_json", "comparison_csv", "hardware_changes_yaml", "deployment_yaml", "engineering_full_md",
+                  "engineering_full_pdf", "founder_md", "system_graph_json", "manifest_json")}  # fmt: skip
+        content = {f"{_folder(k)}/{p.filename}": p.content for k, p in parts.items()}
+        content |= {f"evidence/{n}": b for n, b in H.evidence_files(c).items()}
+        files, _ = build_recipe(c.spec, c.model, c.hw, c.res)
+        content |= {f"recipe/{n}": f.content.encode() for n, f in files.items()}
+        int8 = H.latest_int8(db, ws, project.id)
+        if int8 is not None and int8.blob_key:
+            content[f"models/{int8.filename}"] = blobs.get(int8.blob_key)
+        entries: list[dict[str, Any]] = [{"path": f"{_folder(k)}/{p.filename}", "label": p.label, "label_text": LABEL_TEXT[p.label],
+                    "description": p.description} for k, p in parts.items()]
+        entries += [{"path": f"evidence/{n}", "label": "generated", "label_text": LABEL_TEXT["generated"],
+                     "description": "evidence data"} for n in H.evidence_files(c)]
+        entries += [{"path": f"recipe/{n}", "label": "template", "label_text": LABEL_TEXT["template"], "description": f.description}
+                    for n, f in files.items()]
+        if int8 is not None and int8.blob_key:
+            entries.append({"path": f"models/{int8.filename}", "label": int8.label, "label_text": LABEL_TEXT[int8.label],
+                            "description": "INT8 model exported earlier, with its validation in the exports history",
+                            "validation": int8.validation})  # fmt: skip
+        not_included = [o for o in H.OPTIMISED if o["kind"] != "int8_model" or int8 is None]
+        for e in entries:
+            e["sha256"] = hashlib.sha256(content[e["path"]]).hexdigest()
+        manifest = {"schema": "green-computer.handoff/1", "generated_at": c.stamp.isoformat(),
+                    "project": {"id": project.id, "name": c.spec.name, "inputs_version": project.version},
+                    "plan": {"id": plan.id, "name": plan.name, "version": plan.version}, "files": entries,
+                    "optimised_models_not_included": not_included,
+                    "start_here": "reports/ (summary, then the engineering report), then plan/ and hardware/; "
+                                  "check numbers with scripts/reproduce.py and data/*-reproducibility.json."}  # fmt: skip
+        content["MANIFEST.json"] = json.dumps(manifest, indent=1, default=str).encode()
+        content["README.md"] = _handoff_readme(c, plan, entries, not_included).encode()
+        return GeneratedArtifact(f"{c.base}-handoff.zip", _zip(content), "application/zip", "generated",
+                                 "Everything an engineering team needs to take over: reports, plan, hardware changes, graph, "
+                                 "evidence, recipe, reproducibility manifest; MANIFEST.json labels and hashes every file.")  # fmt: skip
     raise ExportError(f"unknown export '{kind}'")
+
+
+def _folder(kind: str) -> str:
+    if kind in ("engineering_full_md", "engineering_full_pdf", "founder_md"):
+        return "reports"
+    if kind in ("plan_json", "comparison_csv"):
+        return "plan"
+    if kind in ("hardware_changes_yaml", "deployment_yaml"):
+        return "hardware"
+    return "data"
+
+
+def _handoff_readme(c: _Ctx, plan: DesignPlanRow, entries: list[dict[str, Any]], not_included: list[dict[str, Any]]) -> str:
+    lines = [f"# Handoff: {c.spec.name}", "", f"Plan \"{plan.name}\" v{plan.version}. Generated {c.stamp:%Y-%m-%d %H:%M} UTC.", "",
+             "Labels: *Generated and validated here* (produced and checked by running it), *Generated from your stored "
+             "analysis* (data), *Template* (adapt and run yourself; not executed here).", "",
+             "| File | Label | What it is |", "|---|---|---|"]  # fmt: skip
+    lines += [f"| {e['path']} | {e['label_text']} | {e['description']} |" for e in entries]
+    lines += ["", "## Not included", ""]
+    lines += [f"- {o['name']}: {o['how']}" for o in not_included]
+    lines += ["", "Directional hardware items are analytical what-ifs: no PCB, RTL or chip file was produced or simulated."]
+    return "\n".join(lines) + "\n"
 
 
 def _zip(files: dict[str, bytes]) -> bytes:

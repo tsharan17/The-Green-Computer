@@ -320,3 +320,31 @@ test("cooling v2: where it runs rules options out, with reasons and heat sources
   await expect(cool.getByText(/Heatsink with 40 mm fan.*needs an air path for a fan, but the enclosure is sealed/)).toBeVisible();
   await expect(cool.getByRole("cell", { name: /Heatsink with 40 mm fan/ })).toHaveCount(0);
 });
+
+test("hand-over: founder summary, grouped exports and a reproducibility check", async ({ page }, testInfo) => {
+  await signUp(page, email("handoff"));
+  const pid = await openExample(page);
+  await page.getByRole("region", { name: "Decision summary" }).getByRole("button", { name: /^Analyse/ }).click();
+  await expect(page).toHaveURL(new RegExp(`#/p/${pid}/summary`));
+  await page.goto(`/#/p/${pid}/verify?tab=export`);
+  await expect(page.getByRole("heading", { name: "Start here" })).toBeVisible();
+  await expect(page.locator(".not-offered", { hasText: "TensorRT engine" })).toContainText("not offered");
+
+  const summary = page.locator(".export-list li", { hasText: "Summary for founders and customers (Markdown)" });
+  const dl = page.waitForEvent("download");
+  await summary.getByRole("button", { name: "Download" }).click();
+  const md = await dl;
+  expect(md.suggestedFilename()).toMatch(/-summary\.md$/);
+  expect(await md.failure()).toBeNull();
+
+  const manifestRow = page.locator(".export-list li", { hasText: "Reproducibility manifest (JSON)" });
+  const dl2 = page.waitForEvent("download");
+  await manifestRow.getByRole("button", { name: "Download" }).click();
+  const man = await dl2;
+  const file = testInfo.outputPath("manifest.json");
+  await man.saveAs(file);
+  await page.locator("details.level-block.engineering > summary", { hasText: "Check a reproducibility manifest" }).click();
+  await page.getByLabel("Reproducibility manifest").setInputFiles(file);
+  const answer = page.locator(".exports p[role=status], .exports p[role=alert]").last();
+  await expect(answer).toContainText(/Reproduced: \d+ numbers match/, { timeout: 60_000 });
+});

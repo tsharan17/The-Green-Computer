@@ -63,7 +63,10 @@ def evaluator(db: Session, spec: ProjectSpec, ws: int | None):
 def options(db: Session, project: ProjectOut, ws: int | None) -> dict[str, Any]:
     res, run_id = _latest(db, project.id)
     hw = get_device(project.spec.device_id, ws)
-    changes = changes_from_result(res, applicable(load_cooling_catalogue(), hw))
+    from app.engine.cooling_catalogue import blockers
+
+    usable = [e for e in applicable(load_cooling_catalogue(), hw) if not blockers(e, project.spec.environment, None)]
+    changes = changes_from_result(res, usable)
     return {"source_run_id": run_id, "recommended": [a.id for a in res.advice if a.in_recommended],
             "changes": [c.model_dump() for c in changes]}  # fmt: skip
 

@@ -90,6 +90,10 @@ def test_full_journey_on_postgres(pg_url, tmp_path):
             assert c.put(f"{P}/projects/{pid}", json=spec).status_code == 200
             cool = c.get(f"{P}/projects/{pid}/cooling").json()
             assert cool["environment"]["sealed_enclosure"] and any("sealed" in " ".join(x["reasons"]) for x in cool["excluded"])
+            # Release 2 slice G: a reproducibility manifest stored on PostgreSQL recomputes exactly.
+            m = c.post(f"{P}/projects/{pid}/exports", json={"kind": "manifest_json"}).json()
+            doc = c.get(f"{P}/projects/{pid}/exports/{m['id']}/download").json()
+            assert c.post(f"{P}/reproduce/verify", json=doc).json()["ok"]
             # Release 2 slice F: register and pair a device agent, then revoke it.
             reg = c.post(f"{P}/remote-devices", json={"name": "pg board", "device_id": "jetson-orin-nano"}).json()
             from fastapi.testclient import TestClient

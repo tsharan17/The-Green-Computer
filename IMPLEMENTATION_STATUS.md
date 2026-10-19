@@ -577,6 +577,76 @@ Verification (2026-10-19)
 - `ruff` (backend and agent), `mypy app` (125 files), `tsc`, `eslint`, `vite build`: clean.
 - `npx playwright test`: 14 passed.
 
+## Release 2, slice G: hand-over files and reproducibility (done)
+
+What works (`services/handoff_service.py`; new export kinds, additive)
+- Summary for founders and customers (Markdown, PDF), one page in plain language:
+  - the answer today and with the plan, expected improvement (energy, power, cost and CO₂e a
+    year);
+  - what to change, what limits it today;
+  - confidence and what has not been measured;
+  - next steps.
+- Full engineering report (Markdown, PDF): the existing report plus appendices, namely the
+  hardware system graph with sources, labelled thermal attribution and network, runtime effects and
+  memory hierarchy, evidence for each headline number, calibration quality, and device runs.
+- Hardware system graph (JSON), current version.
+- Evidence package (zip): evidence per number, measurements used, every calibration fit,
+  device-agent runs with quality checks, the graph, physics views and the full analysis, with a
+  README.
+- Reproducibility manifest (JSON, `green-computer.reproducibility/1`):
+  - the exact engine inputs (spec, model and hardware profiles, measured retention, applied
+    calibrations, measurements) and their hashes;
+  - engine version and constants, Python, packages, git commit, cooling catalogue hash and
+    project file hashes;
+  - the expected headline numbers.
+  `scripts/reproduce.py` (offline, no database or network) and `POST /reproduce/verify` recompute
+  them and compare to 1e-9 relative. Hashes are computed on a normalised form, so a file that went
+  through a browser (40.0 written as 40) still verifies.
+- Engineering handoff package (zip, needs a saved plan), with folders:
+  - reports, plan (plan and old/new parameters), hardware (change spec and deployment template);
+  - data (graph and manifest), evidence, recipe (templates);
+  - models: the INT8 model only if one was really exported and validated earlier.
+  `MANIFEST.json` labels and SHA-256-hashes every file and lists the optimised models that are
+  not included, with what each would need. The README states that no PCB, RTL or chip file was
+  produced.
+- Optimised models stay real-only (`GET /exports/optimised-models`): INT8 (quantised and checked
+  here) is offered. FP16, pruned and TensorRT are "not offered", each saying what it would need.
+- Export tab regrouped:
+  - Start here, Engineering reports, Plan/parameters/hardware;
+  - Data/evidence/reproducibility, Run it yourself, Optimised model files (with the not-offered
+    ones);
+  - a "Check a reproducibility manifest" upload.
+- Fixed in passing (found while reviewing the founder summary): a sealed enclosure now keeps
+  fan-cooled options out of the optimiser's search (the cooling fitted today always stays). It is
+  named in the result's message, and catalogue cooling changes in the plan builder respect "Where
+  it runs".
+
+Tested
+- `tests/api/test_handoff.py` (4):
+  - catalogue and the honest optimised-model list;
+  - founder summary and full report content and PDFs; graph; evidence zip contents;
+  - manifest verify by API and by the offline script (exit codes), including after a JavaScript
+    round trip;
+  - tampered inputs give hash and number problems, and an engine version mismatch is reported;
+  - the handoff zip needs a plan, every file's hash matches MANIFEST.json, the folders and
+    labels are right (recipe = template, INT8 = generated and validated), and the not-included
+    list is honest;
+  - another workspace gets 404.
+- `tests/api/test_cooling_v2.py`: a sealed enclosure keeps fans out of the search and the plan.
+- PostgreSQL journey: a manifest exported there verifies.
+- Playwright: grouped Export tab, founder summary download, and a manifest downloaded and checked
+  in the UI. That test found the hash bug fixed above.
+
+Not claimed
+- The manifest reproduces the engine's numbers from its inputs; it does not re-measure anything.
+  Re-running on another engine version reports the version difference instead of passing quietly.
+
+Verification (2026-10-19)
+- `GC_TEST_PG_URL=... pytest -q --basetemp <scratch>`: 305 passed (PostgreSQL included, nothing
+  skipped).
+- `ruff` (backend, agent, scripts), `mypy app` (126 files), `tsc`, `eslint`, `vite build`: clean.
+- `npx playwright test`: 15 passed.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no

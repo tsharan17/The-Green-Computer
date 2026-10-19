@@ -83,6 +83,18 @@ def search_space(model: ModelProfile, hw: HardwareProfile) -> Iterable[Config]:
         )  # fmt: skip
 
 
+def cooling_for_environment(hw: HardwareProfile, spec: ProjectSpec, fitted: str) -> tuple[HardwareProfile, list[str]]:
+    """Cooling options the search may pick where the device runs. A sealed enclosure has no air path,
+    so options with a fan are left out (the one fitted today always stays). Returns the profile to
+    search and the names of the options left out."""
+    env = getattr(spec, "environment", None)
+    if env is None or not env.sealed_enclosure:
+        return hw, []
+    keep = [c for c in hw.cooling_options if c.fan_w == 0 or c.id == fitted]
+    dropped = [c.name for c in hw.cooling_options if c not in keep]
+    return (hw.model_copy(update={"cooling_options": keep}) if dropped else hw), dropped
+
+
 def quick_space(model: ModelProfile, hw: HardwareProfile, cooling_id: str | None) -> list[Config]:
     """A small space for comparing alternatives fast: precision x batch x power mode x clock."""
     cooling = cooling_id if cooling_id in {c.id for c in hw.cooling_options} else hw.default_cooling
@@ -294,6 +306,7 @@ def optimise(
     wl: Workload = spec.workload
     cons: Constraints = spec.constraints
     base_cfg = spec.baseline or baseline_config(hw, spec.cooling_id)
+    hw, cooling_dropped = cooling_for_environment(hw, spec, base_cfg.cooling_id)
     ev = make_evaluator(
         model, hw, wl, cons, measured, calibrations, measurements, accuracy_reference
     )
@@ -349,6 +362,8 @@ def optimise(
     repair = plan_repair(baseline, results, hw=hw)
     verdict = build_verdict(baseline, best, wl, cons)
     elapsed = time.perf_counter() - t0
+    env_note = (f"Left out because the enclosure is sealed (Where it runs): {', '.join(cooling_dropped)}."
+                if cooling_dropped else "")  # fmt: skip
 
     if best is not None:
         return OptimisationResult(
@@ -363,6 +378,7 @@ def optimise(
             search_seconds=elapsed,
             verdict=verdict,
             repair=repair,
+            message=env_note,
         )
 
     closest = sorted(results, key=lambda r: (_failed(r), r.metrics["energy_per_inference"].value))
@@ -381,6 +397,6 @@ def optimise(
         message=(
             "No configuration in the searched space satisfies every hard constraint. "
             "Constraints were not relaxed. Showing the closest candidates by number of "
-            "failed checks."
+            "failed checks." + (f" {env_note}" if env_note else "")
         ),
     )

@@ -642,3 +642,9 @@ pre.cmd { background: var(--panel); border: 1px solid var(--line); padding: 8px 
 .job-list > li { border-top: 1px solid var(--line); padding: 10px 0; }
 .job-list p { margin: 4px 0; font-size: 14px; }
 .checks-list { list-style: none; padding: 0; margin: 4px 0; font-size: 14px; }
+
+/* Export groups */
+.export-group { margin-top: 18px; }
+.export-group h3 { margin: 0 0 2px; color: var(--ink); font-size: 15px; }
+.export-group > .hint { margin: 0 0 6px; }
+.export-list li.not-offered strong { color: var(--muted); }

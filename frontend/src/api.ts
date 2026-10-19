@@ -521,3 +521,12 @@ export const remote = {
     req<RemoteJob>(`/remote-devices/${id}/jobs`, { method: "POST", body: JSON.stringify(body) }),
   jobs: (projectId: number) => req<RemoteJob[]>(`/remote-jobs?project_id=${projectId}`),
 };
+
+// --- hand-over ------------------------------------------------------------------------------------
+
+export interface OptimisedModel { kind: string; name: string; status: string; how: string }
+export interface ManifestCheck { ok: boolean; problems: string[]; compared: number }
+export const handoff = {
+  optimised: () => req<OptimisedModel[]>("/exports/optimised-models"),
+  verify: (manifest: unknown) => req<ManifestCheck>("/reproduce/verify", { method: "POST", body: JSON.stringify(manifest) }),
+};

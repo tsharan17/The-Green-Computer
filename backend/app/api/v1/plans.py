@@ -105,6 +105,23 @@ def export_catalog(project_id: int, db: Session = Depends(get_db), ctx: Ctx = De
     return ex.catalog(db, p, ctx.workspace_id)
 
 
+@router.get("/exports/optimised-models")
+def optimised_models(_ctx: Ctx = Depends(require_ctx)) -> list[dict[str, Any]]:
+    """Optimised model files and whether the platform produces them (only real, checked ones are)."""
+    return ex.optimised_catalogue()
+
+
+@router.post("/reproduce/verify")
+def verify_manifest(body: dict[str, Any], _ctx: Ctx = Depends(require_ctx)) -> dict[str, Any]:
+    """Recompute the numbers in a reproducibility manifest with this engine and compare them."""
+    from app.services.handoff_service import verify_manifest as verify
+
+    try:
+        return verify(body)
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(422, f"not a usable manifest: {e}") from e
+
+
 class ExportIn(BaseModel):
     kind: str = Field(max_length=40)
     plan_id: int | None = None
