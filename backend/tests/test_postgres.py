@@ -63,8 +63,16 @@ def test_full_journey_on_postgres(pg_url, tmp_path):
             m = {"device_id": "jetson-orin-nano", "model_id": "resnet-50", "precision": "fp16", "latency_ms_mean": 9.0}
             assert c.post(f"{P}/measurements", json=m).status_code == 201
             assert c.get(f"{P}/usage").json()["this_period"]["analysis"] >= 1
+            # Release 2: guided start, example projects, health, search and preferences.
+            g = c.post(f"{P}/guide/start", json={"use_case": "mcu-voice", "priority": "lower_power"})
+            assert g.status_code == 201, g.text
+            assert c.post(f"{P}/guide/demo").status_code == 201
+            assert any(h["analysed"] for h in c.get(f"{P}/projects-health").json())
+            assert c.get(f"{P}/search", params={"q": "voice"}).json()
+            assert c.put(f"{P}/auth/preferences", json={"mode": "engineering"}).json()["mode"] == "engineering"
         with AuthedClient(app, email="other@x.io") as o:
             assert o.get(f"{P}/projects/{pid}").status_code == 404
+            assert not [h for h in o.get(f"{P}/search", params={"q": "voice"}).json() if h["type"] == "project"]
         with AuthedClient(app, email="pg@x.io") as c:
             r = c.post(f"{P}/auth/account/delete", json={"password": TEST_PASSWORD, "confirm": "DELETE"})
             assert r.status_code == 200, r.text

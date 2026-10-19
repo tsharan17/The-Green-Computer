@@ -1,20 +1,26 @@
-import Logo from "./components/Logo";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, auth, history, setWorkspace } from "./api";
 import AgentPanel from "./components/AgentPanel";
+import DecisionBar from "./components/DecisionBar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ExecutionPanel from "./components/ExecutionPanel";
 import ExportPanel from "./components/ExportPanel";
+import GlobalSearch from "./components/GlobalSearch";
+import { ErrorNote } from "./components/Help";
 import HistoryPanel from "./components/HistoryPanel";
+import Logo from "./components/Logo";
 import PlanBuilder from "./components/PlanBuilder";
 import SavedPlans from "./components/SavedPlans";
 import StatusBar from "./components/StatusBar";
+import { ModeProvider, useMode } from "./lib/mode";
 import AccountPage from "./pages/AccountPage";
 import AuthPage from "./pages/AuthPage";
-import ResultsPage from "./pages/ResultsPage";
 import CapabilitiesPage from "./pages/CapabilitiesPage";
 import ConstraintsPage from "./pages/ConstraintsPage";
 import InputPage from "./pages/InputPage";
+import ResultsPage from "./pages/ResultsPage";
+import StartGuide from "./pages/StartGuide";
+import SummaryPage from "./pages/SummaryPage";
 import VerifyPage from "./pages/VerifyPage";
 import WorkspacePage from "./pages/WorkspacePage";
 import { AREAS, type AreaId, navigate, useRoute } from "./router";
@@ -32,10 +38,6 @@ function readWs(): number | null {
   } catch {
     return null;
   }
-}
-
-function msg(e: unknown) {
-  return e instanceof Error ? e.message : String(e);
 }
 
 export default function App() {
@@ -79,32 +81,46 @@ export default function App() {
         onSignedIn={(m) => {
           setWorkspace(m.active_workspace_id);
           setMe(m);
-          navigate("/");
+          navigate(mode === "signup" ? "/start" : "/");
         }}
       />
     );
   }
   return (
-    <Shell
-      me={me}
-      route={route}
-      switchWorkspace={(id) => {
-        try {
-          localStorage.setItem(WS_KEY, String(id));
-        } catch {
-          /* storage unavailable: the choice lasts for this tab only */
-        }
-        setWorkspace(id);
-        setMe({ ...me, active_workspace_id: id, role: me.workspaces.find((w) => w.id === id)?.role ?? null });
-        navigate("/");
-      }}
-      reloadMe={loadMe}
-      signedOut={() => {
-        setWorkspace(null);
-        setMe(null);
-        navigate("/signin");
-      }}
-    />
+    <ModeProvider signedIn>
+      <Shell
+        me={me}
+        route={route}
+        switchWorkspace={(id) => {
+          try {
+            localStorage.setItem(WS_KEY, String(id));
+          } catch {
+            /* storage unavailable: the choice lasts for this tab only */
+          }
+          setWorkspace(id);
+          setMe({ ...me, active_workspace_id: id, role: me.workspaces.find((w) => w.id === id)?.role ?? null });
+          navigate("/");
+        }}
+        reloadMe={loadMe}
+        signedOut={() => {
+          setWorkspace(null);
+          setMe(null);
+          navigate("/signin");
+        }}
+      />
+    </ModeProvider>
+  );
+}
+
+function ModeSwitch() {
+  const { mode, setMode } = useMode();
+  return (
+    <div className="seg mode-switch" role="radiogroup" aria-label="Display">
+      <button role="radio" aria-checked={mode === "simple"} className={mode === "simple" ? "on" : ""} onClick={() => setMode("simple")}
+        title="Plain answers first; engineering detail one click away">Simple</button>
+      <button role="radio" aria-checked={mode === "engineering"} className={mode === "engineering" ? "on" : ""} onClick={() => setMode("engineering")}
+        title="Engineering detail open by default">Engineering</button>
+    </div>
   );
 }
 
@@ -121,9 +137,10 @@ function Shell({
   reloadMe: () => void;
   signedOut: () => void;
 }) {
+  const { mode } = useMode();
   const [models, setModels] = useState<ModelProfile[]>([]);
   const [devices, setDevices] = useState<HardwareProfile[]>([]);
-  const [libError, setLibError] = useState<string | null>(null);
+  const [libError, setLibError] = useState<unknown>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -134,7 +151,7 @@ function Shell({
       setDevices(d);
       setLibError(null);
     } catch (e) {
-      setLibError(msg(e));
+      setLibError(e);
     }
   }, []);
   useEffect(() => {
@@ -143,8 +160,16 @@ function Shell({
 
   const [p0, p1, p2] = route.parts;
   const projectId = p0 === "p" && p1 ? Number(p1) : null;
-  const area = (AREAS.some((a) => a.id === p2) ? p2 : "input") as AreaId;
+  const area = (AREAS.some((a) => a.id === p2) ? p2 : null) as AreaId | null;
   const canWrite = me.role === "owner" || me.role === "editor";
+  const main = AREAS.filter((a) => a.group === "main");
+  const eng = AREAS.filter((a) => a.group === "engineering");
+  const link = (a: (typeof AREAS)[number]) => (
+    <a key={a.id} className={`nav-item ${area === a.id ? "on" : ""}`} href={`#/p/${projectId}/${a.id}`} aria-current={area === a.id ? "page" : undefined}>
+      <i aria-hidden>{a.n === 0 ? "●" : a.n}</i>
+      <span><strong>{a.label}</strong><small>{a.sub}</small></span>
+    </a>
+  );
 
   async function signOut() {
     try {
@@ -171,11 +196,16 @@ function Shell({
             <span><strong>Workspace</strong><small>Projects and onboarding</small></span>
           </a>
           {projectId !== null &&
-            AREAS.filter((a) => BUILT.has(a.id)).map((a) => (
-              <a key={a.id} className={`nav-item ${area === a.id ? "on" : ""}`} href={`#/p/${projectId}/${a.id}`} aria-current={area === a.id ? "page" : undefined}>
-                <i aria-hidden>{a.n}</i>
-                <span><strong>{a.label}</strong><small>{a.sub}</small></span>
-              </a>
+            (mode === "engineering" ? (
+              [AREAS[0], ...AREAS.slice(1)].map(link)
+            ) : (
+              <>
+                {main.map(link)}
+                <details className="nav-more" open={eng.some((a) => a.id === area)}>
+                  <summary>Engineering views ({eng.length})</summary>
+                  {eng.map(link)}
+                </details>
+              </>
             ))}
         </nav>
         {projectId !== null && (
@@ -199,6 +229,8 @@ function Shell({
               ))}
             </select>
           </label>
+          <GlobalSearch />
+          <ModeSwitch />
           <div className="account-menu">
             <button aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>
               {me.user.display_name || me.user.email}
@@ -213,12 +245,14 @@ function Shell({
         </header>
 
         <main id="main" tabIndex={-1}>
-          {libError && <p className="error" role="alert">{libError}</p>}
+          <ErrorNote error={libError} onRetry={refreshLibrary} />
           <ErrorBoundary>
             {p0 === "account" ? (
               <AccountPage me={me} onChanged={reloadMe} onDeleted={signedOut} />
             ) : p0 === "capabilities" ? (
               <CapabilitiesPage />
+            ) : p0 === "start" ? (
+              <StartGuide models={models} devices={devices} onModelAdded={(m) => setModels((prev) => [...prev.filter((x) => x.id !== m.id), m])} />
             ) : projectId !== null ? (
               <ProjectView
                 key={`${me.active_workspace_id}-${projectId}`}
@@ -243,9 +277,6 @@ function Shell({
   );
 }
 
-/** Areas that have a screen in this build (others are hidden, never shown as dead links). */
-const BUILT = new Set<AreaId>(["input", "constraints", "system-map", "timeline", "memory", "thermal", "energy", "recommendations", "verify"]);
-
 function ProjectView({
   projectId,
   area,
@@ -259,7 +290,7 @@ function ProjectView({
   closeAgent,
 }: {
   projectId: number;
-  area: AreaId;
+  area: AreaId | null;
   query: URLSearchParams;
   models: ModelProfile[];
   devices: HardwareProfile[];
@@ -273,8 +304,10 @@ function ProjectView({
   const [spec, setSpec] = useState<ProjectSpec | null>(null);
   const [res, setRes] = useState<OptimisationResult | null>(null);
   const [resAt, setResAt] = useState<string | null>(null);
+  const [runId, setRunId] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState<"run" | "verify" | "history" | "export">("run");
   const [verifyKey, setVerifyKey] = useState(0);
@@ -284,6 +317,7 @@ function ProjectView({
   const qAdd = query.get("add");
   useEffect(() => {
     if (qTab === "plan" || qTab === "saved" || qTab === "results") setRecTab(qTab);
+    if (qTab === "run" || qTab === "verify" || qTab === "history" || qTab === "export") setTab(qTab);
   }, [qTab, qAdd]);
 
   const load = useCallback(async () => {
@@ -298,15 +332,22 @@ function ProjectView({
         const full = await history.run<OptimisationResult>(projectId, last.id);
         setRes(full.result);
         setResAt(full.created_at);
+        setRunId(last.id);
       }
+      setLoaded(true);
     } catch (e) {
       if ((e as { status?: number }).status === 404) setNotFound(true);
-      else setError(msg(e));
+      else setError(e);
     }
   }, [projectId]);
   useEffect(() => {
     load();
   }, [load]);
+
+  // A bare project link opens the answer when there is one, else the inputs.
+  useEffect(() => {
+    if (loaded && area === null) navigate(`/p/${projectId}/${res ? "summary" : "input"}`);
+  }, [loaded, area, res, projectId]);
 
   const dirty = useMemo(() => !!project && !!spec && JSON.stringify(project.spec) !== JSON.stringify(spec), [project, spec]);
   const stale = dirty && !!res;
@@ -318,7 +359,7 @@ function ProjectView({
     try {
       setProject(await api.save(projectId, spec));
     } catch (e) {
-      setError(msg(e));
+      setError(e);
     } finally {
       setBusy(false);
     }
@@ -333,10 +374,12 @@ function ProjectView({
       setProject(saved);
       setRes(await api.optimise(projectId));
       setResAt(new Date().toISOString());
-      navigate(`/p/${projectId}/recommendations`);
+      const runs = await history.runs(projectId);
+      setRunId(runs.find((r) => r.kind === "optimise")?.id ?? null);
+      navigate(`/p/${projectId}/summary`);
       window.scrollTo({ top: 0 });
     } catch (e) {
-      setError(msg(e));
+      setError(e);
     } finally {
       setBusy(false);
     }
@@ -345,7 +388,7 @@ function ProjectView({
   if (notFound) {
     return (
       <section className="panel">
-        <h2>Project not found</h2>
+        <h1>Project not found</h1>
         <p>It may have been deleted, or it belongs to another workspace. Switch workspace at the top, or go back to your projects.</p>
         <a className="btn-link" href="#/">Back to projects</a>
       </section>
@@ -355,7 +398,7 @@ function ProjectView({
     return (
       <div className="panel skeleton" aria-busy="true">
         <div className="sk-line w60" /><div className="sk-line w90" /><div className="sk-line w75" />
-        {error && <p className="error" role="alert">{error}</p>}
+        <ErrorNote error={error} onRetry={load} />
       </div>
     );
   }
@@ -365,8 +408,11 @@ function ProjectView({
   const needsResult = (
     <section className="panel empty-state">
       <h2>No analysis yet</h2>
-      <p>Choose the model, hardware and requirements, then run the analysis. Results are stored with the project.</p>
-      <a className="btn-link primary" href={`#/p/${projectId}/input`}>Go to model and hardware</a>
+      <p>The inputs are set. Run the analysis to get a verdict, the biggest bottleneck and a recommended change; it takes a few seconds.</p>
+      <div className="actions">
+        <button className="primary" disabled={busy || !canWrite} onClick={analyse}>{busy ? "Analysing…" : "Analyse now"}</button>
+        <a className="btn-link" href={`#/p/${projectId}/input`}>Review the inputs first</a>
+      </div>
     </section>
   );
   const goLegacy = (p: string) =>
@@ -381,13 +427,11 @@ function ProjectView({
             {model?.name ?? spec.model_id} on {device?.name ?? spec.device_id}, inputs version {project.version}
           </p>
         </div>
-        <div className="project-head-right">
-          {res && <span className="badge badge-analytical" title="Physics-model prediction with stated assumptions; measured values are labelled where they exist">predicted</span>}
-          {stale && <span className="badge badge-assumed" title="The inputs changed since the last analysis">inputs changed since this analysis</span>}
-        </div>
       </div>
-      {error && <p className="error" role="alert">{error}</p>}
+      <DecisionBar project={project} res={res} stale={stale || (!!res && dirty)} busy={busy} canWrite={canWrite} model={model} device={device} onAnalyse={analyse} />
+      <ErrorNote error={error} onRetry={() => setError(null)} />
 
+      {area === "summary" && (res ? <SummaryPage res={res} spec={spec} projectId={projectId} runId={runId} /> : needsResult)}
       {area === "input" && (
         <InputPage
           spec={spec}
@@ -435,13 +479,7 @@ function ProjectView({
             </div>
             {recTab === "results" && <ResultsPage res={res} spec={spec} go={goLegacy} />}
             {recTab === "plan" && (
-              <PlanBuilder
-                key={`${resAt}-${qAdd ?? ""}`}
-                projectId={projectId}
-                canWrite={canWrite}
-                initialAdd={qAdd}
-                onSaved={() => setPlansKey((k) => k + 1)}
-              />
+              <PlanBuilder key={`${resAt}-${qAdd ?? ""}`} projectId={projectId} canWrite={canWrite} initialAdd={qAdd} onSaved={() => setPlansKey((k) => k + 1)} />
             )}
             {recTab === "saved" && <SavedPlans projectId={projectId} refreshKey={plansKey} />}
           </>

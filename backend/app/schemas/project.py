@@ -33,8 +33,16 @@ class Constraints(BaseModel):
     forbid_throttling: bool = True
 
 
+Priority = Literal["balanced", "faster", "lower_power", "lower_heat", "lower_cost", "fit_memory"]
+
+
 class ProjectSpec(BaseModel):
     name: str
+    # What matters most when several setups meet every requirement (ranking only; it never
+    # relaxes a requirement). "balanced" = least energy per input.
+    priority: Priority = "balanced"
+    # The use case chosen in the first-run guide (free text id, e.g. "edge-camera"); informational.
+    use_case: str | None = None
     model_id: str
     device_id: str
     cooling_id: str | None = None

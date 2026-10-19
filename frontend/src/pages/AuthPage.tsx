@@ -65,16 +65,21 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
           <Logo />
           <strong>The Green Computer</strong>
         </div>
-        <h1>See how an AI model will run on your hardware before you build it.</h1>
-        <p>
-          Describe or upload the model and the board, set what must be true, and get predicted latency, memory, power,
-          heat and energy, operator by operator, with the changes that meet your requirements on the least energy.
-        </p>
-        <ul className="auth-points">
-          <li>Every number carries its source and its range: predicted, calibrated or measured.</li>
-          <li>Runs fully on your own machine. GPU and AI-assistant integrations are optional.</li>
-          <li>Recommendations you can select, re-analyse and export as a versioned design plan.</li>
-        </ul>
+        <h1>Will your AI model run well on your hardware? Find out before you build it.</h1>
+        <ol className="auth-steps">
+          <li><strong>You choose</strong> a model and a board (or upload them) and say what matters most.</li>
+          <li><strong>We predict</strong> speed, memory, power, heat and energy across thousands of settings.</li>
+          <li><strong>You get</strong> a plain verdict, the biggest bottleneck and the one change to make.</li>
+        </ol>
+        <figure className="auth-example" aria-label="Illustration of a result">
+          <figcaption>What a result looks like (illustration)</figcaption>
+          <p className="ae-row"><span>Today</span> <span className="outcome bad"><span aria-hidden className="outcome-icon">✕</span> Fails</span>
+            <span aria-hidden>→</span><span>With the plan</span> <span className="outcome ok"><span aria-hidden className="outcome-icon">✓</span> Passes</span></p>
+          <p className="ae-line">YOLOv8s on a Jetson Orin NX gets too hot at 40 °C with passive cooling.</p>
+          <p className="ae-line"><strong>Do this:</strong> switch to INT8 and the 25 W power mode.</p>
+          <p className="hint">Predicted, with a range. Measured once you run it on the device.</p>
+        </figure>
+        <p className="hint">Runs fully on your own server. GPU and AI-assistant integrations are optional.</p>
       </section>
 
       <section className="auth-card" aria-labelledby="auth-title">

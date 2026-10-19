@@ -362,3 +362,46 @@ export const execution = {
   list: (pid: number) => req<ExecutionJob[]>(`/projects/${pid}/executions`),
   get: (pid: number, id: number) => req<ExecutionJob>(`/projects/${pid}/executions/${id}`),
 };
+
+export const prefs = {
+  get: () => req<{ mode: "simple" | "engineering"; onboarded: boolean }>("/auth/preferences"),
+  set: (p: { mode?: "simple" | "engineering"; onboarded?: boolean }) =>
+    req<{ mode: "simple" | "engineering"; onboarded: boolean }>("/auth/preferences", { method: "PUT", body: JSON.stringify(p) }),
+};
+
+export interface UseCase {
+  id: string;
+  title: string;
+  blurb: string;
+  model_id: string;
+  device_id: string;
+  fps: number;
+  ambient_c: number;
+  max_power_w: number;
+  max_latency_ms: number | null;
+  priority: string;
+  category: string;
+}
+
+export interface Health {
+  project_id: number;
+  analysed: boolean;
+  stale: boolean;
+  outcome?: string;
+  best_outcome?: string | null;
+  bottleneck?: string | null;
+  headline?: string | null;
+  energy_saving_percent?: number | null;
+  analysed_at?: string;
+}
+
+export interface SearchHit { type: string; title: string; subtitle: string; href: string }
+
+export const guide = {
+  useCases: () => req<{ use_cases: UseCase[]; priorities: { id: string; title: string; blurb: string }[] }>("/guide/use-cases"),
+  start: (body: Record<string, unknown>) =>
+    req<{ project: import("./types").ProjectOut; analysis?: { outcome: string; best_outcome: string | null } }>("/guide/start", post(body)),
+  demo: () => req<{ created: { project_id: number; name: string; outcome: string }[] }>("/guide/demo", post()),
+  health: () => req<Health[]>("/projects-health"),
+  search: (q: string) => req<SearchHit[]>(`/search?q=${encodeURIComponent(q)}`),
+};

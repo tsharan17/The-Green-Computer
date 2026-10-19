@@ -25,6 +25,7 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 |---|---|---|---|
 | `GET` | `/api/v1/auth/config` | public | Auth Config |
 | `GET` | `/api/v1/auth/me` | session | Me |
+| `GET` | `/api/v1/auth/preferences` | session | Get Preferences |
 | `GET` | `/api/v1/auth/sessions` | session | Sessions |
 | `POST` | `/api/v1/auth/account/delete` | session | Delete Account |
 | `POST` | `/api/v1/auth/password/change` | session | Change |
@@ -35,6 +36,7 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `POST` | `/api/v1/auth/signout` | session | Signout |
 | `POST` | `/api/v1/auth/signup` | public | Signup |
 | `POST` | `/api/v1/auth/tokens` | session | An API token for the CLI or scripts (Authorization: Bearer ...). Shown once. |
+| `PUT` | `/api/v1/auth/preferences` | session | Presentation only: display density and whether the first-run guide was completed. |
 
 ## Core
 
@@ -105,6 +107,16 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `GET` | `/api/v1/projects/{project_id}/executions/{job_id}` | session | Get Run |
 | `GET` | `/api/v1/projects/{project_id}/executions` | session | List Runs |
 | `POST` | `/api/v1/projects/{project_id}/executions` | session | Run |
+
+## Guide
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | `/api/v1/guide/use-cases` | session | Use Cases |
+| `GET` | `/api/v1/projects-health` | session | Projects Health |
+| `GET` | `/api/v1/search` | session | Search |
+| `POST` | `/api/v1/guide/demo` | session | Add five analysed example projects (MCU, edge camera, FPGA, GPU server, cloud). Idempotent. |
+| `POST` | `/api/v1/guide/start` | session | Create a project from a use case (or from scratch) and, by default, analyse it at once. |
 
 ## Intake
 

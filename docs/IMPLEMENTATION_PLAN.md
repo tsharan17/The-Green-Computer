@@ -73,3 +73,24 @@ leave the app runnable after each phase. Status lives in `IMPLEMENTATION_STATUS.
 - 3D view: the trace and component schema carry layout hints so a 3D view can consume them later.
 - Real power telemetry on the host: only where the OS exposes it (Linux RAPL); otherwise power is
   imported from logs or predicted, and labelled so.
+
+# Release 2: simple first, powerful on demand
+
+Audit (start of release 2): the platform is complete for experts but expert-first. Missing: guided
+first run, beginner/expert presentation, decision bar, plain-language layer, global search, demo
+projects, versioned hardware-system graph, KiCad/Verilog/HLS evidence parsers, 3D map, multi-node
+thermal, runtime/memory-hierarchy effects, calibration-quality and evidence views, remote-device
+agent, measurement-quality grading, handoff/founder/reproducibility exports, MFA, email
+verification, shared rate limits, observability, retention. Docker is not installed in the
+development environment, so the image/compose run must be done on a machine with Docker.
+
+| Slice | Content |
+|---|---|
+| A | Kelly-green/white identity; first-run wizard (use case → model → hardware → priority → analyse → one action); priority-aware ranking in the engine; beginner/expert density preference; decision bar; plain-language glossary and "Why does this matter?" help; project health; global search; five demo projects |
+| B | Versioned hardware-system graph (components, connections, attributes, source, confidence); bounded parsers: KiCad PCB metadata, Verilog module/port subset, Vivado HLS reports; links from trace events to graph components |
+| C | 3D system map (three.js) on the same graph + trace; playback, overlays, baseline-vs-plan; logical vs physical layout labelling; 2D/table fallback |
+| D | Multi-node thermal network when thermal paths exist (labelled estimate); memory hierarchy and runtime effects (load, transfer, fusion, queueing, offline); calibration-quality dashboard; per-value evidence panel |
+| E | Cooling catalogue v2: applicability by power, enclosure, ambient, maintenance; lifecycle and repairability; per-heat-source rationale |
+| F | Remote-device agent protocol (device tokens, signed run requests, approved artifacts only, no shell) + reference agent + simulator; measurement-quality grading |
+| G | Hardware handoff package, founder/customer summary, reproducibility manifest, evidence package, system-graph export |
+| H | TOTP MFA, email verification, database-backed rate limiter, structured logs, liveness/readiness, metrics, error-reporting adapter, retention and workspace data export, threat model, dependency scanning, deployment docs |

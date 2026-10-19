@@ -206,6 +206,60 @@ Final verification (2026-10-19)
 - `python scripts/acceptance.py http://localhost:8010`: 22 passed, 2 skipped (assistant and GPU
   jobs not configured), 0 failed. `scripts/demo_data.py` ran end to end.
 
+## Release 2, slice A: simple first, powerful on demand (done)
+
+What works
+- Kelly green (#4CBB17) and white identity in light and dark: hairline rules instead of cards, kelly
+  as a fill with dark ink, a deeper kelly for links. State is always icon + words + colour.
+- Guided start (`#/start`, where new accounts land): use case → model (library or ONNX upload) →
+  hardware → "What matters most?" (Balanced, Faster response, Lower power, Lower heat, Lower cost, Fit
+  into memory) → Analyse → Summary. `POST /guide/start`, `GET /guide/use-cases`.
+- The priority changes which feasible setup is recommended (`engine/optimise.py` `PRIORITY_METRIC`);
+  it never loosens a requirement. Stored on the spec as `priority` (additive, default `balanced`).
+- Summary screen per project: verdict today → with the plan, biggest bottleneck in plain words,
+  recommended next step (what, why, benefit, trade-off, confidence, evidence, how to check it, plus
+  the smallest fix if it differs), then "Explain" (bars against your limits) and "Engineering detail"
+  (every metric with range and source, checks, run JSON).
+- Decision bar on every project screen: setup, outcome today, recommended plan, expected improvement,
+  confidence, one primary action (Analyse / Review the plan / Export).
+- Simple / Engineering display preference, stored per user (`GET/PUT /auth/preferences`, migration
+  `0006_user_preferences`). Simple folds detail and tucks the five engineering views under one
+  disclosure; Engineering opens everything.
+- Glossary with plain-language terms and "Why does this matter?" disclosures; human error messages
+  with a recovery action; skeleton loading and empty states.
+- Workspace: first-run explanation with the three steps, project health table (outcome today,
+  bottleneck, outcome with the plan, energy saving, "inputs changed since"), `GET /projects-health`.
+- Five analysed example projects in one click (`POST /guide/demo`): microcontroller voice, smart
+  camera, FPGA inspection, GPU server, cloud detection.
+- Global search (Ctrl/Cmd+K) over projects, plans, analyses, recommendations, hardware, models,
+  components and tensors, scoped to the workspace (`GET /search`).
+- Sign-in screen states what the product does, the first step and the result, with a labelled
+  illustration of a result.
+
+Tested
+- `tests/api/test_guide.py`: priority ranking, guided start, demo + health + staleness, search
+  (including another workspace seeing nothing), preferences validation.
+- `tests/test_postgres.py` now also drives the guided start, demo, health, search and preferences on
+  PostgreSQL, and checks search isolation there.
+- Playwright: the journeys follow the new flow (sign-up → guided start; analyse → Summary → decision
+  bar → plan); new journeys for the guided start with the mode switch (persisted across reload) and
+  for example projects + search. axe WCAG 2.1 A/AA scans run on the guided start, workspace and every
+  project screen in both Simple and Engineering modes, in light and dark.
+- Checked by hand in the browser at desktop and phone width (no horizontal scroll), light and dark.
+
+Still analytical or not done in this slice
+- The twin pages (system map, timeline, memory, thermal, energy), Recommendations and Verify keep
+  their existing layouts under the decision bar; they do not yet carry their own Summary/Explain/
+  Engineering levels. Slices B–H (system graph and parsers, 3D map, multi-node thermal, cooling v2,
+  device agent, handoff packages, operations) are not started.
+
+Verification (2026-10-19)
+- `pytest -q --basetemp <scratch>`: 262 passed, 2 skipped (PostgreSQL, run separately);
+  `GC_TEST_PG_URL=... pytest tests/test_postgres.py`: 2 passed (local pgserver, PostgreSQL 16).
+- `ruff check .` clean; `mypy app` clean (111 files).
+- `npx tsc --noEmit`, `npm run lint`, `npm run build`: clean.
+- `npx playwright test`: 9 passed (7 journeys + 2 accessibility scans covering both modes).
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no

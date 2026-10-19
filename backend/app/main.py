@@ -14,6 +14,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.executions import router as executions_router
 from app.api.v1.export import router as export_router
 from app.api.v1.files import router as files_router
+from app.api.v1.guide import router as guide_router
 from app.api.v1.hardware import router as hardware_router
 from app.api.v1.intake import router as intake_router
 from app.api.v1.measurements import router as measurement_router
@@ -73,7 +74,7 @@ def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAP
     app.state.email_sender = make_email_sender()
     for r in (auth_router, workspace_router, router, measurement_router, agent_router,
               export_router, hardware_router, files_router, intake_router, twin_router, plans_router,
-              executions_router):  # fmt: skip
+              executions_router, guide_router):  # fmt: skip
         app.include_router(r, prefix=settings.api_prefix)
 
     if STATIC_DIR.is_dir():

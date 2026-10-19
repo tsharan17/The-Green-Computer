@@ -285,8 +285,12 @@ export interface Constraints {
   forbid_throttling: boolean;
 }
 
+export type Priority = "balanced" | "faster" | "lower_power" | "lower_heat" | "lower_cost" | "fit_memory";
+
 export interface ProjectSpec {
   name: string;
+  priority?: Priority;
+  use_case?: string | null;
   model_id: string;
   device_id: string;
   cooling_id: string | null;

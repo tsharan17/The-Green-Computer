@@ -130,23 +130,47 @@ def _eligible(r: EvaluationResult) -> bool:
     return _STATE_RANK[r.feasibility] <= 1
 
 
-def _rank_key(r: EvaluationResult, base: Config | None = None) -> tuple:
-    # Energy (plus a small penalty per unit of engineering effort, when a baseline is given).
-    # Differences inside the band's noise are ties, broken by lower latency, so the
-    # recommendation does not trade a 4x slower response for a sub-percent energy saving.
+# The metric each priority minimises among setups that meet every requirement. Requirements are
+# never relaxed by a priority; it only orders the setups that already pass.
+PRIORITY_METRIC = {
+    "balanced": "energy_per_inference",
+    "faster": "latency",
+    "lower_power": "power_avg",
+    "lower_heat": "temperature_unthrottled",
+    "lower_cost": "cost_per_day",  # electricity cost of running it; hardware price is not modelled
+    "fit_memory": "memory",
+}  # fmt: skip
+PRIORITY_TITLE = {
+    "balanced": "Lowest-energy configuration that meets your hard constraints",
+    "faster": "Fastest configuration that meets your hard constraints",
+    "lower_power": "Lowest-power configuration that meets your hard constraints",
+    "lower_heat": "Coolest-running configuration that meets your hard constraints",
+    "lower_cost": "Lowest electricity-cost configuration that meets your hard constraints",
+    "fit_memory": "Smallest-memory configuration that meets your hard constraints",
+}  # fmt: skip
+
+
+def _rank_key(r: EvaluationResult, base: Config | None = None, priority: str = "balanced") -> tuple:
+    # The priority's metric (plus a small penalty per unit of engineering effort, when a baseline
+    # is given). Differences inside the band's noise are ties, broken by energy then latency, so
+    # the recommendation does not trade a 4x slower response for a sub-percent gain.
     e = r.metrics["energy_per_inference"].value
-    adj = e * (1.0 + EFFORT_ENERGY_PENALTY * (effort(base, r.config) if base else 0.0))
+    key = PRIORITY_METRIC.get(priority, "energy_per_inference")
+    v = r.metrics[key].value
+    adj = max(v, 1e-12) * (1.0 + EFFORT_ENERGY_PENALTY * (effort(base, r.config) if base else 0.0))
     return (
         _STATE_RANK[r.feasibility],
         math.floor(math.log(adj) / _TIE_LOG),
+        e if key != "energy_per_inference" else r.metrics["latency"].value,
         r.metrics["latency"].value,
         e,
     )
 
 
-def _pick(results: Iterable[EvaluationResult], base: Config | None = None) -> EvaluationResult | None:
+def _pick(results: Iterable[EvaluationResult], base: Config | None = None,
+          priority: str = "balanced") -> EvaluationResult | None:  # fmt: skip
     ok = [r for r in results if _eligible(r)]
-    return min(ok, key=lambda r: _rank_key(r, base)) if ok else None
+    return min(ok, key=lambda r: _rank_key(r, base, priority)) if ok else None
 
 
 def _recommendation(
@@ -172,7 +196,7 @@ def _recommendation(
         )
     caveats.append("All values are analytical predictions with stated bands, not measurements.")
     return Recommendation(
-        title="Lowest-energy configuration that meets your hard constraints",
+        title=PRIORITY_TITLE.get(spec.priority, PRIORITY_TITLE["balanced"]),
         changes=changes,
         summary=summary,
         state=best.feasibility,
@@ -284,7 +308,8 @@ def optimise(
     for r in results:
         counts[r.feasibility.value] = counts.get(r.feasibility.value, 0) + 1
 
-    eligible = sorted((r for r in results if _eligible(r)), key=lambda r: _rank_key(r, base_cfg))
+    eligible = sorted((r for r in results if _eligible(r)),
+                      key=lambda r: _rank_key(r, base_cfg, spec.priority))  # fmt: skip
     best = eligible[0] if eligible else None
 
     # Pareto set over eligible candidates: energy and latency down, accuracy up. Memory is a

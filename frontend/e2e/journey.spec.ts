@@ -14,10 +14,15 @@ async function signUp(page: Page, who: string) {
   await page.getByLabel("Email").fill(who);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByRole("heading", { name: /Welcome/ })).toBeVisible();
+  // A new account lands on the guided start.
+  await expect(page.getByRole("heading", { name: "Start a new analysis" })).toBeVisible();
 }
 
+const analyseButton = (page: Page) =>
+  page.getByRole("region", { name: "Decision summary" }).getByRole("button", { name: /^Analyse/ });
+
 async function openExample(page: Page): Promise<string> {
+  await page.goto("/#/");
   await page.getByRole("link", { name: /Example: YOLOv8s on a robot/ }).click();
   await expect(page).toHaveURL(/#\/p\/\d+\/input/);
   return page.url().match(/#\/p\/(\d+)/)![1];
@@ -27,10 +32,15 @@ test("sign-up, analysis, design plan, comparison, export and history", async ({ 
   await signUp(page, email("journey"));
   const pid = await openExample(page);
 
-  await page.getByRole("button", { name: "Analyse", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`#/p/${pid}/recommendations`));
+  await analyseButton(page).click();
+  await expect(page).toHaveURL(new RegExp(`#/p/${pid}/summary`));
   await expect(page.getByText(/Your current setup fails/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Biggest bottleneck" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recommended next step" })).toBeVisible();
 
+  // The decision bar points at the plan; build, analyse and save it.
+  await page.getByRole("region", { name: "Decision summary" }).getByRole("link", { name: "Review the recommended plan" }).click();
+  await expect(page).toHaveURL(new RegExp(`#/p/${pid}/recommendations`));
   // Build, analyse and save a plan.
   await page.getByRole("tab", { name: "Build a design plan" }).click();
   await page.getByRole("button", { name: /Analyse this plan/ }).click();
@@ -106,7 +116,7 @@ test("sign out and back in; a wrong password is refused", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("incorrect");
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: /Welcome|workspace/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Find out whether|workspace/ })).toBeVisible();
 });
 
 test("one account cannot open another account's project", async ({ browser }) => {
@@ -138,4 +148,60 @@ test("account deletion signs out and removes access", async ({ page }) => {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("alert")).toContainText("incorrect");
+});
+
+test("guided start: use case, model, hardware, priority, then a plain result", async ({ page }) => {
+  await signUp(page, email("guide"));
+  await expect(page.getByRole("listitem").filter({ hasText: "What you are building" })).toHaveAttribute("aria-current", "step");
+  await page.getByRole("button", { name: /Smart camera/ }).click();
+  await expect(page.getByRole("heading", { name: "Add your AI model" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Describe your hardware" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "What matters most?" })).toBeVisible();
+  const faster = page.getByRole("radio", { name: /Faster response/ });
+  await faster.click();
+  await expect(faster).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Faster response", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Analyse", exact: true }).click();
+
+  await expect(page).toHaveURL(/#\/p\/\d+\/summary/);
+  const bar = page.getByRole("region", { name: "Decision summary" });
+  await expect(bar.getByText("Current setup")).toBeVisible();
+  await expect(bar.getByText("predicted, not measured")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Biggest bottleneck" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recommended next step" })).toBeVisible();
+
+  // Simple mode: detail is folded away and engineering views sit under one disclosure.
+  const eng = page.locator("details.level-block.engineering");
+  await expect(eng).not.toHaveAttribute("open", "");
+  await expect(page.getByText(/Engineering views \(5\)/)).toBeVisible();
+  // Engineering mode: detail opens and every view is listed; the choice survives a reload.
+  await page.getByRole("radio", { name: "Engineering" }).click();
+  await expect(eng).toHaveAttribute("open", "");
+  await expect(page.getByText(/Engineering views \(5\)/)).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("radio", { name: "Engineering" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radio", { name: "Simple" }).click();
+});
+
+test("example projects, project health and global search", async ({ page }) => {
+  await signUp(page, email("demo"));
+  await page.goto("/#/");
+  await expect(page.getByRole("heading", { name: /Find out whether/ })).toBeVisible();
+  await page.getByRole("button", { name: /Add five example projects/ }).click();
+  await expect(page.getByText("Added 5 analysed example projects.")).toBeVisible();
+  const row = page.getByRole("row", { name: /Demo: GPU inference server/ });
+  await expect(row.getByText(/Passes|Fails|Uncertain/).first()).toBeVisible();
+
+  const search = page.getByRole("combobox", { name: "Search" });
+  await page.keyboard.press("Control+k");
+  await expect(search).toBeFocused();
+  await search.fill("voice");
+  const option = page.getByRole("option", { name: /Voice command on a microcontroller/ }).first();
+  await expect(option).toBeVisible();
+  await search.press("Enter");
+  await expect(page).toHaveURL(/#\/p\/\d+\/summary/);
+  await expect(page.getByRole("heading", { name: /Voice command on a microcontroller/ })).toBeVisible();
 });

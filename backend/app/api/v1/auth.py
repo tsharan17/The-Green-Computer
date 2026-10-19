@@ -206,6 +206,28 @@ def change(body: ChangeIn, ctx: Ctx = Depends(require_ctx),
     return {"changed": True, "other_sessions_signed_out": n}
 
 
+PREF_KEYS = {"mode": ("simple", "engineering"), "onboarded": (True, False)}
+
+
+@router.get("/preferences")
+def get_preferences(ctx: Ctx = Depends(require_ctx)) -> dict[str, Any]:
+    return {"mode": "simple", "onboarded": False, **(ctx.user.preferences or {})}
+
+
+@router.put("/preferences")
+def set_preferences(body: dict[str, Any], ctx: Ctx = Depends(require_ctx),
+                    db: Session = Depends(get_db)) -> dict[str, Any]:  # fmt: skip
+    """Presentation only: display density and whether the first-run guide was completed."""
+    bad = [k for k, v in body.items() if k not in PREF_KEYS or v not in PREF_KEYS[k]]
+    if bad:
+        raise HTTPException(422, f"unknown preference or value: {', '.join(bad)}")
+    user = db.get(UserRow, ctx.user_id)
+    assert user is not None
+    user.preferences = {**(user.preferences or {}), **body}
+    db.commit()
+    return {"mode": "simple", "onboarded": False, **user.preferences}
+
+
 @router.get("/sessions")
 def sessions(ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> list[dict]:
     rows = auth.list_sessions(db, ctx.user_id)
