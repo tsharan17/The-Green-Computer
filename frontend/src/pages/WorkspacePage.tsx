@@ -4,6 +4,7 @@ import { ErrorNote, Outcome } from "../components/Help";
 import { useMode } from "../lib/mode";
 import { navigate } from "../router";
 import type { HardwareProfile, Me, ModelProfile, ProjectOut, ProjectSpec, UsageSummary } from "../types";
+import Hero3D from "../components/Hero3D";
 
 function fmtBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -106,6 +107,7 @@ export default function WorkspacePage({ me, models, devices }: { me: Me; models:
     <div className="workspace">
       {firstVisit ? (
         <section className="hero-start" aria-labelledby="hs-h">
+          <Hero3D />
           <h1 id="hs-h">Find out whether your AI model will run well on your hardware, before you build it.</h1>
           <ol className="hero-steps">
             <li><strong>Tell us what you are building</strong> and pick or upload the model and the hardware.</li>

@@ -11,6 +11,6 @@ export function readPalette(): Palette {
   const v = (n: string, d: string) => cs.getPropertyValue(n).trim() || d;
   return {
     bg: v("--sunk", "#f4f8f1"), ink: v("--ink", "#13210f"), muted: v("--muted", "#56634f"), line: v("--line-strong", "#c3cfbb"),
-    panel: v("--panel", "#ffffff"), heat: v("--s2", "#eb6834"), kelly: v("--kelly", "#4cbb17"), s1: v("--s1", "#2a78d6"), s3: v("--s3", "#1baf7a"),
+    panel: v("--panel", "#ffffff"), heat: v("--heat", "#0a4a20"), kelly: v("--kelly", "#4cbb17"), s1: v("--s1", "#0e4d26"), s3: v("--s3", "#52b266"),
   };
 }

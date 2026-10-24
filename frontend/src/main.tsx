@@ -9,6 +9,7 @@ import "./styles.css";
 import "./friendly.css";
 import "./theme.css";
 import "./soft.css";
+import "./green.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

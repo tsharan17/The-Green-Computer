@@ -12,7 +12,7 @@ const RIGHT = { x: 290, w: 482, y: 26, h: 464 };
 
 function heatFill(share: number, max: number) {
   const pct = max > 0 ? 8 + 72 * (share / max) : 8;
-  return `color-mix(in oklab, var(--s2) ${pct.toFixed(0)}%, var(--panel))`;
+  return `color-mix(in oklab, var(--heat-fill) ${pct.toFixed(0)}%, var(--panel))`;
 }
 
 function rect(c: Component) {

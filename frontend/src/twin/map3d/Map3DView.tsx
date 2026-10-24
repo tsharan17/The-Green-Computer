@@ -110,9 +110,10 @@ export default function Map3DView({ scene, overlay, activeKeys, pathUse, selecte
     <Canvas frameloop="demand" dpr={[1, 2]} camera={{ fov: 40, near: 0.1, far: 500 }} onPointerMissed={() => onSelect(null)}
       onCreated={() => onReady?.()} gl={{ preserveDrawingBuffer: true, antialias: true }}>
       <color attach="background" args={[pal.bg]} />
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[6, 12, 8]} intensity={1.4} />
-      <directionalLight position={[-8, 6, -6]} intensity={0.4} />
+      <hemisphereLight args={[pal.panel, pal.line, 0.9]} />
+      <ambientLight intensity={0.35} />
+      <directionalLight position={[6, 12, 8]} intensity={1.2} />
+      <directionalLight position={[-8, 6, -6]} intensity={0.35} />
       <CameraRig cam={cam} extent={scene.extent} center={scene.center} />
       {scene.systems.map((s, i) => s.label && (
         <Label key={`sys${i}`} text={s.label} pos={[s.offsetX, 2.6, -4.6]} pal={pal} scale={1.6 * k} />
