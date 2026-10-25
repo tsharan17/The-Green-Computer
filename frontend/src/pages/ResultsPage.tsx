@@ -1,4 +1,4 @@
-import { Alternatives, DesignIdeas } from "../components/results/OtherOptions";
+import { DesignIdeas } from "../components/results/OtherOptions";
 import Recommendations, { CheapestFix } from "../components/results/Recommendations";
 import VerdictBanner from "../components/results/VerdictBanner";
 import { SOURCE_WORDS } from "../lib/plain";
@@ -29,7 +29,7 @@ function HowSure({ res, go }: { res: OptimisationResult; go: (p: "verify" | "exp
       </ul>
       <div className="cta-row">
         <button className="primary" onClick={() => go("verify")}>
-          Check it with real measurements
+          Open the run, history and export tools
         </button>
         <button onClick={() => go("export")}>Get the report and recipe</button>
         <button className="link" onClick={() => go("explore")}>
@@ -64,7 +64,6 @@ export default function ResultsPage({
       {res.verdict && <VerdictBanner verdict={res.verdict} wl={spec.workload} cons={spec.constraints} />}
       {res.repair && <CheapestFix repair={res.repair} />}
       <Recommendations advice={res.advice} />
-      <Alternatives alternatives={res.alternatives} />
       <DesignIdeas whatifs={res.whatifs} limiting={res.limiting_factor} />
       <HowSure res={res} go={go} />
       <p className="hint foot-note">

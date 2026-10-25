@@ -1,13 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { download, twin } from "../api";
+import type { Config } from "../types";
 import type { StoredTrace } from "./types";
 
-export type Which = "baseline" | "best";
+export type Which = "baseline" | "best" | "plan";
 
-/** Fetch (or compute) the predicted trace for the current setup or the recommended one. Cached per
- * (setup, project version) for the session; "Recompute" forces a new stored trace. */
-export function useTrace(projectId: number, version: number, hasBest: boolean) {
+/** A design plan the user analysed in Recommendations; the stage views can then show its trace. */
+export interface PlanPick { key: string; label: string; config: Config }
+
+/** One trace selection shared by every stage of a project: the setup chosen on one page stays
+ * chosen on the next, and a trace computed once is reused. Keyed by setup, project version and the
+ * analysis run, so a new analysis never shows a stale trace. */
+function useTraceStore(projectId: number, version: number, hasBest: boolean, runKey: number | null) {
   const [which, setWhich] = useState<Which>(hasBest ? "best" : "baseline");
+  const [plan, setPlan] = useState<PlanPick | null>(null);
+  const chose = useRef(false);
+  const choose = useCallback((w: Which) => {
+    chose.current = true;
+    setWhich(w);
+  }, []);
   const [data, setData] = useState<StoredTrace | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +26,8 @@ export function useTrace(projectId: number, version: number, hasBest: boolean) {
 
   const load = useCallback(
     async (force = false) => {
-      const key = `${which}:${version}`;
+      if (which === "plan" && !plan) return;
+      const key = `${which === "plan" ? `plan:${plan?.key}` : which}:${version}:${runKey ?? 0}`;
       const hit = cache.current.get(key);
       if (hit && !force) {
         setData(hit);
@@ -24,7 +36,7 @@ export function useTrace(projectId: number, version: number, hasBest: boolean) {
       setLoading(true);
       setError(null);
       try {
-        const t = await twin.create(projectId, which);
+        const t = await twin.create(projectId, which === "plan" ? "custom" : which, which === "plan" ? plan?.config : undefined);
         cache.current.set(key, t);
         setData(t);
       } catch (e) {
@@ -34,18 +46,48 @@ export function useTrace(projectId: number, version: number, hasBest: boolean) {
         setLoading(false);
       }
     },
-    [projectId, version, which],
+    [projectId, version, runKey, which, plan],
   );
 
+  // The recommended setup becomes the default as soon as an analysis exists, unless the user already chose.
+  useEffect(() => {
+    if (hasBest && !chose.current) setWhich("best");
+  }, [hasBest, runKey]);
+  // A plan analysed against an earlier analysis no longer applies.
+  useEffect(() => {
+    setPlan(null);
+  }, [runKey]);
   useEffect(() => {
     if (which === "best" && !hasBest) setWhich("baseline");
-  }, [hasBest, which]);
+    if (which === "plan" && !plan) setWhich(hasBest ? "best" : "baseline");
+  }, [hasBest, which, plan]);
+  return { which, setWhich: choose, plan, setPlan, data, loading, error, load, recompute: () => load(true) };
+}
+
+type TraceStore = ReturnType<typeof useTraceStore>;
+const TraceCtx = createContext<TraceStore | null>(null);
+
+export function TraceProvider({ projectId, version, hasBest, runKey, children }: { projectId: number; version: number; hasBest: boolean; runKey: number | null; children: ReactNode }) {
+  const store = useTraceStore(projectId, version, hasBest, runKey);
+  return <TraceCtx.Provider value={store}>{children}</TraceCtx.Provider>;
+}
+
+/** Fetch (or reuse) the predicted trace for the setup chosen for this project. */
+export function useTrace(projectId: number, version: number, hasBest: boolean) {
+  const shared = useContext(TraceCtx);
+  const local = useTraceStore(projectId, version, hasBest, null);
+  const s = shared ?? local;
+  const { load } = s;
   useEffect(() => {
     load();
   }, [load]);
-  return { which, setWhich, data, loading, error, recompute: () => load(true) };
+  return s;
 }
 
+/** Tell the stage views which analysed plan to offer next to the current and recommended setups. */
+export function usePlanPicker() {
+  return useContext(TraceCtx)?.setPlan ?? null;
+}
 const PROV: Record<string, string> = {
   analytical: "Predicted by the analytical engine",
   calibrated: "Predicted, calibrated against your measurements",
@@ -83,6 +125,11 @@ export function TraceBar({
         >
           Recommended setup
         </button>
+        {state.plan && (
+          <button role="radio" aria-checked={which === "plan"} className={which === "plan" ? "on" : ""} title={state.plan.label} onClick={() => setWhich("plan")}>
+            Chosen plan
+          </button>
+        )}
       </div>
       {t && (
         <span className={`badge ${t.kind === "measured" ? "badge-measured" : "badge-analytical"}`} title={t.source}>
@@ -105,6 +152,7 @@ export function TraceBar({
         </>
       )}
       {error && <p className="error full" role="alert">{error}</p>}
+      {which === "plan" && <p className="note full">The chosen plan shows its model, runtime and configuration changes. Chip-design what-ifs are directional and are not drawn here.</p>}
       {t && t.fidelity !== "graph" && <p className="note full">{t.fidelity_note}</p>}
     </div>
   );

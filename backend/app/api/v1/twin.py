@@ -11,11 +11,14 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.routes import project_for
 from app.auth.deps import Ctx, get_db, require_ctx, require_writer
+from app.render import figures
 from app.schemas.results import Config
 from app.services import audit
 from app.services import twin_service as twin
 
 router = APIRouter(tags=["digital twin"])
+_FIGURE_CACHE: dict[tuple[int, int, str, str], bytes] = {}  # stored traces never change, so a figure is drawn once
+_FIGURE_CACHE_MAX = 96
 
 
 @router.post("/projects/{project_id}/traces", status_code=201)
@@ -81,3 +84,32 @@ def export_trace(
                         headers={"Content-Disposition": f'attachment; filename="{base}.json"'})  # fmt: skip
     return Response(twin.trace_csv(row.trace, table), media_type="text/csv",
                     headers={"Content-Disposition": f'attachment; filename="{base}-{table}.csv"'})  # fmt: skip
+
+
+@router.get("/projects/{project_id}/traces/{trace_id}/figures/{name}")
+def trace_figure(
+    project_id: int,
+    trace_id: int,
+    name: str,
+    theme: Literal["light", "dark"] = "light",
+    db: Session = Depends(get_db),
+    ctx: Ctx = Depends(require_ctx),
+) -> Response:
+    """A matplotlib/seaborn figure (PNG) drawn from a stored trace's own numbers."""
+    project_for(db, ctx, project_id)
+    if name not in figures.FIGURES:
+        raise HTTPException(404, f"unknown figure; choose one of {', '.join(sorted(figures.FIGURES))}")
+    row = twin.get_trace(db, ctx.workspace_id, project_id, trace_id)
+    if row is None:
+        raise HTTPException(404, "trace not found")
+    key = (project_id, trace_id, name, theme)
+    png = _FIGURE_CACHE.get(key)
+    if png is None:
+        try:
+            png = figures.render(name, row.trace, theme)
+        except figures.FigureError as e:
+            raise HTTPException(422, str(e)) from e
+        if len(_FIGURE_CACHE) >= _FIGURE_CACHE_MAX:
+            _FIGURE_CACHE.pop(next(iter(_FIGURE_CACHE)))
+        _FIGURE_CACHE[key] = png
+    return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})

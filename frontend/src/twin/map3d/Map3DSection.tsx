@@ -52,7 +52,7 @@ export default function Map3DSection({ projectId, state, hasBest }: {
   }, []);
 
   // Today vs the plan: fetch whichever trace the page is not already showing.
-  const otherWhich = state.which === "best" ? "baseline" : "best";
+  const otherWhich = state.which === "baseline" ? "best" : "baseline";
   useEffect(() => {
     if (!compare || !hasBest) return;
     const key = `${projectId}:${otherWhich}`;
@@ -66,7 +66,7 @@ export default function Map3DSection({ projectId, state, hasBest }: {
 
   const t = state.data?.trace ?? null;
   const traces = useMemo(() => {
-    const cur = { label: state.which === "best" ? "With the plan" : "Today", trace: t };
+    const cur = { label: state.which !== "baseline" ? "With the plan" : "Today", trace: t };
     if (!compare || !other) return [cur];
     const o = { label: otherWhich === "best" ? "With the plan" : "Today", trace: other.trace };
     return state.which === "baseline" ? [cur, o] : [o, cur];

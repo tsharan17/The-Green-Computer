@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { plans } from "../api";
 import { Figure, num } from "../twin/chart";
+import { usePlanPicker } from "../twin/TraceBar";
 import type { DiffRows, PlanAnalysis, PlanChange, SavedPlan } from "../types";
 
 const GROUPS: { tier: string; title: string; blurb: string }[] = [
@@ -187,6 +188,7 @@ export default function PlanBuilder({
   const [name, setName] = useState("Design plan");
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState<SavedPlan | null>(null);
+  const pickPlan = usePlanPicker();
 
   useEffect(() => {
     plans
@@ -214,7 +216,10 @@ export default function PlanBuilder({
     setBusy(true);
     setError(null);
     try {
-      setAnalysis(await plans.analyse(projectId, sel));
+      const a = await plans.analyse(projectId, sel);
+      setAnalysis(a);
+      // Carry the analysed plan to the map stages, which can then show its trace.
+      pickPlan?.({ key: sel.join("+"), label: a.changes.map((c) => c.title).join("; "), config: a.applied.config });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

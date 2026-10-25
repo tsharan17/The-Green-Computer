@@ -42,8 +42,8 @@ function NextStep({ res, projectId }: { res: OptimisationResult; projectId: numb
     return (
       <section className="next-step">
         <h2>Recommended next step</h2>
-        <p>{res.best ? "Your current setup already meets every requirement. Check it on real hardware." : "No change we can model makes this setup meet every requirement."}</p>
-        <a className="btn-link primary" href={`#/p/${projectId}/${res.best ? "verify" : "recommendations"}`}>{res.best ? "Verify with a real run" : "See the alternatives"}</a>
+        <p>{res.best ? "Your current setup already meets every requirement. The thermal and energy maps show how much margin it has." : "No change we can model makes this setup meet every requirement."}</p>
+        <a className="btn-link primary" href={`#/p/${projectId}/${res.best ? "thermal" : "recommendations"}`}>{res.best ? "Open the thermal map" : "See the alternatives"}</a>
       </section>
     );
   }

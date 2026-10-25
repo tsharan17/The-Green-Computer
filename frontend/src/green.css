@@ -6,9 +6,10 @@
 
 :root {
   color-scheme: light;
-  --bg: #f1f8f2;
+  --bg: #ffffff;
   --panel: #ffffff;
-  --sunk: #e6f3e9;
+  --sunk: #f1f8f2;
+  --overlay: rgba(35, 128, 58, 0.08);
   --ink: #0e2216;
   --muted: #3c5645;
   --line: #d6e8da;
@@ -33,12 +34,13 @@
   --edge: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   --shadow: 0 1px 0 rgba(14, 60, 28, 0.06), 0 3px 8px rgba(14, 60, 28, 0.08), 0 14px 30px -10px rgba(14, 60, 28, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95);
   --shadow-lift: 0 2px 4px rgba(14, 60, 28, 0.08), 0 12px 24px rgba(14, 60, 28, 0.14), 0 28px 48px -16px rgba(14, 60, 28, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  --page-glow: radial-gradient(900px 420px at 85% -80px, #d9f0de 0%, transparent 70%), radial-gradient(700px 380px at -5% 30%, #e3f4e6 0%, transparent 70%);
+  --page-glow: radial-gradient(900px 380px at 90% -120px, rgba(35, 128, 58, 0.1) 0%, transparent 70%), radial-gradient(640px 340px at -8% 40%, rgba(35, 128, 58, 0.06) 0%, transparent 70%);
 }
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
     --bg: #0b1810;
+    --overlay: rgba(90, 203, 115, 0.09);
     --panel: #14261a;
     --sunk: #1b3123;
     --ink: #ecf8ee;
@@ -87,8 +89,8 @@ body, button, .nav-item strong, .tab, .outcome, .field, .vb-sentence, .kpis stro
 /* --- Raised surfaces -------------------------------------------------------------------------- */
 .panel, .side, .level, .tile, .rec, .draft, .preset, .card,
 .verdict-band, .bottleneck, .next-step, .decision-bar, .hero-start, .guide-head + .guide-steps, .kpis > div, .auth-example {
-  background: linear-gradient(180deg, var(--panel) 0%, color-mix(in srgb, var(--panel) 94%, var(--sunk) 6%) 100%);
-  border-radius: var(--radius); box-shadow: var(--shadow);
+  background: linear-gradient(180deg, var(--overlay) 0, transparent 130px), var(--panel);
+  border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
 }
 .next-step { border-left: 6px solid var(--accent); }
 .tabs { border-radius: var(--radius); box-shadow: var(--shadow); background: var(--panel); }
@@ -119,9 +121,10 @@ button.link, button.link:hover:not(:disabled), button.link:active:not(:disabled)
 .danger-btn { border-color: var(--bad); color: var(--bad); }
 .danger-btn:hover:not(:disabled) { background: var(--bad); color: #fff; border-color: var(--bad); }
 .seg button, .seg button:hover:not(:disabled), .seg button:active:not(:disabled), .tab, .tab:hover, .tab:active { box-shadow: none; transform: none; }
-.seg button { background: transparent; border-color: transparent; }
+.seg button { background: transparent; border-color: transparent; transition: none; }
 .seg { box-shadow: inset 0 2px 4px rgba(14, 60, 28, 0.12); }
 .seg button.on, .seg button[aria-checked="true"], .seg.mode-switch button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: 0 2px 4px rgba(14, 60, 28, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25); }
+.seg button.on:hover:not(:disabled), .seg button[aria-checked="true"]:hover:not(:disabled) { background: var(--accent); color: var(--accent-ink); transform: none; }
 .tab { border-color: transparent; background: none; }
 .tab:hover { background: var(--sunk); }
 
@@ -189,13 +192,51 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent) !importa
 }
 
 /* --- EDA / IDE feel: engineering grid, monospaced figures, designator labels ------------------- */
-:root { --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace; --grid: rgba(26, 110, 47, 0.07); }
+:root { --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace; --grid: rgba(26, 110, 47, 0.045); }
 @media (prefers-color-scheme: dark) { :root { --grid: rgba(147, 224, 164, 0.06); } }
 body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; }
 .num, td.num, code, kbd, pre, .code-big, .kpis strong, .db-cell strong, .tbl td.num { font-family: var(--mono); letter-spacing: -0.01em; }
 .level-tag, .db-label, .tbl th, h3, .nav-group { letter-spacing: 0.03em; }
 .level-tag, .db-label { font-family: var(--mono); text-transform: uppercase; font-size: 12px; }
-.panel, .verdict-band, .bottleneck, .decision-bar { border-top: 3px solid var(--line-strong); border-radius: var(--radius); }
+.panel, .verdict-band, .bottleneck, .decision-bar { border-top: 3px solid var(--accent); border-radius: var(--radius); }
 .panel > h2::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 10px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); vertical-align: 2px; }
 .nav-item i { font-family: var(--mono); }
 .h3-slab .top { outline: 3px dashed rgba(255, 255, 255, 0.45); outline-offset: -7px; }
+
+
+/* --- White page, green overlays: sidebar, workflow rail, figures ------------------------------- */
+.sidebar { background: var(--panel); border-right: 1px solid var(--line); box-shadow: 4px 0 24px -16px rgba(14, 60, 28, 0.25); }
+.sidebar .brand strong { color: var(--accent-strong); }
+.rail { display: grid; gap: 2px; margin-top: 4px; }
+.rail-group { position: relative; display: grid; gap: 1px; margin-top: 12px; }
+.rail-group::before { content: ""; position: absolute; left: 15px; top: 30px; bottom: 14px; width: 2px; border-radius: 2px; background: linear-gradient(var(--line-strong), var(--line)); }
+.rail-title { font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); padding: 0 10px 6px 34px; }
+.rail-item { position: relative; display: flex; align-items: center; gap: 14px; padding: 7px 10px; border-radius: var(--radius-sm); color: var(--ink); text-decoration: none; transition: background 0.14s ease; }
+.rail-item:hover { background: var(--sunk); }
+.rail-item.on { background: linear-gradient(90deg, var(--accent-soft), transparent 95%); }
+.rail-dot { position: relative; z-index: 1; flex: none; width: 12px; height: 12px; margin-left: 0; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--panel); transition: box-shadow 0.14s ease, background 0.14s ease; }
+.rail-item:hover .rail-dot { border-color: var(--accent); }
+.rail-item.on .rail-dot { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.rail-text { display: grid; min-width: 0; }
+.rail-text strong { font-size: 15px; font-weight: 600; }
+.rail-item.on .rail-text strong { color: var(--accent-strong); font-weight: 700; }
+.rail-text small { display: none; font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.rail-item.on .rail-text small, .rail-item:hover .rail-text small { display: block; }
+.rail details.nav-more { margin-left: 0; }
+.rail details.nav-more > summary { padding: 6px 10px 6px 36px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.rail details.nav-more > .rail-item { padding-left: 22px; }
+.rail-home { margin-bottom: 2px; }
+@media (max-width: 900px) {
+  .rail { display: flex; overflow-x: auto; gap: 4px; width: 100%; order: 3; margin: 0; }
+  .rail-group { display: flex; margin: 0; gap: 4px; }
+  .rail-group::before, .rail-title { display: none; }
+  .rail-item { flex: none; padding: 6px 10px; }
+  .rail details.nav-more { display: flex; }
+  .rail details.nav-more > summary { padding: 6px 10px; }
+  .rail details.nav-more > .rail-item { padding-left: 10px; }
+}
+.mpl { margin: 0; }
+.mpl-fig { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); box-shadow: var(--shadow); }
+.mpl-loading { min-height: 260px; display: grid; place-items: center; color: var(--muted); font-family: var(--mono); font-size: 13px; background: linear-gradient(90deg, var(--sunk), var(--panel), var(--sunk)); background-size: 200% 100%; animation: mpl-shimmer 1.6s linear infinite; }
+.mpl-save { display: inline-block; margin-top: 6px; font-size: 13px; }
+@keyframes mpl-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }

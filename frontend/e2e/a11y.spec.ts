@@ -39,11 +39,6 @@ for (const scheme of ["light", "dark"] as const) {
       }
     }
     await page.getByRole("radio", { name: "Simple" }).click();
-    await page.goto(`/#/p/${pid}/verify?tab=device`);
-    await page.getByLabel("Device name").fill("a11y board");
-    await page.getByRole("button", { name: "Register and get a pairing code" }).click();
-    await expect(page.locator(".code-big")).toBeVisible();
-    await scan("devices");
     await page.goto("/#/account");
     await scan("account");
     await page.goto("/#/capabilities");

@@ -19,6 +19,9 @@ dependencies = [
   "alembic>=1.13",
   # Required: the local execution backend (real runs, INT8 conversion) uses ONNX Runtime on CPU.
   "onnxruntime>=1.18",
+  # Figures: thermal, energy, memory and throughput maps are drawn with matplotlib and seaborn.
+  "matplotlib>=3.9",
+  "seaborn>=0.13",
 ]
 
 [project.scripts]

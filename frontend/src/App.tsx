@@ -1,5 +1,4 @@
 import VerifyEmail from "./pages/VerifyEmail";
-import DevicesPanel from "./components/DevicesPanel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, auth, history, setWorkspace } from "./api";
 import AgentPanel from "./components/AgentPanel";
@@ -29,10 +28,19 @@ import { AREAS, type AreaId, navigate, useRoute } from "./router";
 import MemoryPage from "./twin/MemoryPage";
 import SystemMapPage from "./twin/SystemMapPage";
 import { EnergyPage, ThermalPage } from "./twin/ThermalEnergyPages";
+import { TraceProvider } from "./twin/TraceBar";
 import TimelinePage from "./twin/TimelinePage";
 import type { HardwareProfile, Me, ModelProfile, OptimisationResult, ProjectOut, ProjectSpec } from "./types";
 
 const WS_KEY = "gc_workspace";
+
+/** The workflow, in order: what the navigation rail groups and how a project moves through it. */
+const STAGES: { title: string; ids: readonly AreaId[] }[] = [
+  { title: "Define", ids: ["input", "constraints"] },
+  { title: "Analyse", ids: ["summary", "system-map", "timeline", "memory", "thermal", "energy"] },
+  { title: "Decide", ids: ["recommendations"] },
+  { title: "Hand over", ids: ["verify"] },
+];
 
 function readWs(): number | null {
   try {
@@ -165,14 +173,28 @@ function Shell({
   const projectId = p0 === "p" && p1 ? Number(p1) : null;
   const area = (AREAS.some((a) => a.id === p2) ? p2 : null) as AreaId | null;
   const canWrite = me.role === "owner" || me.role === "editor";
-  const main = AREAS.filter((a) => a.group === "main");
-  const eng = AREAS.filter((a) => a.group === "engineering");
   const link = (a: (typeof AREAS)[number]) => (
-    <a key={a.id} className={`nav-item ${area === a.id ? "on" : ""}`} href={`#/p/${projectId}/${a.id}`} aria-current={area === a.id ? "page" : undefined}>
-      <i aria-hidden>{a.n === 0 ? "●" : a.n}</i>
-      <span><strong>{a.label}</strong><small>{a.sub}</small></span>
+    <a key={a.id} className={`rail-item ${area === a.id ? "on" : ""}`} href={`#/p/${projectId}/${a.id}`} aria-current={area === a.id ? "page" : undefined}>
+      <span className="rail-dot" aria-hidden />
+      <span className="rail-text"><strong>{a.label}</strong><small>{a.sub}</small></span>
     </a>
   );
+  const stage = (ids: readonly AreaId[]) => {
+    const items = ids.map((id) => AREAS.find((a) => a.id === id)!);
+    if (mode === "engineering") return items.map(link);
+    const eng = items.filter((a) => a.group === "engineering");
+    return (
+      <>
+        {items.filter((a) => a.group === "main").map(link)}
+        {eng.length > 0 && (
+          <details className="nav-more" open={eng.some((a) => a.id === area)}>
+            <summary>Engineering views ({eng.length})</summary>
+            {eng.map(link)}
+          </details>
+        )}
+      </>
+    );
+  };
 
   async function signOut() {
     try {
@@ -193,22 +215,17 @@ function Shell({
             <small>AI and hardware co-design</small>
           </span>
         </a>
-        <nav className="side-nav">
-          <a className={`nav-item ${!projectId && !p0 ? "on" : ""}`} href="#/" aria-current={!projectId && !p0 ? "page" : undefined}>
-            <i aria-hidden>1</i>
-            <span><strong>Workspace</strong><small>Projects and onboarding</small></span>
+        <nav className="rail" aria-label="Workflow">
+          <a className={`rail-item ${!projectId && !p0 ? "on" : ""}`} href="#/" aria-current={!projectId && !p0 ? "page" : undefined}>
+            <span className="rail-dot" aria-hidden />
+            <span className="rail-text"><strong>Workspace</strong><small>Projects and onboarding</small></span>
           </a>
           {projectId !== null &&
-            (mode === "engineering" ? (
-              [AREAS[0], ...AREAS.slice(1)].map(link)
-            ) : (
-              <>
-                {main.map(link)}
-                <details className="nav-more" open={eng.some((a) => a.id === area)}>
-                  <summary>Engineering views ({eng.length})</summary>
-                  {eng.map(link)}
-                </details>
-              </>
+            STAGES.map((s) => (
+              <div className="rail-group" key={s.title}>
+                <span className="rail-title">{s.title}</span>
+                {stage(s.ids)}
+              </div>
             ))}
         </nav>
         {projectId !== null && (
@@ -317,16 +334,15 @@ function ProjectView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [notFound, setNotFound] = useState(false);
-  const [tab, setTab] = useState<"run" | "device" | "verify" | "history" | "export">("run");
+  const [tab, setTab] = useState<"run" | "verify" | "history" | "export">("run");
   const [verifyKey, setVerifyKey] = useState(0);
-  const onDeviceMeasured = useCallback(() => setVerifyKey((k) => k + 1), []);
   const [recTab, setRecTab] = useState<"results" | "plan" | "saved">("results");
   const [plansKey, setPlansKey] = useState(0);
   const qTab = query.get("tab");
   const qAdd = query.get("add");
   useEffect(() => {
     if (qTab === "plan" || qTab === "saved" || qTab === "results") setRecTab(qTab);
-    if (qTab === "run" || qTab === "device" || qTab === "verify" || qTab === "history" || qTab === "export") setTab(qTab);
+    if (qTab === "run" || qTab === "verify" || qTab === "history" || qTab === "export") setTab(qTab);
   }, [qTab, qAdd]);
 
   const load = useCallback(async () => {
@@ -428,7 +444,7 @@ function ProjectView({
     navigate(`/p/${projectId}/${({ start: "input", results: "recommendations", explore: "energy", export: "verify", verify: "verify" } as Record<string, string>)[p] ?? "input"}`);
 
   return (
-    <>
+    <TraceProvider projectId={projectId} version={project.version} hasBest={!!res?.best} runKey={runId}>
       <div className="project-head">
         <div>
           <h1>{spec.name}</h1>
@@ -503,14 +519,13 @@ function ProjectView({
       {area === "verify" && (
         <>
           <div className="tabs" role="tablist" aria-label="Verify, history and export">
-            {(["run", "device", "verify", "history", "export"] as const).map((t) => (
+            {(["run", "verify", "history", "export"] as const).map((t) => (
               <button key={t} role="tab" aria-selected={tab === t} className={`tab ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>
-                {{ run: "Run on this server", device: "Run on a device", verify: "Predicted vs measured", history: "History", export: "Export" }[t]}
+                {{ run: "Run on this server", verify: "Predicted vs measured", history: "History", export: "Export" }[t]}
               </button>
             ))}
           </div>
           {tab === "run" && <ExecutionPanel projectId={projectId} canWrite={canWrite} onMeasured={() => setVerifyKey((k) => k + 1)} />}
-          {tab === "device" && <DevicesPanel projectId={projectId} canWrite={canWrite} devices={devices} defaultDevice={spec.device_id} onMeasured={onDeviceMeasured} />}
           {tab === "verify" && <VerifyPage key={verifyKey} devices={devices} models={models} onChanged={() => setRes(null)} />}
           {tab === "history" && <HistoryPanel projectId={projectId} canWrite={canWrite} onRestored={load} />}
           {tab === "export" && <ExportPanel projectId={projectId} canWrite={canWrite} />}
@@ -523,6 +538,6 @@ function ProjectView({
         <button className="drawer-close" onClick={closeAgent} aria-label="Close the assistant">×</button>
         {agentOpen && <AgentPanel projectId={projectId} onProjectChanged={load} />}
       </aside>
-    </>
+    </TraceProvider>
   );
 }

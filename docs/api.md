@@ -101,6 +101,7 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
 | `GET` | `/api/v1/projects/{project_id}/traces/{trace_id}/export` | session | Export Trace |
+| `GET` | `/api/v1/projects/{project_id}/traces/{trace_id}/figures/{name}` | session | A matplotlib/seaborn figure (PNG) drawn from a stored trace's own numbers. |
 | `GET` | `/api/v1/projects/{project_id}/traces/{trace_id}` | session | Get Trace |
 | `GET` | `/api/v1/projects/{project_id}/traces` | session | List Traces |
 | `POST` | `/api/v1/projects/{project_id}/traces` | session | Predict the operator-level execution of one batch for the current setup (`baseline`), the |

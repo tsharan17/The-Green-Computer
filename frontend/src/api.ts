@@ -162,8 +162,24 @@ export const plans = {
 };
 
 export const twin = {
-  create: (pid: number, which: "baseline" | "best") =>
-    req<import("./twin/types").StoredTrace>(`/projects/${pid}/traces?which=${which}`, { method: "POST" }),
+  create: (pid: number, which: "baseline" | "best" | "custom", config?: import("./types").Config) =>
+    req<import("./twin/types").StoredTrace>(`/projects/${pid}/traces?which=${which}`, post(config)),
+  /** A matplotlib/seaborn figure of a stored trace, as a data URL. */
+  figure: async (pid: number, id: number, name: string, theme: "light" | "dark"): Promise<string> => {
+    const r = await fetch(`${BASE}/projects/${pid}/traces/${id}/figures/${name}?theme=${theme}`, { headers: baseHeaders(), credentials: "same-origin" });
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new ApiError(r.status, typeof body.detail === "string" ? body.detail : r.statusText);
+    }
+    // A data URL, not a blob URL: the page's content security policy allows images from `self` and `data:`.
+    const blob = await r.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(new Error("could not read the figure"));
+      fr.readAsDataURL(blob);
+    });
+  },
   get: (pid: number, id: number) => req<import("./twin/types").StoredTrace>(`/projects/${pid}/traces/${id}`),
 };
 
