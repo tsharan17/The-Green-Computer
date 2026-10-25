@@ -4,14 +4,14 @@
    (ok solid, warn dashed, bad thick). Pairs keep WCAG AA: white on --accent 5.0:1, --accent-strong on
    white 7.0:1, --muted on the page 6.3:1. */
 
-:root {
+html:root {
   color-scheme: light;
   --bg: #ffffff;
   --panel: #ffffff;
   --sunk: #f1f8f2;
   --overlay: rgba(35, 128, 58, 0.08);
-  --ink: #0e2216;
-  --muted: #3c5645;
+  --ink: #0d3b1c;
+  --muted: #35603f;
   --line: #d6e8da;
   --line-strong: #b3d1ba;
   --kelly: #23803a;
@@ -36,7 +36,7 @@
   --shadow-lift: 0 2px 4px rgba(14, 60, 28, 0.08), 0 12px 24px rgba(14, 60, 28, 0.14), 0 28px 48px -16px rgba(14, 60, 28, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.95);
   --page-glow: radial-gradient(900px 380px at 90% -120px, rgba(35, 128, 58, 0.1) 0%, transparent 70%), radial-gradient(640px 340px at -8% 40%, rgba(35, 128, 58, 0.06) 0%, transparent 70%);
 }
-@media (prefers-color-scheme: dark) {
+@media not all and (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
     --bg: #0b1810;
@@ -155,7 +155,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent) !importa
 .status-dot { background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--accent) 78%, #000 22%)); box-shadow: 0 2px 5px rgba(14, 90, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3); color: var(--accent-ink); }
 .status-bad { background: var(--bad); color: #fff; }
 .status-warn { background: var(--warn); color: #fff; }
-@media (prefers-color-scheme: dark) { .status-bad, .status-warn, .danger-btn:hover:not(:disabled) { color: #05140a; } }
+@media not all and (prefers-color-scheme: dark) { .status-bad, .status-warn, .danger-btn:hover:not(:disabled) { color: #05140a; } }
 
 /* --- Charts ------------------------------------------------------------------------------------ */
 .hb-track { background: var(--sunk); box-shadow: inset 0 1px 3px rgba(14, 60, 28, 0.15); border-radius: 999px; }
@@ -193,7 +193,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent) !importa
 
 /* --- EDA / IDE feel: engineering grid, monospaced figures, designator labels ------------------- */
 :root { --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace; --grid: rgba(26, 110, 47, 0.045); }
-@media (prefers-color-scheme: dark) { :root { --grid: rgba(147, 224, 164, 0.06); } }
+@media not all and (prefers-color-scheme: dark) { :root { --grid: rgba(147, 224, 164, 0.06); } }
 body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; }
 .num, td.num, code, kbd, pre, .code-big, .kpis strong, .db-cell strong, .tbl td.num { font-family: var(--mono); letter-spacing: -0.01em; }
 .level-tag, .db-label, .tbl th, h3, .nav-group { letter-spacing: 0.03em; }

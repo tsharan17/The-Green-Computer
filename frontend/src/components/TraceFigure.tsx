@@ -1,22 +1,10 @@
 import { useEffect, useState } from "react";
 import { twin } from "../api";
 
-function useDark() {
-  const [dark, setDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
-  useEffect(() => {
-    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
-    if (!mq) return;
-    const on = () => setDark(mq.matches);
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
-  return dark;
-}
-
 /** A matplotlib/seaborn figure drawn by the server from a stored trace. The numbers are the
  * trace's own; the caption and the figure's footer carry the provenance. */
 export default function TraceFigure({ projectId, traceId, name, alt }: { projectId: number; traceId: number; name: string; alt: string }) {
-  const dark = useDark();
+  const dark = false; // the interface is always white with green
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
