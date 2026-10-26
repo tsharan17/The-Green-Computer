@@ -4,12 +4,14 @@ Every figure is drawn from the trace's own numbers (the engine computes them; no
 here) and carries the trace's provenance in its footer. The one derived quantity is the board
 temperature field: the engine's lumped result is spread over the component layout with a diffusion
 kernel and anchored so the heat-weighted mean rise equals the engine's rise. The footer says so.
-Colours are one green family plus white, matching the interface.
+Colours come from standard scientific colormaps (turbo for temperature, viridis for other
+heatmaps, seaborn "deep" for series); see app/render/theme.py.
 """
 
 from __future__ import annotations
 
 import io
+import textwrap
 import threading
 from collections.abc import Callable
 from typing import Any
@@ -69,8 +71,8 @@ def _finish(fig: Any, t: dict[str, Any], pal: dict[str, Any], extra: str = "") -
     return buf.getvalue()
 
 
-def _cbar(fig: Any, mappable: Any, ax: Any, label: str, pal: dict[str, Any]) -> Any:
-    cb = fig.colorbar(mappable, ax=ax, pad=0.02, fraction=0.04)
+def _cbar(fig: Any, mappable: Any, ax: Any, label: str, pal: dict[str, Any], cax: Any = None) -> Any:
+    cb = fig.colorbar(mappable, ax=ax, cax=cax, pad=0.02, fraction=0.04)
     cb.set_label(label, color=pal["ink"])
     cb.outline.set_edgecolor(pal["line"])
     cb.ax.tick_params(colors=pal["muted"])
@@ -121,10 +123,10 @@ def thermal_board(t: dict[str, Any], pal: dict[str, Any]) -> bytes:
     cs = ax.contour(grid, grid, temp, levels=levels, colors=pal["contour"], linewidths=0.6, alpha=0.7)
     ax.clabel(cs, fmt="%.0f°", fontsize=7, colors=pal["contour"])
     if lo < th["throttle_c"] < hi:
-        ax.contour(grid, grid, temp, levels=[th["throttle_c"]], colors=pal["ink"], linewidths=1.6, linestyles="--")
+        ax.contour(grid, grid, temp, levels=[th["throttle_c"]], colors="#ffffff", linewidths=2.2, linestyles="--")
     for c in t["components"]:
         lay = c["layout"]
-        ax.add_patch(Rectangle((lay["x"], lay["y"]), lay["w"], lay["h"], fill=False, ec=pal["ink"], lw=1.1, alpha=0.85))
+        ax.add_patch(Rectangle((lay["x"], lay["y"]), lay["w"], lay["h"], fill=False, ec="#ffffff", lw=1.2, alpha=0.9))
         label = c["name"] + (f"\n{c['heat_w']:.1f} W" if c["heat_w"] > 0 else "")
         ax.text(lay["x"] + lay["w"] / 2, lay["y"] + lay["h"] / 2, label, ha="center", va="center", fontsize=8,
                 color=pal["on_heat"](temp, lay), fontweight="bold")  # fmt: skip
@@ -155,11 +157,11 @@ def thermal_warmup(t: dict[str, Any], pal: dict[str, Any]) -> bytes:
     ys = np.array([p[1] for p in pts], dtype=float)
     fig = Figure(figsize=(9.6, 4.6))
     ax = fig.add_axes((0.08, 0.19, 0.89, 0.69))
-    sns.lineplot(x=xs, y=ys, ax=ax, color=pal["series"][0], linewidth=2.6)
-    ax.fill_between(xs, th["ambient_c"], ys, color=pal["series"][2], alpha=0.35)
+    sns.lineplot(x=xs, y=ys, ax=ax, color=pal["series"][3], linewidth=2.6)
+    ax.fill_between(xs, th["ambient_c"], ys, color=pal["series"][1], alpha=0.25)
     ax.axhline(th["ambient_c"], color=pal["muted"], lw=1, ls=":")
     ax.text(xs[-1], th["ambient_c"], f"ambient {th['ambient_c']:.0f} °C ", ha="right", va="bottom", fontsize=8, color=pal["muted"])
-    ax.axhline(th["throttle_c"], color=pal["ink"], lw=1.4, ls="--")
+    ax.axhline(th["throttle_c"], color=pal["accent"], lw=1.4, ls="--")
     ax.text(xs[0], th["throttle_c"], f" throttle point {th['throttle_c']:.0f} °C", va="bottom", fontsize=8, color=pal["ink"])
     top = max(float(ys.max()), th["throttle_c"]) + 8
     if th["shutdown_c"] < top + 15:
@@ -279,7 +281,7 @@ def power_timeline(t: dict[str, Any], pal: dict[str, Any]) -> bytes:
     fig = Figure(figsize=(9.6, 4.2))
     ax = fig.add_axes((0.08, 0.2, 0.89, 0.68))
     sns.lineplot(x=xs, y=ys, ax=ax, color=pal["series"][0], linewidth=1.8, sort=False)
-    ax.fill_between(xs, 0, ys, color=pal["series"][2], alpha=0.4)
+    ax.fill_between(xs, 0, ys, color=pal["series"][0], alpha=0.3)
     avg = t["totals"]["average_power_w"]
     ax.axhline(avg, color=pal["ink"], ls="--", lw=1.2)
     ax.text(xs[-1], avg, f"average {avg:.3g} W ", ha="right", va="bottom", fontsize=8.5, color=pal["ink"])
@@ -310,7 +312,7 @@ def memory_timeline(t: dict[str, Any], pal: dict[str, Any]) -> bytes:
     cap = float(pts[0]["capacity_bytes"])
     fig = Figure(figsize=(9.6, 4.8))
     ax = fig.add_axes((0.09, 0.19, 0.88, 0.69))
-    ax.stackplot(xs, w, r, a, step="post", colors=[pal["series"][0], pal["series"][2], pal["series"][3]],
+    ax.stackplot(xs, w, r, a, step="post", colors=[pal["series"][0], pal["series"][1], pal["series"][2]],
                  labels=["Weights", "Runtime and buffers", "Live activations"], edgecolor=pal["bg"], linewidth=0.5)  # fmt: skip
     total = w + r + a
     pk = int(np.argmax(total))
@@ -318,7 +320,7 @@ def memory_timeline(t: dict[str, Any], pal: dict[str, Any]) -> bytes:
     ax.annotate(f"peak {_fmt_bytes(total[pk])}", (xs[pk], total[pk]), xytext=(12, 10), textcoords="offset points", fontsize=9, color=pal["ink"])
     top = float(total.max()) * 1.3
     if 0 < cap <= total.max() * 1.6:
-        ax.axhline(cap, color=pal["ink"], lw=1.5, ls="--")
+        ax.axhline(cap, color=pal["accent"], lw=1.5, ls="--")
         ax.text(xs[-1], cap, f"usable capacity {_fmt_bytes(cap)} ", ha="right", va="bottom", fontsize=9, color=pal["ink"])
         top = max(top, cap * 1.12)
     elif cap > 0:
@@ -437,13 +439,14 @@ def cooling_heatmap(s: dict[str, Any], pal: dict[str, Any]) -> bytes:
     from matplotlib.figure import Figure
 
     j = s["load_fraction"].index(1.0)
+    cols = [i for i, a in enumerate(s["ambient_c"]) if a % 5 == 0]  # every 5 °C keeps the labels legible
     names = [o["name"][:34] for o in s["options"]]
-    mat = np.array([[row[j] for row in o["temperature_c"]] for o in s["options"]])
-    thr = np.array([[row[j] for row in o["throttled"]] for o in s["options"]])
+    mat = np.array([[o["temperature_c"][i][j] for i in cols] for o in s["options"]])
+    thr = np.array([[o["throttled"][i][j] for i in cols] for o in s["options"]])
     fig = Figure(figsize=(9.6, 1.6 + 0.42 * len(names)))
     ax = fig.add_axes((0.27, 0.22, 0.6, 0.66))
     cax = fig.add_axes((0.9, 0.22, 0.018, 0.66))
-    _sweep_heatmap(fig, ax, cax, mat, thr, [f"{a:g}" for a in s["ambient_c"]], names, s, pal)
+    _sweep_heatmap(fig, ax, cax, mat, thr, [f"{s['ambient_c'][i]:g}" for i in cols], names, s, pal)
     ax.set_xlabel("Ambient temperature (°C)")
     ax.set_title(f"Thermal map by cooling option at {s['fps'][j]:g} inputs/s", pad=10)
     return _finish(fig, s, pal, f"* throttles (clock reduced to hold {s['t_throttle_c']:g} °C) | analytical sweep, not CFD")
@@ -484,22 +487,27 @@ def cooling_surfaces(s: dict[str, Any], pal: dict[str, Any]) -> bytes:
     for i, o in enumerate(opts):
         ax = fig.add_subplot(rows, cols, i + 1, projection="3d")
         zz = np.array(o["temperature_c"])
-        ax.plot_surface(xx, yy, zz, cmap=cmap, vmin=lo, vmax=hi, linewidth=0.2, edgecolor=pal["line"], alpha=0.95)
-        ax.plot_surface(xx, yy, np.full_like(zz, s["t_throttle_c"]), color=pal["series"][0], alpha=0.12, linewidth=0)
+        surf = ax.plot_surface(xx, yy, zz, cmap=cmap, vmin=lo, vmax=hi, linewidth=0, antialiased=True,
+                               rstride=1, cstride=1, shade=True)
+        ax.plot_wireframe(xx, yy, zz, color="#222222", linewidth=0.15, alpha=0.35, rstride=3, cstride=2)
+        ax.plot_surface(xx, yy, np.full_like(zz, s["t_throttle_c"]), color="#7f7f7f", alpha=0.18, linewidth=0)
+        ax.contourf(xx, yy, zz, zdir="z", offset=lo - 2, cmap=cmap, vmin=lo, vmax=hi, alpha=0.6, levels=12)
         ax.set_zlim(lo - 2, hi + 2)
         ax.set_xlabel("Inputs/s", fontsize=8, labelpad=2)
         ax.set_ylabel("Ambient °C", fontsize=8, labelpad=2)
         ax.set_zlabel("°C", fontsize=8, labelpad=0)
         ax.tick_params(labelsize=7, pad=0)
         share = float(np.mean(np.array(o["throttled"])))
-        ax.set_title(f"{o['name'][:30]}\n{o['r_th_k_per_w']:.2f} K/W, throttles in {share:.0%} of cells", fontsize=9, loc="center")
+        name = textwrap.shorten(o["name"], 44, placeholder="…")
+        ax.set_title(f"{name}\n{o['r_th_k_per_w']:.2f} K/W, throttles in {share:.0%} of the grid", fontsize=9, loc="center")
         ax.view_init(elev=24, azim=-128)
         for pane in (ax.xaxis.pane, ax.yaxis.pane, ax.zaxis.pane):
             pane.set_facecolor(pal["bg"])
             pane.set_edgecolor(pal["line"])
     fig.suptitle(f"Temperature surfaces per cooling option (plane = throttle point {s['t_throttle_c']:g} °C)",
                  x=0.01, ha="left", fontsize=12, fontweight="bold")  # fmt: skip
-    fig.subplots_adjust(left=0.02, right=0.98, top=0.86, bottom=0.08, wspace=0.08, hspace=0.25)
+    fig.subplots_adjust(left=0.02, right=0.9, top=0.86, bottom=0.08, wspace=0.08, hspace=0.25)
+    _cbar(fig, surf, None, "Steady temperature (°C)", pal, cax=fig.add_axes((0.925, 0.2, 0.014, 0.6)))
     return _finish(fig, s, pal, "analytical sweep, steady state; not CFD")
 
 

@@ -1,4 +1,10 @@
-"""Green and white palettes for the figures (light and dark), matching the interface."""
+"""Figure palettes built from standard scientific colormaps.
+
+Thermal fields use turbo (the rainbow-style map of commercial thermal and CFD tools, cold blue to
+hot red); other heatmaps use viridis (perceptually uniform, readable in greyscale and by most
+colour-blind readers); categorical series use seaborn's "deep" palette. Neutral ink and grid, so
+the data carries the colour.
+"""
 
 from __future__ import annotations
 
@@ -7,11 +13,29 @@ from typing import Any
 import numpy as np
 
 
-def _ramp(light: str, dark: str, n: int) -> list[str]:
-    from matplotlib.colors import LinearSegmentedColormap, to_hex
+def _sample(cmap: str, n: int = 64) -> list[str]:
+    from matplotlib import colormaps
+    from matplotlib.colors import to_hex
 
-    cm = LinearSegmentedColormap.from_list("r", [light, dark])
-    return [to_hex(cm(v)) for v in np.linspace(0, 1, max(n, 2))][:n]
+    cm = colormaps[cmap]
+    return [to_hex(cm(v)) for v in np.linspace(0, 1, n)]
+
+
+def _lum(color: str) -> float:
+    from matplotlib.colors import to_rgb
+
+    r, g, b = to_rgb(color)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _on(colors: list[str], dark: str = "#111111", light: str = "#ffffff") -> list[str]:
+    return [dark if _lum(c) > 0.5 else light for c in colors]
+
+
+def _bars(n: int) -> list[str]:
+    import seaborn as sns
+
+    return [str(c) for c in sns.color_palette("flare_r", max(n, 1)).as_hex()][:n]
 
 
 def _on_heat(dark_text: str, light_text: str, cmap_ramp: list[str]) -> Any:
@@ -30,20 +54,19 @@ def _on_heat(dark_text: str, light_text: str, cmap_ramp: list[str]) -> Any:
     return pick
 
 
-_LIGHT_HEAT = ["#ffffff", "#e3f4e6", "#b9e2c0", "#7cc58d", "#3e9d5a", "#1a6e2f", "#0a3d1a"]
-_DARK_HEAT = ["#0f2318", "#17402a", "#1f6e37", "#34a152", "#5acb73", "#a6ebb4", "#eaffe9"]
+_HEAT = _sample("turbo")
+_SEQ = _sample("viridis")
+_DEEP = ["#4c72b0", "#dd8452", "#55a868", "#c44e52", "#8172b3", "#937860", "#da8bc3", "#8c8c8c"]
 
 PALETTES: dict[str, dict[str, Any]] = {
     "light": {
-        "bg": "#ffffff", "ink": "#0e2216", "muted": "#3c5645", "line": "#b3d1ba", "grid": "#e1eee4", "contour": "#0e2216",
-        "series": ["#0e4d26", "#1f8a3f", "#52b266", "#8cc98f", "#bfe3c1"], "on_series": ["#ffffff", "#ffffff", "#0e2216", "#0e2216", "#0e2216"],
-        "heat_ramp": _LIGHT_HEAT, "seq_ramp": ["#f3faf4", "#b9e2c0", "#52b266", "#1a6e2f", "#0a3d1a"],
-        "bar_ramp": lambda n: _ramp("#0a3d1a", "#8cc98f", n), "on_heat": _on_heat("#0e2216", "#ffffff", _LIGHT_HEAT),
+        "bg": "#ffffff", "ink": "#1a1a1a", "muted": "#555555", "line": "#c8c8c8", "grid": "#e6e6e6", "contour": "#ffffff",
+        "series": _DEEP, "on_series": _on(_DEEP), "accent": "#c44e52",
+        "heat_ramp": _HEAT, "seq_ramp": _SEQ, "bar_ramp": _bars, "on_heat": _on_heat("#111111", "#ffffff", _HEAT),
     },
     "dark": {
-        "bg": "#14261a", "ink": "#ecf8ee", "muted": "#b3cdb9", "line": "#3a5d47", "grid": "#264333", "contour": "#ecf8ee",
-        "series": ["#d5f7da", "#93e0a4", "#5acb73", "#34a152", "#1f6e37"], "on_series": ["#05140a", "#05140a", "#05140a", "#ffffff", "#ffffff"],
-        "heat_ramp": _DARK_HEAT, "seq_ramp": ["#14261a", "#1f6e37", "#34a152", "#93e0a4", "#eaffe9"],
-        "bar_ramp": lambda n: _ramp("#eaffe9", "#34a152", n), "on_heat": _on_heat("#05140a", "#ecf8ee", _DARK_HEAT),
+        "bg": "#121417", "ink": "#eeeeee", "muted": "#b0b0b0", "line": "#3a3d42", "grid": "#2a2d31", "contour": "#ffffff",
+        "series": _DEEP, "on_series": _on(_DEEP), "accent": "#ff7f6e",
+        "heat_ramp": _HEAT, "seq_ramp": _SEQ, "bar_ramp": _bars, "on_heat": _on_heat("#111111", "#ffffff", _HEAT),
     },
 }  # fmt: skip

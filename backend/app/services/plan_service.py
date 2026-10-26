@@ -214,8 +214,8 @@ def _heat_sources(db: Session, spec: ProjectSpec, cfg: Config, ws: int | None) -
     return {n["id"]: n["heat_w"] for n in v["nodes"] if n["id"] in ("compute", "memory", "power")}
 
 
-SWEEP_AMBIENT = (10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0)
-SWEEP_LOAD = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5)  # fraction of the project's input rate
+SWEEP_AMBIENT = tuple(10.0 + 2.5 * i for i in range(19))  # 10 to 55 °C
+SWEEP_LOAD = tuple(round(0.25 + 0.125 * i, 3) for i in range(11))  # 0.25 to 1.5 x the project's input rate
 SWEEP_MAX_OPTIONS = 8
 
 
