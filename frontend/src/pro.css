@@ -1,0 +1,185 @@
+/* The Green Computer: engineering-tool layer, loaded last over theme.css.
+   Neutral surfaces, hairline borders, small radii, no shadows, gradients or motion for decoration.
+   One accent (a deep green) for primary actions, the active item and focus. Status is carried by
+   words and icons first; colour only reinforces it. */
+
+:root {
+  color-scheme: light;
+  --bg: #f6f7f8;
+  --panel: #ffffff;
+  --sunk: #f1f3f4;
+  --ink: #1b1f23;
+  --muted: #5b6570;
+  --line: #e1e4e8;
+  --line-strong: #c9ced4;
+  --kelly: #1f7a3a;
+  --accent: #1f7a3a;
+  --accent-ink: #ffffff;
+  --accent-strong: #17602d;
+  --accent-soft: #e8f3eb;
+  --ok: #1a6b32; --ok-bg: #e8f3eb;
+  --warn: #8a5300; --warn-bg: #fdf3e1;
+  --bad: #b3261e; --bad-bg: #fbeceb;
+  --info: #1f5f99; --info-bg: #e9f1f9;
+  --lvl-model: #5b3fa0; --lvl-run: #1a6b32; --lvl-hw: #8a5300; --lvl-design: #1f5f99;
+  --s1: #4c72b0; --s2: #dd8452; --s3: #55a868; --s4: #c44e52; --s5: #8172b3;
+  --heat: #c44e52; --heat-fill: #f4b183;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --shadow: none;
+  --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  accent-color: var(--accent);
+}
+
+/* --- Base ------------------------------------------------------------------------------------- */
+body { background: var(--bg); font-size: 14.5px; font-weight: 400; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: var(--accent-strong); }
+h1 { font-size: 22px; font-weight: 600; }
+h2, .panel h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px; }
+h3 { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.muted, .hint { color: var(--muted); }
+.hint { font-size: 13px; }
+.num, td.num, code, kbd, pre { font-variant-numeric: tabular-nums; }
+
+/* --- Surfaces: one kind of box ---------------------------------------------------------------- */
+.panel, .side, .level, .tile, .rec, .draft, .preset, .card, .verdict-band, .bottleneck, .next-step,
+.decision-bar, .hero-start, .kpis > div, .auth-example, .auth-card, .rec-card, .import-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: none;
+}
+.panel { padding: 16px 20px; margin-bottom: 16px; }
+.panel > h2::before { content: none; }
+.next-step { border-left: 3px solid var(--accent); }
+.tile, .rec, .preset, .card, .choice { transition: border-color 0.12s ease; transform: none; }
+button.tile:hover, a.tile:hover, .rec:hover, .preset:hover, a.card:hover, .choice:hover { border-color: var(--line-strong); }
+.choice[aria-checked="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* --- Shell ------------------------------------------------------------------------------------ */
+.sidebar { background: var(--panel); border-right: 1px solid var(--line); box-shadow: none; }
+.sidebar .brand strong { color: var(--ink); font-size: 15px; }
+.topbar { background: var(--panel); border-bottom: 1px solid var(--line); box-shadow: none; backdrop-filter: none; min-height: 52px; }
+.topbar input, .topbar select { height: 34px; }
+.agent-btn { width: 100%; }
+.project-head h1 { font-size: 20px; }
+.ws-head h1 { font-size: 22px; }
+
+/* --- Workflow rail ---------------------------------------------------------------------------- */
+.rail { display: grid; gap: 1px; margin-top: 4px; }
+.rail-group { display: grid; gap: 1px; margin-top: 14px; }
+.rail-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 0 10px 4px; }
+.rail-item { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: var(--radius-sm); color: var(--ink); text-decoration: none; border-left: 2px solid transparent; }
+.rail-item:hover { background: var(--sunk); }
+.rail-item.on { background: var(--accent-soft); border-left-color: var(--accent); }
+.rail-dot { display: none; }
+.rail-text { display: grid; min-width: 0; }
+.rail-text strong { font-size: 14px; font-weight: 500; }
+.rail-item.on .rail-text strong { color: var(--accent-strong); font-weight: 600; }
+.rail-text small { display: none; }
+.rail details.nav-more > summary { padding: 6px 10px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.rail details.nav-more > .rail-item { padding-left: 20px; }
+@media (max-width: 900px) {
+  .rail { display: flex; overflow-x: auto; gap: 4px; width: 100%; order: 3; margin: 0; }
+  .rail-group { display: flex; margin: 0; gap: 4px; }
+  .rail-title { display: none; }
+  .rail-item { flex: none; border-left: none; border-bottom: 2px solid transparent; }
+  .rail-item.on { border-bottom-color: var(--accent); }
+  .rail details.nav-more { display: flex; }
+}
+
+/* --- Controls ---------------------------------------------------------------------------------- */
+button, a.button, .btn-link {
+  height: auto; min-height: 32px; padding: 6px 12px; font-size: 13.5px; font-weight: 500; border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink); box-shadow: none; transform: none;
+}
+button:hover:not(:disabled), a.button:hover, .btn-link:hover { background: var(--sunk); border-color: var(--line-strong); transform: none; }
+button:active:not(:disabled) { transform: none; box-shadow: none; }
+button.primary, .btn-link.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; box-shadow: none; }
+button.primary:hover:not(:disabled), .btn-link.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); filter: none; }
+button.big, .btn-link.big { min-height: 36px; padding: 8px 16px; font-size: 14px; }
+button.link { min-height: 0; padding: 0 2px; border: none; background: none; color: var(--accent-strong); }
+button.link:hover:not(:disabled) { background: none; text-decoration: underline; }
+.danger-btn { border-color: var(--bad); color: var(--bad); }
+.danger-btn:hover:not(:disabled) { background: var(--bad); color: #fff; }
+input, select, textarea { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); box-shadow: none; font-size: 14px; background: var(--panel); }
+input:focus, select:focus, textarea:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 2px var(--accent-soft); outline: none; }
+.field { font-size: 13px; font-weight: 500; color: var(--muted); }
+
+/* Tabs and segmented controls: underline tabs, flat segments. */
+.tabs { display: flex; gap: 0; border: none; border-bottom: 1px solid var(--line); border-radius: 0; background: none; box-shadow: none; margin: 4px 0 16px; padding: 0; }
+.tab, .tab:hover { min-height: 0; padding: 9px 14px; margin-bottom: -1px; border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); font-weight: 500; }
+.tab:hover { color: var(--ink); }
+.tab.on, .tab[aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); background: none; box-shadow: none; }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0; background: var(--panel); box-shadow: none; overflow: hidden; }
+.seg button { min-height: 30px; border: none; border-radius: 0; background: transparent; padding: 4px 12px; font-size: 13px; }
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button.on, .seg button[aria-checked="true"], .seg button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; box-shadow: none; }
+
+/* --- Tables ----------------------------------------------------------------------------------- */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tbl th { background: var(--sunk); font-size: 12px; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.tbl td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tbl tbody tr:hover td { background: #fafbfb; }
+.tbl tr:last-child td { border-bottom: none; }
+.table-wrap { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow-x: auto; position: relative; }
+
+/* --- Status ----------------------------------------------------------------------------------- */
+.chip, .badge, .tag, .outcome { border-radius: var(--radius-sm); box-shadow: none; font-weight: 600; }
+.outcome { border: 1px solid currentColor; padding: 1px 8px; }
+.outcome.bad { border-width: 1px; }
+.note, .note-info, .note-ok, .note-warn, .verify-banner { border: 1px solid var(--line); border-left-width: 3px; border-radius: var(--radius-sm); padding: 8px 12px; }
+.note-info { border-left-color: var(--info); background: var(--info-bg); }
+.note-ok { border-left-color: var(--ok); background: var(--ok-bg); }
+.note-warn, .verify-banner { border-left-color: var(--warn); background: var(--warn-bg); border-left-style: solid; }
+.status-dot { background: var(--accent); box-shadow: none; }
+
+/* --- Decision summary and KPIs: a plain grid of label / value cells --------------------------- */
+.db-label, .level-tag { font-family: inherit; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+.kpis strong, .db-cell strong { font-family: inherit; font-variant-numeric: tabular-nums; }
+
+/* --- Charts and figures ----------------------------------------------------------------------- */
+.hb-track { background: var(--sunk); box-shadow: none; border-radius: 2px; }
+.hb-bar { border-radius: 2px; background-image: none; }
+.stackbar { border-radius: 2px; box-shadow: none; }
+.viz-tip { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); border-radius: var(--radius-sm); }
+.mpl { margin: 0; }
+.mpl-fig { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; }
+.mpl-loading { min-height: 240px; display: grid; place-items: center; color: var(--muted); font-size: 13px; background: var(--sunk); }
+.mpl-save { display: inline-block; margin-top: 6px; font-size: 13px; }
+
+/* --- Start screens: restrained headings ------------------------------------------------------- */
+.hero-start { padding: 20px 24px; }
+.hero-start h1 { font-size: 22px; max-width: 60ch; }
+.auth-intro h1 { font-size: 28px; }
+.auth-card { padding: 28px; }
+
+/* Workflow strip, cards and legal pages use the same tokens. */
+.pipeline ol { border-radius: var(--radius); }
+.pl-done .pl-n { background: var(--accent); border-color: var(--accent); color: #fff; }
+.rec-card { border-radius: var(--radius); }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* --- Summary page: boxes with consistent inner spacing ---------------------------------------- */
+.verdict-band, .bottleneck, .next-step, .decision-bar { padding: 16px 20px; margin-bottom: 16px; }
+.next-step { border-top: 1px solid var(--line); border-left: 3px solid var(--accent); }
+.bottleneck { border-left: 3px solid var(--warn); }
+.vb-sentence { font-size: 17px; font-weight: 600; line-height: 1.4; margin: 12px 0 6px; max-width: 80ch; }
+.vb-outcomes .outcome, .outcome { font-size: 13px; padding: 2px 8px; line-height: 1.5; }
+.bottleneck h2, .next-step h2 { font-size: 15px; margin: 0 0 8px; }
+.ns-what { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
+.ns-grid { display: grid; grid-template-columns: 130px 1fr; gap: 6px 16px; margin: 0; font-size: 13.5px; }
+.ns-grid dt { color: var(--muted); }
+.ns-grid dd { margin: 0; }
+
+/* --- Recommendation list: one row per recommendation, effects alongside ---------------------- */
+.rec-grid { grid-template-columns: 1fr; gap: 10px; }
+.rec-card { grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); column-gap: 24px; row-gap: 10px; padding: 14px 16px; }
+.rec-card > header, .rec-card > details, .rec-card > footer { grid-column: 1 / -1; }
+.rec-card > .rec-kv { grid-column: 1; }
+.rec-card > .rec-effects { grid-column: 2; align-self: start; margin: 0; }
+.rec-card h4 { font-size: 15px; font-weight: 600; }
+.rec-area { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+.rec-kv { grid-template-columns: 120px 1fr; font-size: 13.5px; }
+.rec-effects td, .rec-effects th { padding: 5px 8px; }
+.rec-card details summary { font-size: 13px; color: var(--muted); cursor: pointer; }
+@media (max-width: 860px) { .rec-card { grid-template-columns: 1fr; } .rec-card > .rec-effects { grid-column: 1; } }

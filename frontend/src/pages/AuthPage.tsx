@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { auth } from "../api";
 import { navigate } from "../router";
 import type { AuthConfig, Me } from "../types";
-import Hero3D from "../components/Hero3D";
 
 type Mode = "signin" | "signup" | "forgot" | "reset";
 
@@ -76,7 +75,6 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
   return (
     <div className="auth">
       <section className="auth-intro" aria-label="About The Green Computer">
-        <Hero3D />
         <div className="brandmark">
           <Logo />
           <strong>The Green Computer</strong>

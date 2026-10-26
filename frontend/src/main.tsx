@@ -8,9 +8,8 @@ import App from "./App";
 import "./styles.css";
 import "./friendly.css";
 import "./theme.css";
-import "./soft.css";
-import "./green.css";
 import "./workflow.css";
+import "./pro.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
