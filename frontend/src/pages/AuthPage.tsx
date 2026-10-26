@@ -28,6 +28,7 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
   const [done, setDone] = useState<{ message: string; link?: string; note?: string } | null>(null);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [code, setCode] = useState("");
+  const [accepted, setAccepted] = useState(false);
 
   useEffect(() => {
     auth.config().then(setCfg).catch(() => setCfg(null));
@@ -52,7 +53,10 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
           setPassword("");
         } else onSignedIn(r);
       }
-      else if (mode === "signup") onSignedIn(await auth.signup(email, password, name));
+      else if (mode === "signup") {
+        if (!accepted) throw new Error("Please read and accept the Terms and Conditions and the Privacy Policy.");
+        onSignedIn(await auth.signup(email, password, name, accepted));
+      }
       else if (mode === "forgot") {
         const r = await auth.forgot(email);
         setDone({ message: r.message, link: r.dev_reset_url, note: r.dev_note });
@@ -147,6 +151,20 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
                 )}
               </label>
             )}
+            {mode === "signup" && (
+              <label className="check-row consent">
+                <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} required aria-describedby="consent-hint" />
+                <span>
+                  I have read and accept the <a href="#/legal/terms" target="_blank" rel="noopener">Terms and Conditions</a> and the{" "}
+                  <a href="#/legal/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+                </span>
+              </label>
+            )}
+            {mode === "signup" && (
+              <p id="consent-hint" className="hint">
+                Your uploads stay yours: they are processed only to give you results. Nothing is sent to an AI provider unless you use an AI feature.
+              </p>
+            )}
             {error && <p className="error" role="alert">{error}</p>}
             <button className="primary wide" disabled={busy} type="submit">
               {busy ? "Working…" : mfaToken ? "Continue" : c.action}
@@ -162,6 +180,9 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
           )}
           {mode !== "signin" && <a href="#/signin">I already have an account</a>}
         </div>
+        <nav className="legal-links" aria-label="Legal">
+          <a href="#/legal/terms">Terms</a><a href="#/legal/privacy">Privacy</a><a href="#/legal/acceptable-use">Acceptable use</a>
+        </nav>
         {cfg && cfg.environment !== "production" && cfg.email_delivery === "console" && mode === "forgot" && !done && (
           <p className="hint">This server has no mail delivery configured, so reset links are written to the server log.</p>
         )}

@@ -24,6 +24,11 @@ import StartGuide from "./pages/StartGuide";
 import SummaryPage from "./pages/SummaryPage";
 import VerifyPage from "./pages/VerifyPage";
 import WorkspacePage from "./pages/WorkspacePage";
+import LegalPage, { LegalLinks } from "./pages/LegalPage";
+import CoolingFigures from "./workflow/CoolingFigures";
+import PipelineStrip from "./workflow/PipelineStrip";
+import RecommendationCatalogue from "./workflow/RecommendationCatalogue";
+import VerificationPanel from "./workflow/VerificationPanel";
 import { AREAS, type AreaId, navigate, useRoute } from "./router";
 import MemoryPage from "./twin/MemoryPage";
 import SystemMapPage from "./twin/SystemMapPage";
@@ -36,7 +41,7 @@ const WS_KEY = "gc_workspace";
 
 /** The workflow, in order: what the navigation rail groups and how a project moves through it. */
 const STAGES: { title: string; ids: readonly AreaId[] }[] = [
-  { title: "Define", ids: ["input", "constraints"] },
+  { title: "Define", ids: ["input", "constraints", "check"] },
   { title: "Analyse", ids: ["summary", "system-map", "timeline", "memory", "thermal", "energy"] },
   { title: "Decide", ids: ["recommendations"] },
   { title: "Hand over", ids: ["verify"] },
@@ -77,6 +82,7 @@ export default function App() {
   const page = route.parts[0] ?? "";
   if (page === "reset") return <AuthPage mode="reset" token={route.query.get("token") ?? ""} onSignedIn={() => loadMe()} />;
   if (page === "verify-email") return <VerifyEmail token={route.query.get("token") ?? ""} onDone={loadMe} />;
+  if (page === "legal") return <LegalPage doc={route.parts[1] ?? "terms"} />;
   if (me === undefined) {
     return (
       <div className="boot" aria-busy="true" aria-live="polite">
@@ -235,6 +241,7 @@ function Shell({
         )}
         <a className={`cap-link ${p0 === "capabilities" ? "on" : ""}`} href="#/capabilities">What this installation can do</a>
         <StatusBar />
+        <LegalLinks />
       </aside>
 
       <div className="content">
@@ -270,6 +277,7 @@ function Shell({
               <span aria-hidden>!</span> Confirm your email to make changes: open the link we sent to {me.user.email}, or <a href="#/account">send a new one</a>.
             </p>
           )}
+          {!!me.terms?.outstanding.length && <TermsBanner onAccepted={reloadMe} docs={me.terms.outstanding} />}
           <ErrorNote error={libError} onRetry={refreshLibrary} />
           <ErrorBoundary>
             {p0 === "account" ? (
@@ -298,6 +306,33 @@ function Shell({
           </ErrorBoundary>
         </main>
       </div>
+    </div>
+  );
+}
+
+function TermsBanner({ docs, onAccepted }: { docs: string[]; onAccepted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const names: Record<string, string> = { terms: "Terms and Conditions", privacy: "Privacy Policy" };
+  return (
+    <div className="verify-banner" role="status">
+      <span aria-hidden>!</span>
+      <span>
+        The {docs.map((d) => names[d] ?? d).join(" and ")} changed. Please read{" "}
+        {docs.map((d, i) => <span key={d}>{i > 0 && " and "}<a href={`#/legal/${d}`}>{names[d] ?? d}</a></span>)} and accept to continue.
+      </span>
+      <button disabled={busy} onClick={async () => {
+        setBusy(true);
+        try {
+          await auth.acceptTerms();
+          onAccepted();
+        } catch (e) {
+          setError(e);
+        } finally {
+          setBusy(false);
+        }
+      }}>{busy ? "Saving…" : "I have read and accept"}</button>
+      <ErrorNote error={error} />
     </div>
   );
 }
@@ -336,12 +371,12 @@ function ProjectView({
   const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState<"run" | "verify" | "history" | "export">("run");
   const [verifyKey, setVerifyKey] = useState(0);
-  const [recTab, setRecTab] = useState<"results" | "plan" | "saved">("results");
+  const [recTab, setRecTab] = useState<"results" | "catalogue" | "plan" | "saved">("results");
   const [plansKey, setPlansKey] = useState(0);
   const qTab = query.get("tab");
   const qAdd = query.get("add");
   useEffect(() => {
-    if (qTab === "plan" || qTab === "saved" || qTab === "results") setRecTab(qTab);
+    if (qTab === "plan" || qTab === "saved" || qTab === "results" || qTab === "catalogue") setRecTab(qTab);
     if (qTab === "run" || qTab === "verify" || qTab === "history" || qTab === "export") setTab(qTab);
   }, [qTab, qAdd]);
 
@@ -453,6 +488,7 @@ function ProjectView({
           </p>
         </div>
       </div>
+      <PipelineStrip projectId={projectId} refreshKey={`${project.version}-${runId}-${plansKey}-${area}`} />
       <DecisionBar project={project} res={res} stale={stale || (!!res && dirty)} busy={busy} canWrite={canWrite} model={model} device={device} onAnalyse={analyse} />
       <ErrorNote error={error} onRetry={() => setError(null)} />
 
@@ -472,6 +508,16 @@ function ProjectView({
           onDevicesChanged={refreshLibrary}
         />
       )}
+      {area === "check" && (
+        <>
+          <VerificationPanel projectId={projectId} refreshKey={`${project.version}-${dirty}`} />
+          {dirty && <p className="note-warn" role="status">You have unsaved changes; the report shows the saved version {project.version}. Save to check the new inputs.</p>}
+          <div className="actions">
+            <button disabled={busy || !canWrite || !dirty} onClick={save}>Save changes</button>
+            <button className="primary" disabled={busy || !canWrite} onClick={analyse}>{busy ? "Analysing…" : "Analyse"}</button>
+          </div>
+        </>
+      )}
       {area === "constraints" && <ConstraintsPage spec={spec} setSpec={(s) => setSpec(s)} device={device} canWrite={canWrite} />}
       {(area === "input" || area === "constraints") && (
         <div className="actionbar" role="region" aria-label="Save and analyse">
@@ -487,6 +533,7 @@ function ProjectView({
           </div>
           <div className="ab-actions">
             {area === "input" && <a className="btn-link" href={`#/p/${projectId}/constraints`}>Next: constraints</a>}
+            {area === "constraints" && <a className="btn-link" href={`#/p/${projectId}/check`}>Next: verification</a>}
             <button disabled={busy || !canWrite || !dirty} onClick={save}>Save as version {project.version + (dirty ? 1 : 0)}</button>
             <button className="primary big" disabled={busy || !canWrite} onClick={analyse}>{busy ? "Analysing…" : "Analyse"}</button>
           </div>
@@ -496,13 +543,14 @@ function ProjectView({
         (res ? (
           <>
             <div className="tabs" role="tablist" aria-label="Recommendations">
-              {(["results", "plan", "saved"] as const).map((t) => (
+              {(["results", "catalogue", "plan", "saved"] as const).map((t) => (
                 <button key={t} role="tab" aria-selected={recTab === t} className={`tab ${recTab === t ? "on" : ""}`} onClick={() => setRecTab(t)}>
-                  {{ results: "Verdict and recommendations", plan: "Build a design plan", saved: "Saved plans" }[t]}
+                  {{ results: "Verdict", catalogue: "Software and hardware", plan: "Build and compare a plan", saved: "Saved plans" }[t]}
                 </button>
               ))}
             </div>
             {recTab === "results" && <ResultsPage res={res} spec={spec} go={goLegacy} />}
+            {recTab === "catalogue" && <RecommendationCatalogue projectId={projectId} canWrite={canWrite} refreshKey={`${runId}-${plansKey}`} />}
             {recTab === "plan" && (
               <PlanBuilder key={`${resAt}-${qAdd ?? ""}`} projectId={projectId} canWrite={canWrite} initialAdd={qAdd} onSaved={() => setPlansKey((k) => k + 1)} />
             )}
@@ -514,7 +562,12 @@ function ProjectView({
       {area === "system-map" && <SystemMapPage projectId={projectId} version={project.version} hasBest={!!res?.best} />}
       {area === "timeline" && <TimelinePage projectId={projectId} version={project.version} hasBest={!!res?.best} />}
       {area === "memory" && <MemoryPage projectId={projectId} version={project.version} hasBest={!!res?.best} />}
-      {area === "thermal" && <ThermalPage projectId={projectId} version={project.version} hasBest={!!res?.best} />}
+      {area === "thermal" && (
+        <>
+          <ThermalPage projectId={projectId} version={project.version} hasBest={!!res?.best} />
+          <CoolingFigures projectId={projectId} version={project.version} />
+        </>
+      )}
       {area === "energy" && <EnergyPage projectId={projectId} version={project.version} hasBest={!!res?.best} res={res} spec={spec} />}
       {area === "verify" && (
         <>

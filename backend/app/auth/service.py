@@ -40,6 +40,7 @@ from app.db.models import (
     RunRow,
     SessionRow,
     SystemGraphRow,
+    TermsAcceptanceRow,
     UsageEventRow,
     UserRow,
     WorkspaceRow,
@@ -386,6 +387,7 @@ def delete_account(
     db.execute(delete(SessionRow).where(SessionRow.user_id == user.id))
     db.execute(delete(PasswordResetRow).where(PasswordResetRow.user_id == user.id))
     db.execute(delete(EmailVerificationRow).where(EmailVerificationRow.user_id == user.id))
+    db.execute(delete(TermsAcceptanceRow).where(TermsAcceptanceRow.user_id == user.id))
     db.execute(delete(UserRow).where(UserRow.id == user.id))
     # Keep a trace that an account was deleted, without personal data.
     db.add(AuditLogRow(workspace_id=None, user_id=None, action="account.deleted",

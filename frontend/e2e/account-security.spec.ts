@@ -21,6 +21,7 @@ test("confirm email, turn on two-step sign-in, sign in with a code, preview rete
   await page.goto("/#/signup");
   await page.getByLabel("Email").fill(who);
   await page.getByLabel("Password").fill(password);
+  await page.getByRole("checkbox", { name: /I have read and accept/ }).check();
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByRole("heading", { name: "Start a new analysis" })).toBeVisible();
 

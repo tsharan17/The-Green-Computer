@@ -147,7 +147,8 @@ export default function HardwareImportCard({ onConfirmed, refreshKey = 0 }: { on
       <summary>Your hardware isn't in the list? Add it</summary>
       <p className="hint">
         Type its name and we search for its datasheet and read the specs for you (needs the Tavily and Nemotron keys), or
-        enter the numbers yourself. You always confirm the values before the device is used.
+        enter the numbers yourself. You always confirm the values before the device is used. Searching sends the name you type to
+        Tavily and the public pages it finds to the AI provider; none of your files are sent.
       </p>
       <div className="cta-row">
         <input value={name} placeholder="e.g. Jetson Orin NX 8GB" onChange={(e) => setName(e.target.value)} />

@@ -10,6 +10,7 @@ import "./friendly.css";
 import "./theme.css";
 import "./soft.css";
 import "./green.css";
+import "./workflow.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

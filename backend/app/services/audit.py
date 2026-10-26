@@ -21,6 +21,7 @@ USAGE_UNITS = {
     "execution_seconds": "s",
     "remote_gpu_seconds": "s",
     "artifact_upload_bytes": "B",
+    "ai_tokens": "tokens",
 }
 
 

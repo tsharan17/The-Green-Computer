@@ -62,7 +62,7 @@ class AuthedClient(_TestClient):  # type: ignore[misc,valid-type]
     def __enter__(self):
         c = super().__enter__()
         c.headers["X-GC-CSRF"] = "1"
-        body = {"email": self._email, "password": TEST_PASSWORD}
+        body = {"email": self._email, "password": TEST_PASSWORD, "accept_terms": True}
         r = c.post("/api/v1/auth/signup", json=body)
         if r.status_code == 409:
             r = c.post("/api/v1/auth/signin", json=body)

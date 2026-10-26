@@ -324,6 +324,7 @@ export interface Me {
   workspaces: Workspace[];
   active_workspace_id: number | null;
   role: string | null;
+  terms?: import("./workflow/types").TermsStatus;
 }
 
 export interface AuthConfig {

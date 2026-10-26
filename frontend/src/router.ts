@@ -34,6 +34,7 @@ export const AREAS = [
   { id: "summary", n: 0, label: "Summary", sub: "The answer and the next step", group: "main" },
   { id: "input", n: 2, label: "Model and hardware", sub: "Upload, validate, choose", group: "main" },
   { id: "constraints", n: 3, label: "Constraints and environment", sub: "Requirements, ambient, workload", group: "main" },
+  { id: "check", n: 3.5, label: "Verification", sub: "Inputs checked before analysis", group: "main" },
   { id: "system-map", n: 4, label: "System map", sub: "Layers on components", group: "engineering" },
   { id: "timeline", n: 5, label: "Execution timeline", sub: "Operator by operator", group: "engineering" },
   { id: "memory", n: 6, label: "Memory map", sub: "Tensor lifetimes, peaks", group: "engineering" },

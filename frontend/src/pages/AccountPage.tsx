@@ -184,6 +184,27 @@ export default function AccountPage({ me, onChanged, onDeleted }: { me: Me; onCh
         <WorkspaceDataPanel key={me.active_workspace_id} isOwner={me.role === "owner"} />
       </div>
 
+      <section className="panel" aria-labelledby="terms-h">
+        <h2 id="terms-h">Terms and privacy</h2>
+        {me.terms?.accepted.length ? (
+          <table className="tbl">
+            <thead><tr><th scope="col">Document</th><th scope="col">Version accepted</th><th scope="col">When</th></tr></thead>
+            <tbody>
+              {me.terms.accepted.map((a) => (
+                <tr key={`${a.document}-${a.version}`}>
+                  <td><a href={`#/legal/${a.document}`}>{a.document === "terms" ? "Terms and Conditions" : a.document === "privacy" ? "Privacy Policy" : a.document}</a></td>
+                  <td className="num">{a.version}</td>
+                  <td>{new Date(a.accepted_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted">No acceptance is recorded for this account (it was created before terms were introduced).</p>
+        )}
+        <p className="hint"><a href="#/legal/data">What happens to your data</a> · <a href="#/legal/privacy">Privacy Policy</a></p>
+      </section>
+
       <section className="panel danger" aria-labelledby="del-h">
         <h2 id="del-h">Delete account</h2>
         <p>

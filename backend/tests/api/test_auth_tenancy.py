@@ -32,16 +32,16 @@ def _anon(app) -> TestClient:
 
 def test_signup_validates_and_refuses_duplicates(app):
     with _anon(app) as c:
-        assert c.post(f"{P}/auth/signup", json={"email": "nope", "password": TEST_PASSWORD},
+        assert c.post(f"{P}/auth/signup", json={"accept_terms": True, "email": "nope", "password": TEST_PASSWORD},
                       headers=H).status_code == 422  # fmt: skip
-        r = c.post(f"{P}/auth/signup", json={"email": "a@x.io", "password": "short"}, headers=H)
+        r = c.post(f"{P}/auth/signup", json={"accept_terms": True, "email": "a@x.io", "password": "short"}, headers=H)
         assert r.status_code == 422 and "10 characters" in r.json()["detail"]
-        r = c.post(f"{P}/auth/signup", json={"email": "a@x.io", "password": "password123"}, headers=H)
+        r = c.post(f"{P}/auth/signup", json={"accept_terms": True, "email": "a@x.io", "password": "password123"}, headers=H)
         assert r.status_code == 422 and "easy to guess" in r.json()["detail"]
-        ok = c.post(f"{P}/auth/signup", json={"email": "A@X.io ", "password": TEST_PASSWORD}, headers=H)
+        ok = c.post(f"{P}/auth/signup", json={"accept_terms": True, "email": "A@X.io ", "password": TEST_PASSWORD}, headers=H)
         assert ok.status_code == 201 and ok.json()["user"]["email"] == "a@x.io"
         assert ok.json()["role"] == "owner"
-        dup = c.post(f"{P}/auth/signup", json={"email": "a@x.io", "password": TEST_PASSWORD}, headers=H)
+        dup = c.post(f"{P}/auth/signup", json={"accept_terms": True, "email": "a@x.io", "password": TEST_PASSWORD}, headers=H)
         assert dup.status_code == 409
 
 

@@ -15,6 +15,10 @@ Two connections, both optional: the app works without them (the engine, charts, 
 
    The check lists the provider's models, resolves Nemotron Ultra/Super/Nano, does a chat call and a **tool call round trip** (the agent needs tool calling).
 4. Open the **Agent** tab. The status line shows which models were resolved.
+5. Open a project, run the analysis, then **Recommendations → Software and hardware → Ask the AI for candidates**.
+   This sends one chat request (Nemotron Super by default, at most 1,400 output tokens) with the engine's summary
+   only, never file contents. The reply is checked against a schema and cached for that analysis, so asking again
+   without changing anything costs nothing. Use **Ask again** to force a new call.
 
 **Model IDs are not verified.** The defaults (`nvidia/Nemotron-3-Ultra-550b-a55b`, `nvidia/nemotron-3-super-120b-a12b`, `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`) come from third-party catalogues. The app fetches the real list and matches by name, so a wrong default degrades gracefully; set `GC_MODEL_ULTRA/SUPER/NANO` to pin exact IDs. Nano Omni is never used for text.
 
@@ -35,6 +39,7 @@ How it works: the stock CUDA image (`GC_BENCH_IMAGE`, default `nvidia/cuda:12.4.
 |---|---|
 | Token Factory request/response format, base URL, tool-call format | Taken from the Nebius docs; client tested against a mocked transport |
 | Real Token Factory call, Nemotron model IDs, tool calling on those models | **Not tested** (no key available when this was built). Run `check_nebius.py` |
+| AI recommendation candidates (schema validation, redaction, caching, failures) | Tested with a mocked provider (`tests/api/test_workflow.py`); **not yet run against Token Factory** |
 | Whole agent loop, tools, guardrail, streaming UI | Tested against a scripted fake model and a local fake provider over real HTTP |
 | `nebius ai job create/get/logs/cancel` flags | Taken from the Nebius CLI docs; command construction unit tested with a fake runner |
 | Real job launch, the JSON shape of `job get`/`create` output, CUDA image tag, `onnxruntime-gpu` install in the job, `nvidia-smi` sampling | **Not tested** (no CLI, account or GPU). State/id parsing searches the JSON flexibly because the field names are undocumented |

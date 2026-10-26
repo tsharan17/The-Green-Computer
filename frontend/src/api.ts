@@ -30,6 +30,7 @@ import type {
   FormatCatalogue,
   IntakeResult,
 } from "./types";
+import type { AiCandidates, LegalDocInfo, Pipeline, RecommendationSet, TermsStatus, VerificationReport } from "./workflow/types";
 
 const BASE = "/api/v1";
 
@@ -121,8 +122,11 @@ const post = (body?: unknown): RequestInit => ({ method: "POST", body: body === 
 export const auth = {
   config: () => req<AuthConfig>("/auth/config"),
   me: () => req<Me>("/auth/me"),
-  signup: (email: string, password: string, display_name: string) =>
-    req<Me>("/auth/signup", post({ email, password, display_name })),
+  signup: (email: string, password: string, display_name: string, accept_terms: boolean) =>
+    req<Me>("/auth/signup", post({ email, password, display_name, accept_terms })),
+  acceptTerms: () => req<TermsStatus>("/auth/terms/accept", post()),
+  legal: () => req<LegalDocInfo[]>("/auth/legal"),
+  legalDoc: (doc: string) => req<LegalDocInfo & { markdown: string }>(`/auth/legal/${encodeURIComponent(doc)}`),
   signin: (email: string, password: string) => req<Me | { mfa_required: true; mfa_token: string }>("/auth/signin", post({ email, password })),
   signinMfa: (mfa_token: string, code: string) => req<Me>("/auth/signin/mfa", post({ mfa_token, code })),
   verifyEmail: (token: string) => req<{ verified: boolean; email: string }>("/auth/email/verify", post({ token })),
@@ -161,25 +165,36 @@ export const plans = {
   exports: (pid: number) => req<import("./types").ExportItem[]>(`/projects/${pid}/exports`),
 };
 
+/** A server-drawn PNG as a data URL (the content security policy allows `self` and `data:` images). */
+async function pngDataUrl(path: string): Promise<string> {
+  const r = await fetch(BASE + path, { headers: baseHeaders(), credentials: "same-origin" });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new ApiError(r.status, typeof body.detail === "string" ? body.detail : r.statusText);
+  }
+  const blob = await r.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = () => reject(new Error("could not read the figure"));
+    fr.readAsDataURL(blob);
+  });
+}
+
+export const workflow = {
+  pipeline: (pid: number) => req<Pipeline>(`/projects/${pid}/pipeline`),
+  verification: (pid: number) => req<VerificationReport>(`/projects/${pid}/verification`),
+  recommendations: (pid: number) => req<RecommendationSet>(`/projects/${pid}/recommendations`),
+  aiCandidates: (pid: number, refresh = false) => req<AiCandidates>(`/projects/${pid}/recommendations/ai`, post({ refresh })),
+  figure: (pid: number, name: string) => pngDataUrl(`/projects/${pid}/figures/${name}?theme=light`),
+};
+
 export const twin = {
   create: (pid: number, which: "baseline" | "best" | "custom", config?: import("./types").Config) =>
     req<import("./twin/types").StoredTrace>(`/projects/${pid}/traces?which=${which}`, post(config)),
   /** A matplotlib/seaborn figure of a stored trace, as a data URL. */
-  figure: async (pid: number, id: number, name: string, theme: "light" | "dark"): Promise<string> => {
-    const r = await fetch(`${BASE}/projects/${pid}/traces/${id}/figures/${name}?theme=${theme}`, { headers: baseHeaders(), credentials: "same-origin" });
-    if (!r.ok) {
-      const body = await r.json().catch(() => ({ detail: r.statusText }));
-      throw new ApiError(r.status, typeof body.detail === "string" ? body.detail : r.statusText);
-    }
-    // A data URL, not a blob URL: the page's content security policy allows images from `self` and `data:`.
-    const blob = await r.blob();
-    return await new Promise<string>((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(String(fr.result));
-      fr.onerror = () => reject(new Error("could not read the figure"));
-      fr.readAsDataURL(blob);
-    });
-  },
+  figure: (pid: number, id: number, name: string, theme: "light" | "dark"): Promise<string> =>
+    pngDataUrl(`/projects/${pid}/traces/${id}/figures/${name}?theme=${theme}`),
   get: (pid: number, id: number) => req<import("./twin/types").StoredTrace>(`/projects/${pid}/traces/${id}`),
 };
 

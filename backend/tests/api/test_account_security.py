@@ -56,7 +56,7 @@ def test_secret_box_detects_tampering_and_wrong_purpose(tmp_path):
 
 def test_email_verification_flow_and_optional_enforcement(app, monkeypatch):
     with TestClient(app) as c:
-        r = c.post(f"{P}/auth/signup", headers=H, json={"email": "v@x.io", "password": TEST_PASSWORD})
+        r = c.post(f"{P}/auth/signup", headers=H, json={"accept_terms": True, "email": "v@x.io", "password": TEST_PASSWORD})
         assert r.status_code == 201
         body = r.json()
         assert body["user"]["email_verified"] is False and "dev_verify_url" in body
@@ -145,7 +145,7 @@ def test_database_rate_limiter_is_shared_between_processes(tmp_path, monkeypatch
 
 def test_account_deletion_removes_verification_rows(app):
     with TestClient(app) as c:
-        c.post(f"{P}/auth/signup", headers=H, json={"email": "d@x.io", "password": TEST_PASSWORD})
+        c.post(f"{P}/auth/signup", headers=H, json={"accept_terms": True, "email": "d@x.io", "password": TEST_PASSWORD})
         assert c.post(f"{P}/auth/account/delete", headers=H, json={"password": TEST_PASSWORD, "confirm": "DELETE"}).status_code == 200
     with app.state.engine.connect() as conn:
         assert conn.execute(sa.text("SELECT COUNT(*) FROM email_verifications")).scalar() == 0

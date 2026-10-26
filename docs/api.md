@@ -24,6 +24,8 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
 | `GET` | `/api/v1/auth/config` | public | Auth Config |
+| `GET` | `/api/v1/auth/legal/{doc}` | session | Legal Doc |
+| `GET` | `/api/v1/auth/legal` | session | The legal documents and their current versions (public: shown before sign-up). |
 | `GET` | `/api/v1/auth/me` | session | Me |
 | `GET` | `/api/v1/auth/preferences` | session | Get Preferences |
 | `GET` | `/api/v1/auth/sessions` | session | Sessions |
@@ -41,6 +43,7 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `POST` | `/api/v1/auth/signin` | public | Signin |
 | `POST` | `/api/v1/auth/signout` | session | Signout |
 | `POST` | `/api/v1/auth/signup` | public | Signup |
+| `POST` | `/api/v1/auth/terms/accept` | session | Accept the current versions of the Terms and Privacy Policy (after they changed). |
 | `POST` | `/api/v1/auth/tokens` | session | An API token for the CLI or scripts (Authorization: Bearer ...). Shown once. |
 | `PUT` | `/api/v1/auth/preferences` | session | Presentation only: display density and whether the first-run guide was completed. |
 
@@ -194,6 +197,17 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `GET` | `/api/v1/projects/{project_id}/system-graph` | session | The latest saved graph, or version 0 built from the device profile (not saved). |
 | `POST` | `/api/v1/projects/{project_id}/system-graph/from-files` | session | Add what uploaded design files state (KiCad, Verilog, Vivado, HLS) as a new graph version. |
 | `POST` | `/api/v1/projects/{project_id}/system-graph` | session | Save an edited graph as a new version (validated: unique ids, existing parents and ends). |
+
+## Workflow
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | `/api/v1/projects/{project_id}/cooling-sweep` | session | Temperature over ambient x input rate for every cooling option, and power mode x cooling. |
+| `GET` | `/api/v1/projects/{project_id}/figures/{name}` | session | Seaborn/matplotlib cooling figures (PNG) drawn from the engine's cooling sweep. |
+| `GET` | `/api/v1/projects/{project_id}/pipeline` | session | Each workflow stage with its stored record and whether it is done, ready, blocked or stale. |
+| `GET` | `/api/v1/projects/{project_id}/recommendations` | session | Software and hardware recommendations from the latest analysis, ranked by the project's |
+| `GET` | `/api/v1/projects/{project_id}/verification` | session | Verification and Requirements Manager report for the project's current inputs. |
+| `POST` | `/api/v1/projects/{project_id}/recommendations/ai` | session | Candidate changes from the optional language model. Sends only the engine's numbers and the |
 
 ## Workspace
 

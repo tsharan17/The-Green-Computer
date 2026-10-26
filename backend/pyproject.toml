@@ -50,7 +50,7 @@ ignore = ["B008", "E501", "UP042"]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["data/**/*.yaml", "data/**/*.json", "migrations/*.py", "migrations/*.mako", "migrations/versions/*.py"]
+app = ["data/**/*.yaml", "legal/*.md", "data/**/*.json", "migrations/*.py", "migrations/*.mako", "migrations/versions/*.py"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -12,11 +12,13 @@ from app.main import create_app
 from tests.helpers import AuthedClient
 
 P = "/api/v1"
-# The only routes that answer without a session: health and the sign-in/up/reset/verify flow itself.
+# The only routes that answer without a session: health, the sign-in/up/reset/verify flow itself, and the
+# legal documents (they must be readable before signing up).
 PUBLIC = {
     ("GET", "/api/v1/health"), ("GET", "/api/v1/ready"), ("GET", "/api/v1/auth/config"), ("POST", "/api/v1/auth/signup"),
     ("POST", "/api/v1/auth/signin"), ("POST", "/api/v1/auth/password/forgot"),
     ("POST", "/api/v1/auth/password/reset"), ("POST", "/api/v1/auth/signin/mfa"), ("POST", "/api/v1/auth/email/verify"),
+    ("GET", "/api/v1/auth/legal"), ("GET", "/api/v1/auth/legal/{doc}"),
 }  # fmt: skip
 
 
@@ -63,7 +65,7 @@ def test_state_changing_routes_refuse_cookie_requests_without_csrf_header(app):
 
 def test_security_headers_and_cookie_flags(app):
     with TestClient(app) as c:
-        r = c.post(f"{P}/auth/signup", json={"email": "h@x.io", "password": "a long test password"},
+        r = c.post(f"{P}/auth/signup", json={"accept_terms": True, "email": "h@x.io", "password": "a long test password"},
                    headers={"X-GC-CSRF": "1"})  # fmt: skip
         cookie = r.headers["set-cookie"].lower()
         assert "httponly" in cookie and "samesite=lax" in cookie

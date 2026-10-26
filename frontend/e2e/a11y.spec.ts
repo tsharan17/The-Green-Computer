@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 /** WCAG 2.1 A/AA checks with axe-core on the main screens, in light and dark colour schemes. */
-const SCREENS = ["summary", "input", "constraints", "system-map", "timeline", "memory", "thermal", "energy", "recommendations", "verify"];
+const SCREENS = ["summary", "input", "constraints", "check", "system-map", "timeline", "memory", "thermal", "energy", "recommendations", "verify"];
 
 for (const scheme of ["light", "dark"] as const) {
   test(`main screens have no WCAG A/AA violations (${scheme})`, async ({ page }) => {
@@ -15,9 +15,13 @@ for (const scheme of ["light", "dark"] as const) {
       expect(found, found.join("\n")).toEqual([]);
     };
     await scan("sign-in");
+    await page.goto("/#/legal/privacy");
+    await expect(page.getByRole("heading", { name: "Privacy Policy", level: 1 })).toBeVisible();
+    await scan("privacy policy");
     await page.goto("/#/signup");
     await page.getByLabel("Email").fill(`a11y-${scheme}-${Date.now()}@example.com`);
     await page.getByLabel("Password").fill("an accessibility test passphrase");
+    await page.getByRole("checkbox", { name: /I have read and accept/ }).check();
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page.getByRole("heading", { name: "Start a new analysis" })).toBeVisible();
     await scan("guided start");

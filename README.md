@@ -78,6 +78,10 @@ Configuration is by environment variables; `.env.example` lists every one. Never
 
 ## Architecture
 
+Workflow: inputs → verification → analysis → recommendations (engine, optional AI candidates) →
+validation (plan builder, real runs) → results and exports. The full description, with a status for
+each part, is in [docs/architecture.md](docs/architecture.md).
+
 ```
  Browser (React + Vite, hash routes)
    │  /api/v1  (cookie session + CSRF header, or bearer token; X-GC-Workspace)
@@ -119,7 +123,8 @@ Details: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [docs/api.md](doc
 | Local execution | Real ONNX Runtime CPU runs tested; measures latency and operator time, not power or temperature |
 | Predictions | Analytical with stated assumptions; the only measurements so far are CPU latencies on the development machine |
 | CUDA / TensorRT backends | Detected and gated; never run here (no NVIDIA GPU) |
-| Nebius jobs, AI assistant, datasheet web search | Built from vendor documentation, tested with fakes; off unless configured |
+| Nebius jobs, AI assistant, AI recommendation candidates, datasheet web search | Built from vendor documentation, tested with fakes and mocked providers; **no live Token Factory call has been made yet**; off unless configured |
+| Terms, privacy and acceptable-use pages | Written to match the implementation; **draft, needs professional legal review** |
 | OCR for scanned PDFs | Implemented; untested here (no Tesseract installed) |
 | Docker image and compose stack | Written; not built in the development environment |
 | Recipes and deployment configs | Templates; syntax-checked, not run on devices |

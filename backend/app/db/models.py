@@ -475,3 +475,16 @@ class RateLimitRow(Base):
     key: Mapped[str] = mapped_column(String(200), primary_key=True)
     window_start: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class TermsAcceptanceRow(Base):
+    """One acceptance of one version of a legal document (terms, privacy) by one account."""
+
+    __tablename__ = "terms_acceptances"
+    __table_args__ = (UniqueConstraint("user_id", "document", "version", name="uq_terms_acceptance"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    document: Mapped[str] = mapped_column(String(40))
+    version: Mapped[str] = mapped_column(String(40))
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

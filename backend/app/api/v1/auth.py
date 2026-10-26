@@ -6,14 +6,16 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import legal
 from app.auth import account_security as sec
 from app.auth import service as auth
 from app.auth.deps import COOKIE, CSRF_HEADER, Ctx, get_db, require_ctx
 from app.config import get_settings
 from app.db import repository as repo
-from app.db.models import UserRow
+from app.db.models import TermsAcceptanceRow, UserRow
 from app.security import LIMITER, _int_env, client_ip, demo_mode
 from app.services import audit
 from app.services.seed import example_spec
@@ -49,6 +51,24 @@ def _set_cookie(request: Request, response: Response, token: str) -> None:
     )  # fmt: skip
 
 
+def terms_status(db: Session, user_id: int) -> dict[str, Any]:
+    rows = db.scalars(select(TermsAcceptanceRow).where(TermsAcceptanceRow.user_id == user_id)
+                      .order_by(TermsAcceptanceRow.id)).all()  # fmt: skip
+    accepted = {(r.document, r.version): r.accepted_at.isoformat() for r in rows}
+    cur = legal.current_versions()
+    return {"current": cur, "outstanding": [d for d, v in cur.items() if (d, v) not in accepted],
+            "accepted": [{"document": r.document, "version": r.version, "accepted_at": r.accepted_at.isoformat()}
+                         for r in rows]}  # fmt: skip
+
+
+def record_acceptance(db: Session, user_id: int) -> None:
+    have = {(r.document, r.version) for r in db.scalars(select(TermsAcceptanceRow).where(TermsAcceptanceRow.user_id == user_id))}
+    for d, v in legal.current_versions().items():
+        if (d, v) not in have:
+            db.add(TermsAcceptanceRow(user_id=user_id, document=d, version=v))
+    db.commit()
+
+
 def me_view(db: Session, user: UserRow, active_ws: int | None) -> dict[str, Any]:
     ws = [
         {"id": w.id, "name": w.name, "personal": w.personal, "legacy": w.legacy, "role": role}
@@ -63,6 +83,7 @@ def me_view(db: Session, user: UserRow, active_ws: int | None) -> dict[str, Any]
         "workspaces": ws,
         "active_workspace_id": active,
         "role": next((w["role"] for w in ws if w["id"] == active), None),
+        "terms": terms_status(db, user.id),
     }  # fmt: skip
 
 
@@ -85,6 +106,8 @@ class SignupIn(BaseModel):
     email: str = Field(max_length=320)
     password: str = Field(max_length=256)
     display_name: str = Field("", max_length=120)
+    # Explicit consent to the current Terms and Privacy Policy (never pre-ticked in the UI).
+    accept_terms: bool = False
 
 
 @router.post("/signup", status_code=201)
@@ -96,11 +119,14 @@ def signup(body: SignupIn, request: Request, response: Response,
         raise HTTPException(403, "Sign-up is closed on this server. Ask an administrator.")
     ip = client_ip(request)
     _limit(request, "signup", ip, _int_env("GC_SIGNUP_RATE_PER_HOUR", 10, 30), 3600.0)
+    if not body.accept_terms:
+        raise HTTPException(422, "Please read and accept the Terms and Conditions and the Privacy Policy to create an account.")
     try:
         user, info = auth.signup(db, body.email, body.password, body.display_name)
     except auth.AuthError as e:
         _raise(e)
     ws_id = info["workspace_id"]
+    record_acceptance(db, user.id)
     # A ready-made example so a new account can analyse something immediately.
     repo.create_project(db, example_spec(), ws_id, user.id)
     token, _ = auth.create_session(db, user, days=s.session_days, user_agent=request.headers.get(
@@ -396,3 +422,26 @@ def delete_account(body: DeleteIn, response: Response, request: Request,
     check = verify_deleted(db, request.app.state.blobs, summary.workspace_ids, ctx.user_id, summary.project_ids)
     return {"deleted": True, "workspaces_deleted": summary.workspaces_deleted, "memberships_removed": summary.memberships_removed,
             "projects_deleted": summary.projects_deleted, "files_deleted": summary.files_deleted, "verification": check}
+
+
+@router.post("/terms/accept")
+def accept_terms(ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Accept the current versions of the Terms and Privacy Policy (after they changed)."""
+    record_acceptance(db, ctx.user_id)
+    audit.audit(db, "terms.accepted", workspace_id=ctx.workspace_id, user_id=ctx.user_id, target_type="user",
+                target_id=ctx.user_id, detail=legal.current_versions(), ip=ctx.ip)  # fmt: skip
+    return terms_status(db, ctx.user_id)
+
+
+@router.get("/legal")
+def legal_index() -> list[dict[str, Any]]:
+    """The legal documents and their current versions (public: shown before sign-up)."""
+    return [{"id": k, "title": t, "version": v, "requires_acceptance": req} for k, (t, v, _f, req) in legal.DOCS.items()]
+
+
+@router.get("/legal/{doc}")
+def legal_doc(doc: str) -> dict[str, Any]:
+    if doc not in legal.DOCS:
+        raise HTTPException(404, "unknown document")
+    t, v, _f, req = legal.DOCS[doc]
+    return {"id": doc, "title": t, "version": v, "requires_acceptance": req, "markdown": legal.text(doc)}

@@ -212,3 +212,69 @@ def _heat_sources(db: Session, spec: ProjectSpec, cfg: Config, ws: int | None) -
     v = thermal_view(hw, [c.model_dump() for c in t.components], t.thermal.ambient_c, t.thermal.steady_c,
                      t.thermal.r_th_k_per_w)  # fmt: skip
     return {n["id"]: n["heat_w"] for n in v["nodes"] if n["id"] in ("compute", "memory", "power")}
+
+
+SWEEP_AMBIENT = (10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0)
+SWEEP_LOAD = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5)  # fraction of the project's input rate
+SWEEP_MAX_OPTIONS = 8
+
+
+def cooling_sweep(db: Session, project: ProjectOut, ws: int | None) -> dict[str, Any]:
+    """Engine-evaluated temperature over ambient x load for each cooling option (fitted, the device's
+    own options, and usable catalogue classes), plus power mode x cooling at the project's ambient.
+    Every cell is one engine evaluation of the current setup; nothing is interpolated."""
+    from app.engine.cooling_catalogue import blockers, to_option, with_option
+
+    spec = project.spec
+    model = resolve_model(db, spec.model_id, ws)
+    hw = get_device(spec.device_id, ws)
+    cfg = spec.baseline or baseline_config(hw, spec.cooling_id)
+    ev = evaluator(db, spec, ws)
+    current = hw.cooling(cfg.cooling_id)
+    options: list[tuple[str, str, HardwareProfile, Config, float]] = []
+    for c in hw.cooling_options:
+        label = f"{c.name} (fitted)" if c.id == cfg.cooling_id else c.name
+        options.append((c.id, label, hw, cfg.model_copy(update={"cooling_id": c.id}), c.r_th_k_per_w))
+    for e in applicable(load_cooling_catalogue(), hw):
+        if len(options) >= SWEEP_MAX_OPTIONS:
+            break
+        if blockers(e, spec.environment, None):
+            continue
+        opt = to_option(e, current)
+        options.append((f"cat:{e.id}", e.name, with_option(hw, opt), cfg.model_copy(update={"cooling_id": opt.id}),
+                        opt.r_th_k_per_w))  # fmt: skip
+    prov = "analytical"
+    out_opts = []
+    for oid, name, h, oc, rth in options:
+        temp, thr, pw = [], [], []
+        for amb in SWEEP_AMBIENT:
+            row_t, row_th, row_p = [], [], []
+            for lf in SWEEP_LOAD:
+                wl = spec.workload.model_copy(update={"ambient_c": amb, "fps": spec.workload.fps * lf})
+                r = evaluate(model, h, oc, wl, spec.constraints)
+                row_t.append(round(r.metrics["temperature"].value, 2))
+                row_th.append(r.solver.throttled)
+                row_p.append(round(r.metrics["power_avg"].value, 3))
+            temp.append(row_t)
+            thr.append(row_th)
+            pw.append(row_p)
+        modes = []
+        for pm in hw.power_modes:
+            r = ev(model, h, oc.model_copy(update={"power_mode_id": pm.id}))
+            prov = r.metrics["temperature"].provenance.value if h is hw else prov
+            modes.append({"mode": pm.name, "temperature_c": round(r.metrics["temperature"].value, 2),
+                          "throttled": r.solver.throttled, "power_w": round(r.metrics["power_avg"].value, 3)})  # fmt: skip
+        out_opts.append({"id": oid, "name": name, "r_th_k_per_w": rth, "temperature_c": temp, "throttled": thr,
+                         "power_w": pw, "modes": modes})  # fmt: skip
+    return {
+        "schema": "green-computer.cooling-sweep/1",
+        "model_name": model.name, "device_name": hw.name, "precision": cfg.precision, "batch": cfg.batch,
+        "kind": "predicted", "provenance": "analytical", "modes_provenance": prov,
+        "ambient_c": list(SWEEP_AMBIENT), "load_fraction": list(SWEEP_LOAD),
+        "fps": [round(spec.workload.fps * lf, 3) for lf in SWEEP_LOAD],
+        "project_ambient_c": spec.workload.ambient_c, "power_modes": [p.name for p in hw.power_modes],
+        "t_throttle_c": hw.t_throttle_c, "options": out_opts,
+        "note": "Each cell is one analytical engine evaluation of today's setup (lumped thermal model, steady "
+                "state). The grid sweeps ambient temperature and input rate; it is not a CFD or board-level "
+                "thermal simulation.",
+    }  # fmt: skip

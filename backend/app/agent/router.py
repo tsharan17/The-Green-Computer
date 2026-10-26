@@ -18,6 +18,7 @@ KEYWORDS = {"ultra": "nemotron-3-ultra", "super": "nemotron-3-super", "nano": "n
 TASK_TIERS = {
     "fast": ("nano", "super", "ultra"),  # intent parsing, simple replies
     "plan": ("ultra", "super", "nano"),  # multi-step planning, explanations, narrative
+    "recommend": ("super", "ultra", "nano"),  # one structured JSON reply: candidate changes
 }
 
 

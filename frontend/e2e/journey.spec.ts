@@ -13,6 +13,7 @@ async function signUp(page: Page, who: string) {
   await page.getByLabel("Your name (optional)").fill("E2E");
   await page.getByLabel("Email").fill(who);
   await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("checkbox", { name: /I have read and accept/ }).check();
   await page.getByRole("button", { name: "Create account" }).click();
   // A new account lands on the guided start.
   await expect(page.getByRole("heading", { name: "Start a new analysis" })).toBeVisible();
@@ -42,7 +43,7 @@ test("sign-up, analysis, design plan, comparison, export and history", async ({ 
   await page.getByRole("region", { name: "Decision summary" }).getByRole("link", { name: "Review the recommended plan" }).click();
   await expect(page).toHaveURL(new RegExp(`#/p/${pid}/recommendations`));
   // Build, analyse and save a plan.
-  await page.getByRole("tab", { name: "Build a design plan" }).click();
+  await page.getByRole("tab", { name: "Build and compare a plan" }).click();
   await page.getByRole("button", { name: /Analyse this plan/ }).click();
   await expect(page.getByRole("heading", { name: "Today vs the plan" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Each change on its own" })).toBeVisible();
@@ -51,6 +52,18 @@ test("sign-up, analysis, design plan, comparison, export and history", async ({ 
   await expect(page.getByText(/Saved “E2E plan” as version 1/)).toBeVisible();
   await page.getByRole("tab", { name: "Saved plans" }).click();
   await expect(page.getByRole("cell", { name: /E2E plan/ })).toBeVisible();
+  // Recommendations by category: software and hardware, each with its validation state.
+  await page.getByRole("tab", { name: "Software and hardware" }).click();
+  await expect(page.getByRole("heading", { name: "Recommendations by category" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Software \(/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Hardware \(/ })).toBeVisible();
+  await expect(page.getByText(/Evaluated in a saved plan \(predicted\)/).first()).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workflow stages" })).toBeVisible();
+
+  // The verification report for the same inputs.
+  await page.goto(`/#/p/${pid}/check`);
+  await expect(page.getByRole("heading", { name: "Verification report" })).toBeVisible();
+  await expect(page.getByText("Ready for analysis", { exact: false }).first()).toBeVisible();
 
   // The analysis screens render from the stored analysis.
   await page.goto(`/#/p/${pid}/system-map`);
@@ -58,6 +71,8 @@ test("sign-up, analysis, design plan, comparison, export and history", async ({ 
   await expect(page.getByText("Predicted by the analytical engine", { exact: true })).toBeVisible();
   await page.goto(`/#/p/${pid}/thermal`);
   await expect(page.getByRole("heading", { name: "Cooling options for this workload" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cooling comparison maps" })).toBeVisible();
+  await expect(page.getByRole("img", { name: /Heatmap of steady temperature/ })).toBeVisible({ timeout: 30_000 });
 
   // Export: a generated report and a plan file download (the PDF itself is checked by the API tests;
   // Edge opens downloaded PDFs in a tab of its own, which would leak into later tests).

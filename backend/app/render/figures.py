@@ -411,6 +411,122 @@ def throughput_heatmap(t: dict[str, Any], pal: dict[str, Any]) -> bytes:
     return _finish(fig, t, pal, f"bound by compute {bound['compute']}, memory {bound['memory']}, overhead {bound['overhead']} operators")
 
 
+# --- cooling (drawn from a cooling sweep: plan_service.cooling_sweep) ------------------------------
+
+
+def _sweep_heatmap(fig: Any, ax: Any, cax: Any, mat: np.ndarray, thr: np.ndarray, xt: list[str], yt: list[str],
+                   s: dict[str, Any], pal: dict[str, Any]) -> None:  # fmt: skip
+    import seaborn as sns
+    from matplotlib.colors import LinearSegmentedColormap
+
+    cmap = LinearSegmentedColormap.from_list("gc_heat", pal["heat_ramp"])
+    labels = np.array([[f"{v:.0f}{'*' if t else ''}" for v, t in zip(r, tr, strict=True)] for r, tr in zip(mat, thr, strict=True)])
+    sns.heatmap(mat, ax=ax, cbar_ax=cax, cmap=cmap, vmin=float(min(mat.min(), s["t_throttle_c"] - 40)),
+                vmax=float(max(mat.max(), s["t_throttle_c"])), annot=labels, fmt="", annot_kws={"fontsize": 8},
+                linewidths=0.4, linecolor=pal["bg"], xticklabels=xt, yticklabels=yt,
+                cbar_kws={"label": "Steady temperature (°C)"})  # fmt: skip
+    ax.tick_params(axis="y", rotation=0, labelsize=8.5)
+    ax.tick_params(axis="x", rotation=0, labelsize=8.5)
+    cax.yaxis.label.set_color(pal["ink"])
+    cax.tick_params(colors=pal["muted"])
+    ax.grid(False)
+
+
+def cooling_heatmap(s: dict[str, Any], pal: dict[str, Any]) -> bytes:
+    """Cooling option x ambient at the project's input rate."""
+    from matplotlib.figure import Figure
+
+    j = s["load_fraction"].index(1.0)
+    names = [o["name"][:34] for o in s["options"]]
+    mat = np.array([[row[j] for row in o["temperature_c"]] for o in s["options"]])
+    thr = np.array([[row[j] for row in o["throttled"]] for o in s["options"]])
+    fig = Figure(figsize=(9.6, 1.6 + 0.42 * len(names)))
+    ax = fig.add_axes((0.27, 0.22, 0.6, 0.66))
+    cax = fig.add_axes((0.9, 0.22, 0.018, 0.66))
+    _sweep_heatmap(fig, ax, cax, mat, thr, [f"{a:g}" for a in s["ambient_c"]], names, s, pal)
+    ax.set_xlabel("Ambient temperature (°C)")
+    ax.set_title(f"Thermal map by cooling option at {s['fps'][j]:g} inputs/s", pad=10)
+    return _finish(fig, s, pal, f"* throttles (clock reduced to hold {s['t_throttle_c']:g} °C) | analytical sweep, not CFD")
+
+
+def mode_cooling_heatmap(s: dict[str, Any], pal: dict[str, Any]) -> bytes:
+    """Power mode x cooling option at the project's ambient and input rate."""
+    from matplotlib.figure import Figure
+
+    names = [o["name"][:34] for o in s["options"]]
+    mat = np.array([[m["temperature_c"] for m in o["modes"]] for o in s["options"]])
+    thr = np.array([[m["throttled"] for m in o["modes"]] for o in s["options"]])
+    fig = Figure(figsize=(8.4, 1.6 + 0.42 * len(names)))
+    ax = fig.add_axes((0.3, 0.22, 0.55, 0.66))
+    cax = fig.add_axes((0.88, 0.22, 0.02, 0.66))
+    _sweep_heatmap(fig, ax, cax, mat, thr, s["power_modes"], names, s, pal)
+    ax.set_xlabel("Power mode")
+    ax.set_title(f"Power mode × cooling at {s['project_ambient_c']:g} °C ambient", pad=10)
+    return _finish(fig, s, pal, f"* throttles | {s.get('modes_provenance', 'analytical')}")
+
+
+def cooling_surfaces(s: dict[str, Any], pal: dict[str, Any]) -> bytes:
+    """One 3D surface per cooling option: steady temperature over ambient x input rate, with the
+    throttle plane. Where the surface meets the plane, the chip slows down to hold its limit."""
+    from matplotlib.colors import LinearSegmentedColormap
+    from matplotlib.figure import Figure
+
+    opts = s["options"][:6]
+    cols = 3 if len(opts) > 2 else len(opts)
+    rows = (len(opts) + cols - 1) // cols
+    fig = Figure(figsize=(4.2 * cols, 3.7 * rows + 0.5))
+    cmap = LinearSegmentedColormap.from_list("gc_heat", pal["heat_ramp"])
+    amb = np.array(s["ambient_c"])
+    fps = np.array(s["fps"])
+    xx, yy = np.meshgrid(fps, amb)
+    lo = min(float(np.min(o["temperature_c"])) for o in opts)
+    hi = max(max(float(np.max(o["temperature_c"])) for o in opts), s["t_throttle_c"])
+    for i, o in enumerate(opts):
+        ax = fig.add_subplot(rows, cols, i + 1, projection="3d")
+        zz = np.array(o["temperature_c"])
+        ax.plot_surface(xx, yy, zz, cmap=cmap, vmin=lo, vmax=hi, linewidth=0.2, edgecolor=pal["line"], alpha=0.95)
+        ax.plot_surface(xx, yy, np.full_like(zz, s["t_throttle_c"]), color=pal["series"][0], alpha=0.12, linewidth=0)
+        ax.set_zlim(lo - 2, hi + 2)
+        ax.set_xlabel("Inputs/s", fontsize=8, labelpad=2)
+        ax.set_ylabel("Ambient °C", fontsize=8, labelpad=2)
+        ax.set_zlabel("°C", fontsize=8, labelpad=0)
+        ax.tick_params(labelsize=7, pad=0)
+        share = float(np.mean(np.array(o["throttled"])))
+        ax.set_title(f"{o['name'][:30]}\n{o['r_th_k_per_w']:.2f} K/W, throttles in {share:.0%} of cells", fontsize=9, loc="center")
+        ax.view_init(elev=24, azim=-128)
+        for pane in (ax.xaxis.pane, ax.yaxis.pane, ax.zaxis.pane):
+            pane.set_facecolor(pal["bg"])
+            pane.set_edgecolor(pal["line"])
+    fig.suptitle(f"Temperature surfaces per cooling option (plane = throttle point {s['t_throttle_c']:g} °C)",
+                 x=0.01, ha="left", fontsize=12, fontweight="bold")  # fmt: skip
+    fig.subplots_adjust(left=0.02, right=0.98, top=0.86, bottom=0.08, wspace=0.08, hspace=0.25)
+    return _finish(fig, s, pal, "analytical sweep, steady state; not CFD")
+
+
+SWEEP_FIGURES: dict[str, Callable[[dict[str, Any], dict[str, Any]], bytes]] = {
+    "cooling-heatmap": cooling_heatmap,
+    "mode-cooling-heatmap": mode_cooling_heatmap,
+    "cooling-surfaces": cooling_surfaces,
+}
+
+
+def render_sweep(name: str, sweep: dict[str, Any], theme: str = "light") -> bytes:
+    fn = SWEEP_FIGURES.get(name)
+    if fn is None:
+        raise KeyError(name)
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import seaborn as sns
+
+    pal = PALETTES["dark" if theme == "dark" else "light"]
+    with _LOCK, matplotlib.rc_context(_style(pal)):  # type: ignore[arg-type]
+        sns.set_theme(rc=_style(pal))
+        if not sweep.get("options"):
+            raise FigureError("no cooling options to compare for this device")
+        return fn(sweep, pal)
+
+
 FIGURES: dict[str, Callable[[dict[str, Any], dict[str, Any]], bytes]] = {
     "thermal-board": thermal_board,
     "thermal-warmup": thermal_warmup,
