@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import AiBadge from "../components/AiBadge";
 import { workflow } from "../api";
 import { ErrorNote } from "../components/Help";
 import { navigate } from "../router";
@@ -93,6 +94,11 @@ function AiSection({ projectId, canWrite, initial }: { projectId: number; canWri
   const [ai, setAi] = useState<AiCandidates | null>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const here = useRef<HTMLElement>(null);
+  useEffect(() => {
+    // The recommendation engine links here with focus=ai.
+    if (window.location.hash.includes("focus=ai")) here.current?.scrollIntoView({ block: "start" });
+  }, []);
   async function ask(refresh: boolean) {
     setBusy(true);
     setError(null);
@@ -105,13 +111,14 @@ function AiSection({ projectId, canWrite, initial }: { projectId: number; canWri
     }
   }
   return (
-    <section className="panel" aria-labelledby="ai-h">
+    <section ref={here} className="panel" aria-labelledby="ai-h">
       <div className="row">
         <h3 id="ai-h">AI candidates (optional)</h3>
         <button disabled={busy || !canWrite} onClick={() => ask(!!ai)}>
           {busy ? "Asking the model…" : ai ? "Ask again" : "Ask the AI for candidates"}
         </button>
       </div>
+      <AiBadge role="proposes extra changes, labelled not evaluated" />
       <p className="hint">
         Sends the engine's summary for this analysis (model and device names, today's settings and metrics, failing requirements,
         your requirements and the ids of changes the engine can evaluate) to the configured provider, Nebius Token Factory by default.

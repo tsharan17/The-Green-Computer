@@ -231,6 +231,7 @@ function Shell({
         {projectId !== null && (
           <button className="agent-btn" onClick={() => setAgentOpen(true)}>
             Ask the assistant
+            <small>Green Agent, NVIDIA Nemotron on Nebius</small>
           </button>
         )}
         <a className={`cap-link ${p0 === "capabilities" ? "on" : ""}`} href="#/capabilities">What this installation can do</a>

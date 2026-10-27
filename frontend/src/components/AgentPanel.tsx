@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import AiBadge from "./AiBadge";
 import { agentChat, api } from "../api";
 import type { AgentEvent, AgentStatus } from "../types";
 
@@ -90,6 +91,7 @@ export default function AgentPanel({
         <h2>Green Agent</h2>
         {status?.configured && !status.detail && <span className="chip chip-predicted_feasible">Nemotron connected</span>}
       </div>
+      <AiBadge role="plans, calls the engine as tools, explains" />
       <p className="hint">
         Nemotron on Nebius Token Factory plans and explains. The physics engine computes every number, and any figure
         the agent writes that is not in a tool result is rejected. It cannot change your hard constraints.

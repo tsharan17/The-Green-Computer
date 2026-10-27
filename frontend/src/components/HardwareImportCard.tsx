@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import AiBadge from "./AiBadge";
 import { api } from "../api";
 import type { HardwareDraft } from "../types";
 
@@ -144,7 +145,9 @@ export default function HardwareImportCard({ onConfirmed, refreshKey = 0 }: { on
 
   return (
     <details className="import-card">
-      <summary>Your hardware isn't in the list? Add it</summary>
+      <summary>
+        Your hardware isn't in the list? Add it <AiBadge compact role="reads the datasheet, you confirm" extra="Tavily" />
+      </summary>
       <p className="hint">
         Type its name and we search for its datasheet and read the specs for you (needs the Tavily and Nemotron keys), or
         enter the numbers yourself. You always confirm the values before the device is used. Searching sends the name you type to
