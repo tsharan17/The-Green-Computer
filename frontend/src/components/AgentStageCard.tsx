@@ -147,30 +147,25 @@ export default function AgentStageCard({
   }, []);
   const help = helpFor(step.id, { model, device, spec, res });
   const off = status !== null && !status.configured;
+  const note = off
+    ? "Not configured on this server (needs TOKEN_FACTORY_API_KEY). Everything else works without it."
+    : !canWrite
+      ? "Your role is read-only, so the agent is off for you."
+      : null;
   return (
     <aside className="agent-stage" aria-label="Green Agent on this step">
-      <div className="agent-stage-head">
-        <strong>Green Agent here</strong>
+      <p className="agent-stage-does" title={`Uses: ${help.tools.join(", ")}. The engine computes every number; figures not in its results are rejected.`}>
         <AiBadge compact role="plans, calls the engine as tools, explains" />
-      </div>
-      <p className="agent-stage-does">{help.does}</p>
-      <ul className="agent-stage-tools" aria-label="Engine tools it uses">
-        {help.tools.map((t) => <li key={t}>{t}</li>)}
-      </ul>
+        <strong>Green Agent:</strong> {help.does}
+      </p>
       <div className="agent-stage-qs">
         {help.questions.map((q) => (
-          <button key={q} type="button" disabled={off || !canWrite} onClick={() => onAsk(q)}>
-            {q}
+          <button key={q} type="button" disabled={!!note} onClick={() => onAsk(q)}>
+            <span aria-hidden>→</span> {q}
           </button>
         ))}
       </div>
-      <p className="agent-stage-foot">
-        {off
-          ? "Not configured on this server (needs TOKEN_FACTORY_API_KEY). Everything else works without it."
-          : !canWrite
-            ? "Your role is read-only, so the agent is off for you."
-            : "The engine computes every number; figures not in its results are rejected."}
-      </p>
+      {note && <p className="agent-stage-foot">{note}</p>}
     </aside>
   );
 }

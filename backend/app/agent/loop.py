@@ -25,6 +25,11 @@ Emit = Callable[[dict[str, Any]], None]
 SYSTEM_PROMPT = (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8")
 MAX_REWRITES = 2
 MAX_RESULT_CHARS = 24000  # keep tool output within a sane context budget
+EMPTY_RETRY_TOKENS = 8192
+WRITE_NOW = (
+    "Write your answer to my question now, from the tool results above. Do not call more tools. "
+    "Keep it short: the recommendation first, then a few bullet points."
+)
 
 
 def _compact(result: dict[str, Any]) -> str:
@@ -69,6 +74,7 @@ def run_turn(
     out({"type": "status", "text": f"Planning with {plan_model}"})
     reply_text = ""
     rewrites = 0
+    empty_retries = 0
     guard_ok = True
 
     try:
@@ -111,6 +117,22 @@ def run_turn(
                 continue
 
             reply_text = reply.content
+            if not reply_text.strip():
+                # A reasoning model can spend its whole budget thinking and write nothing: ask
+                # once more, without tools and with more room, before giving up.
+                if empty_retries < 1:
+                    empty_retries += 1
+                    out({"type": "status", "text": "Writing the answer"})
+                    messages.pop()
+                    messages.append({"role": "user", "content": WRITE_NOW})
+                    reply = llm.chat(plan_model, messages, max_tokens=EMPTY_RETRY_TOKENS)
+                    messages.append(reply.message)
+                    reply_text = reply.content
+                if not reply_text.strip():
+                    raise LLMError(
+                        "the model used its whole budget thinking and wrote no answer. Ask again, "
+                        "or ask a narrower question"
+                    )
             verdict = check(reply_text, tool_results, user_texts)
             if verdict.ok:
                 guard_ok = True

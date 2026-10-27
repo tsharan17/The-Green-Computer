@@ -501,16 +501,12 @@ function ProjectView({
       <DecisionBar decide={area === "recommendations" || area === "verify"} project={project} res={res} stale={stale || (!!res && dirty)} busy={busy} canWrite={canWrite} model={model} device={device} onAnalyse={analyse}
         next={nextStep ? { label: `Next: ${nextStep.title}`, href: hrefOf(projectId, nextStep) } : null} />
       <ErrorNote error={error} onRetry={() => setError(null)} />
+      {here.step && <StepHeader projectId={projectId} step={here.step} side={here.side} />}
       {here.step && (
-        <div className="step-row">
-          <div>
-            <StepHeader projectId={projectId} step={here.step} side={here.side} />
-            <SubSteps projectId={projectId} step={here.step} side={here.side} />
-          </div>
-          <AgentStageCard step={here.step} model={model?.name ?? spec.model_id} device={device?.name ?? spec.device_id}
-            spec={spec} res={res} canWrite={canWrite} onAsk={askAgent} />
-        </div>
+        <AgentStageCard step={here.step} model={model?.name ?? spec.model_id} device={device?.name ?? spec.device_id}
+          spec={spec} res={res} canWrite={canWrite} onAsk={askAgent} />
       )}
+      {here.step && <SubSteps projectId={projectId} step={here.step} side={here.side} />}
 
       {area === "summary" && (res ? <SummaryPage res={res} spec={spec} projectId={projectId} runId={runId} version={project.version} /> : needsResult)}
       {area === "input" && (

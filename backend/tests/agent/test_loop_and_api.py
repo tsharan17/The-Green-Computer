@@ -152,6 +152,29 @@ def test_agent_can_change_the_device_and_workload_but_not_to_unknown_things(clie
     assert spec["baseline"] is None and spec["cooling_id"] == "passive_large"
 
 
+def test_a_what_if_on_another_device_leaves_the_project_alone(client, db):
+    p = pid(client)
+    before = client.get(f"{P}/projects/{p}").json()
+    what_if = call("evaluate", {"device_id": "jetson-agx-orin", "workload": {"ambient_c": 45}})
+    llm = ScriptedLLM([calls_reply(what_if), text_reply("Done.")])
+    seen = []
+    run_turn(db, p, "would the AGX do better?", [], llm, MODELS, seen.append)
+    assert [e["ok"] for e in seen if e["type"] == "tool_result"] == [True]
+    after = client.get(f"{P}/projects/{p}").json()
+    assert after["version"] == before["version"] and after["spec"] == before["spec"]
+
+
+def test_an_empty_answer_is_asked_for_once_more_then_reported(client, db):
+    seen = []
+    llm = ScriptedLLM([text_reply(""), text_reply("Heat is the limit.")])
+    out = run_turn(db, pid(client), "why?", [], llm, MODELS, seen.append)
+    assert out["reply"] == "Heat is the limit." and llm.seen[-1]["tools"] is False
+    seen = []
+    llm = ScriptedLLM([text_reply(""), text_reply("  ")])
+    out = run_turn(db, pid(client), "why?", [], llm, MODELS, seen.append)
+    assert out["reply"] == "" and "wrote no answer" in out["error"] and seen[-1]["type"] == "error"
+
+
 def test_tool_call_cap_forces_a_text_answer(client, db):
     forever = lambda messages, tools: (  # noqa: E731
         text_reply("Stopping now.") if tools is None else calls_reply(call("list_devices"))

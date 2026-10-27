@@ -160,7 +160,10 @@ export default function AgentPanel({
               </ol>
             )}
             {t.text && (t.role === "assistant" ? <ChatText text={t.text} /> : <p className="bubble">{t.text}</p>)}
-            {t.role === "assistant" && t.guardrailOk === true && <p className="hint">Every figure above was checked against engine output.</p>}
+            {t.role === "assistant" && t.text && t.guardrailOk === true && <p className="hint">Every figure above was checked against engine output.</p>}
+            {t.role === "assistant" && !t.pending && !t.text && !t.error && (
+              <p className="note">The agent finished without writing an answer. Ask again, or ask a narrower question.</p>
+            )}
             {t.role === "assistant" && t.guardrailOk === false && <p className="note">Some figures could not be verified and were removed.</p>}
             {t.error && <p className="error">{t.error}</p>}
           </div>

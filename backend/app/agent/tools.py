@@ -143,7 +143,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "List hardware profiles with supported precisions, power modes and cooling options.", {}),
     _fn("list_models", "List available AI models (library and user-uploaded).", {}),
     _fn("update_project_spec",
-        "Change the project's model, device, cooling, baseline deployment or workload. You CANNOT "
+        "SAVE a change to the project's model, device, cooling, baseline deployment or workload. Only "
+        "when the user explicitly asks to change their project; for what-ifs use `evaluate`. You CANNOT "
         "change hard constraints (power, accuracy, latency, memory); the user does that in the form.",
         {
             "model_id": {"type": "string"},
@@ -157,10 +158,18 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "grid_gco2_per_kwh": {"type": "number"}, "streaming": {"type": "boolean"}}},
         }),
     _fn("evaluate",
-        "Run the physics engine on one configuration (omit config for the project's baseline). "
-        "Returns every metric with unit, best/worst case and source, plus constraint checks.",
+        "Run the physics engine on one configuration (omit config for the baseline). Returns every "
+        "metric with unit, best/worst case and source, plus constraint checks. For a what-if, pass "
+        "model_id, device_id, cooling_id and/or workload: they apply to this evaluation only and the "
+        "project is NOT changed. Omit config when you change device_id (power modes differ per device).",
         {"config": {"type": "object", "properties": _CONFIG_PROPS,
-                    "required": ["precision", "batch", "power_mode_id", "cooling_id"]}}),
+                    "required": ["precision", "batch", "power_mode_id", "cooling_id"]},
+         "model_id": {"type": "string"},
+         "device_id": {"type": "string"},
+         "cooling_id": {"type": "string"},
+         "workload": {"type": "object", "properties": {
+             "fps": {"type": "number"}, "ambient_c": {"type": "number"},
+             "hours_per_day": {"type": "number"}, "streaming": {"type": "boolean"}}}}),
     _fn("optimise",
         "Sweep thousands of software and hardware configurations and rank them under the hard "
         "constraints. Returns the best candidate, the top list (ids like top-1), the "
@@ -235,7 +244,8 @@ def _list_models(ctx: ToolContext, _a: dict) -> dict:
     }  # fmt: skip
 
 
-def _update_project_spec(ctx: ToolContext, a: dict) -> dict:
+def _changed_spec(ctx: ToolContext, a: dict) -> ProjectSpec:
+    """The project's spec with the model, device, cooling, baseline or workload in `a` swapped in."""
     forbidden = [k for k in a if k in ("constraints", "max_power_w", "min_accuracy",
                                        "max_latency_ms", "max_memory_gb", "forbid_throttling")]  # fmt: skip
     if forbidden:
@@ -266,6 +276,11 @@ def _update_project_spec(ctx: ToolContext, a: dict) -> dict:
         validate_refs(ctx.db, new, ctx.workspace_id)
     except (SpecError, ValueError) as e:
         raise ToolError(str(e)) from e
+    return new
+
+
+def _update_project_spec(ctx: ToolContext, a: dict) -> dict:
+    new = _changed_spec(ctx, a)
     repo.update_project(ctx.db, ctx.project_id, new, ctx.workspace_id, ctx.user_id,
                         note="changed by the Green Agent at the user's request")  # fmt: skip
     ctx.candidates.clear()
@@ -274,6 +289,9 @@ def _update_project_spec(ctx: ToolContext, a: dict) -> dict:
 
 
 def _evaluate(ctx: ToolContext, a: dict) -> dict:
+    # A what-if on another model, device, cooling or workload is evaluated without saving it.
+    what_if = {k: a[k] for k in ("model_id", "device_id", "cooling_id", "workload") if k in a}
+    spec = _changed_spec(ctx, what_if) if what_if else ctx.spec
     cfg = None
     if a.get("config"):
         try:
@@ -281,7 +299,7 @@ def _evaluate(ctx: ToolContext, a: dict) -> dict:
         except ValueError as e:
             raise ToolError(f"invalid config: {e}") from e
     try:
-        r = svc.evaluate_project(ctx.db, ctx.project_id, ctx.spec, cfg, ctx.workspace_id,
+        r = svc.evaluate_project(ctx.db, ctx.project_id, spec, cfg, ctx.workspace_id,
                                  ctx.user_id)  # fmt: skip
     except (ValueError, KeyError) as e:
         raise ToolError(str(e)) from e
