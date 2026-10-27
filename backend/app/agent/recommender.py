@@ -18,7 +18,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from app.agent import guardrail
-from app.agent.client import LLM, LLMError
+from app.agent.client import LLM, ChatReply, LLMError
 from app.engine.recommendations import AREA_LABEL, HARDWARE_AREAS, SOFTWARE_AREAS
 
 SCHEMA = "green-computer.ai-candidates/1"
@@ -159,23 +159,41 @@ def validate(reply: Reply, summary: dict[str, Any]) -> dict[str, Any]:
     return {"summary": g.text, "candidates": kept, "dropped": dropped}
 
 
-def generate(llm: LLM, model: str, summary: dict[str, Any], max_tokens: int = 1400) -> dict[str, Any]:
+def _read(reply: ChatReply) -> Reply:
+    """Parse a reply; when there is nothing to parse, say why instead of a bare format error."""
+    try:
+        return parse(reply.content)
+    except LLMError as e:
+        if reply.finish_reason == "length" or not reply.content.strip():
+            raise LLMError(
+                "the model ran out of room before it wrote an answer (reasoning models spend part of their budget "
+                "thinking). Try again; if it keeps happening, set GC_MODEL_SUPER or GC_MODEL_NANO to a model "
+                "that answers directly"
+            ) from e
+        raise
+
+
+def generate(llm: LLM, model: str, summary: dict[str, Any], max_tokens: int = 4096) -> dict[str, Any]:
     messages = [
         {"role": "system", "content": SYSTEM.format(n=MAX_CANDIDATES, areas=", ".join((*SOFTWARE_AREAS, *HARDWARE_AREAS)))},
         {"role": "user", "content": json.dumps(summary, separators=(",", ":"), default=str)},
     ]  # fmt: skip
     reply = llm.chat(model, messages, temperature=0.2, max_tokens=max_tokens)
     try:
-        parsed = parse(reply.content)
+        parsed = _read(reply)
     except LLMError as first:
-        # One retry, quoting the problem back to the model, with no randomness; a second failure is reported.
-        messages += [
-            {"role": "assistant", "content": reply.content[:6000]},
-            {"role": "user", "content": f"That reply could not be read ({first}). Reply again with the one JSON "
-                                        "object only: valid JSON, commas between all items, no prose."},
-        ]  # fmt: skip
+        # One retry with no randomness. If the model ran out of room there is nothing to quote back, so it gets
+        # twice the room; otherwise its reply is quoted back with what was wrong. A second failure is reported.
+        if reply.finish_reason == "length" or not reply.content.strip():
+            max_tokens = min(max_tokens * 2, 8192)
+        else:
+            messages += [
+                {"role": "assistant", "content": reply.content[:6000]},
+                {"role": "user", "content": f"That reply could not be read ({first}). Reply again with the one JSON "
+                                            "object only: valid JSON, commas between all items, no prose."},
+            ]  # fmt: skip
         reply = llm.chat(model, messages, temperature=0.0, max_tokens=max_tokens)
-        parsed = parse(reply.content)
+        parsed = _read(reply)
     out = validate(parsed, summary)
     return {
         "schema": SCHEMA, "model": reply.model or model, "usage": reply.usage, **out,

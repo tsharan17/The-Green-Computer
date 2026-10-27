@@ -44,6 +44,8 @@ class ChatReply:
     message: dict[str, Any] = field(default_factory=dict)
     model: str = ""
     usage: dict[str, Any] = field(default_factory=dict)
+    # Why the model stopped: "stop" (finished), "length" (ran out of max_tokens), "tool_calls", ...
+    finish_reason: str = ""
 
 
 class LLM(Protocol):
@@ -169,4 +171,5 @@ class TokenFactoryClient:
             message=wire,
             model=data.get("model", model),
             usage=data.get("usage", {}) or {},
+            finish_reason=str(data["choices"][0].get("finish_reason") or ""),
         )

@@ -131,14 +131,16 @@ class FakeLLM:
     """`content` is one reply (text or an exception) used for every call, or a list of replies in order."""
 
     def __init__(self, content):
-        self.content, self.calls = content, []
+        self.content, self.calls, self.budgets = content, [], []
 
     def chat(self, model, messages, tools=None, tool_choice=None, temperature=0.2, max_tokens=2048):
         self.calls.append(list(messages))
+        self.budgets.append(max_tokens)
         reply = self.content[min(len(self.calls), len(self.content)) - 1] if isinstance(self.content, list) else self.content
         if isinstance(reply, Exception):
             raise reply
-        return ChatReply(content=reply, model=model, usage={"total_tokens": 321})
+        # An empty reply is what a reasoning model gives when its thinking used up the whole budget.
+        return ChatReply(content=reply, model=model, usage={"total_tokens": 321}, finish_reason="length" if not reply else "stop")
 
     def list_models(self):
         return ["nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3-nano-30b"]
@@ -226,6 +228,21 @@ def test_ai_candidates_retry_once_with_the_error_quoted_back(c, monkeypatch):
     _use(c, monkeypatch, down)
     assert c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={"refresh": True}).status_code == 502
     assert len(down.calls) == 1
+
+
+def test_ai_candidates_give_a_reasoning_model_more_room_when_it_runs_out(c, monkeypatch):
+    c.post(f"{P}/projects/{c.pid}/optimise")
+    llm = FakeLLM(["", json.dumps(_GOOD)])  # first answer: nothing, the thinking used the whole budget
+    _use(c, monkeypatch, llm)
+    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={})
+    assert r.status_code == 200, r.text
+    assert len(llm.calls) == 2 and llm.budgets[1] == 2 * llm.budgets[0] and llm.budgets[0] >= 4096
+    assert len(llm.calls[1]) == len(llm.calls[0])  # nothing to quote back, so the prompt is unchanged
+    c.post(f"{P}/projects/{c.pid}/optimise")
+    stuck = FakeLLM("")
+    _use(c, monkeypatch, stuck)
+    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={"refresh": True})
+    assert r.status_code == 502 and "ran out of room" in r.json()["detail"] and "GC_MODEL_NANO" in r.json()["detail"]
 
 
 def test_ai_candidates_need_a_key_and_an_analysis(c, monkeypatch):
