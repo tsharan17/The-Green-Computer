@@ -5,7 +5,7 @@ Edit the bracketed parts after you have run the live checks. Do not claim anythi
 **Project name:** The Green Computer
 **Tagline:** Predict. Optimise. Verify. Make every computation count.
 **Track:** Best Apps and Agents
-**Demo URL:** [DEMO URL]  **Code:** https://github.com/tsharan17/The-Green-Computer (must be public, Apache-2.0 shown in the About section)
+**Demo URL:** https://green-computer-7yy6xwxdna-ue.a.run.app  **Code:** https://github.com/tsharan17/The-Green-Computer (must be public, Apache-2.0 shown in the About section)
 **Video:** [YouTube link, public, under 3 minutes]
 
 ## Inspiration
@@ -56,7 +56,7 @@ The guardrail and the read-only requirements; one numbered path where each step 
   - **datasheet import**, with Tavily search and `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` extraction: it failed the same two ways at first. After the fix it drafted four real devices (Hailo-8L, Hailo-8, Coral Dev Board, Jetson Orin Nano Super), each value tied to its source page and nothing guessed. One draft went all the way through confirmation and analysis.
 - **Not run live:** Nebius Serverless Jobs and Endpoints (the Nebius CLI is not installed on our development machine).
 - Generated recipes are syntax-checked only; the chip-design what-ifs are directional.
-- The Docker image and compose stack are written but not built. [Update when the demo is deployed.]
+- The Docker image is built and runs on Google Cloud Run (the public demo). The compose stack is written but has not been run.
 
 ## Built with
 
@@ -78,7 +78,7 @@ NVIDIA models and tools: [anything about Nemotron quality, speed or licensing yo
 
 ## Testing instructions (for the Devpost form)
 
-Open [DEMO URL], create a free account (no email confirmation needed), open the example project and press **Analyse**, then follow the numbered path: Analysis, Try changes, Plan, Export. The **Ask the assistant** button uses Nemotron on Token Factory and is rate limited. Datasheet search and GPU benchmark launching are switched off in the public demo because they spend credits; see `docs/for-judges.md`. [Add a ready test account here if you create one.]
+Open https://green-computer-7yy6xwxdna-ue.a.run.app, create a free account (no email confirmation needed), open the example project and press **Analyse**, then follow the numbered path: Analysis, Try changes, Plan, Export. The **Ask the assistant** button uses Nemotron on Token Factory and is rate limited. Datasheet import (Tavily + Nemotron Nano) is on but limited to 5 an hour; try "Hailo-8L" under Inputs > Hardware. GPU benchmark launching is switched off in the public demo because it spends credits; see `docs/for-judges.md`. [Add a ready test account here if you create one.]
 
 ## Submission checklist
 

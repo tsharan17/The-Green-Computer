@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import AiBadge from "./AiBadge";
+import ChatText from "./ChatText";
 import { agentChat, api } from "../api";
 import type { AgentEvent, AgentStatus } from "../types";
 
@@ -29,20 +30,26 @@ const TOOL_LABEL: Record<string, string> = {
   calibration_status: "Checked measurements",
   submit_benchmark: "Launched a GPU benchmark",
   get_benchmark: "Checked a benchmark",
+  find_datasheet: "Searched for a datasheet",
+  import_hardware: "Drafted a hardware profile",
 };
 
 export default function AgentPanel({
   projectId,
   onProjectChanged,
+  ask,
 }: {
   projectId: number;
   onProjectChanged: () => void;
+  /** A question picked on a step's Green Agent box; `n` changes each time one is picked. */
+  ask?: { text: string; n: number } | null;
 }) {
   const [status, setStatus] = useState<AgentStatus | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const asked = useRef(0);
 
   useEffect(() => {
     api.agentStatus().then(setStatus).catch((e) => setStatus({ configured: false, base_url: "", detail: String(e) }));
@@ -50,6 +57,13 @@ export default function AgentPanel({
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [turns]);
+
+  useEffect(() => {
+    if (!ask || !status?.configured || busy || asked.current === ask.n) return;
+    asked.current = ask.n;
+    send(ask.text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ask?.n, status?.configured, busy]);
 
   async function send(text: string) {
     const message = text.trim();
@@ -145,7 +159,7 @@ export default function AgentPanel({
                 {t.pending && <li><span className="muted">working…</span></li>}
               </ol>
             )}
-            {t.text && <p className="bubble">{t.text}</p>}
+            {t.text && (t.role === "assistant" ? <ChatText text={t.text} /> : <p className="bubble">{t.text}</p>)}
             {t.role === "assistant" && t.guardrailOk === true && <p className="hint">Every figure above was checked against engine output.</p>}
             {t.role === "assistant" && t.guardrailOk === false && <p className="note">Some figures could not be verified and were removed.</p>}
             {t.error && <p className="error">{t.error}</p>}

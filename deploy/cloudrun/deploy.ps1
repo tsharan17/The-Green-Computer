@@ -74,6 +74,7 @@ $Region = Cfg "REGION" "us-east1"
 $Service = Cfg "SERVICE" "green-computer"
 $db = Cfg "DATABASE_URL"
 $apiKey = Cfg "TOKEN_FACTORY_API_KEY"
+$tavilyKey = Cfg "TAVILY_API_KEY"
 
 if ($Project -eq "" -or $Project.StartsWith("your-")) { Fail "Set PROJECT_ID in $EnvFile (the project ID, not its name)." }
 if ($db -eq "" -or $db.Contains("USER:PASSWORD")) { Fail "Set DATABASE_URL in $EnvFile (the Neon connection string)." }
@@ -84,6 +85,7 @@ if ($db -notmatch 'sslmode=') {
 }
 if ($db -match '-pooler') { Warn "This looks like Neon's pooled address. Turn 'Connection pooling' off in Neon and copy the direct string." }
 if ($apiKey -eq "") { Warn "No TOKEN_FACTORY_API_KEY: the Green Agent and AI candidates will be off in the demo." }
+if ($tavilyKey -eq "") { Warn "No TAVILY_API_KEY: datasheet search will be off in the demo (uploading a PDF datasheet still works)." }
 
 # --- 1. gcloud, project, billing -------------------------------------------------------------------
 Say "Checking gcloud and project $Project"
@@ -149,6 +151,7 @@ function Set-Secret([string]$name, [string]$value, [bool]$generate) {
 [void](Set-Secret "gc-secret-key" (Cfg "GC_SECRET_KEY") $true)
 [void](Set-Secret "gc-agent-signing-secret" (Cfg "GC_AGENT_SIGNING_SECRET") $true)
 $haveKey = Set-Secret "gc-token-factory-key" $apiKey $false
+$haveTavily = Set-Secret "gc-tavily-key" $tavilyKey $false
 
 # --- 4. build and deploy -----------------------------------------------------------------------------
 $publicUrl = "https://$Service-$number.$Region.run.app"
@@ -161,6 +164,7 @@ foreach ($k in "GC_MODEL_ULTRA", "GC_MODEL_SUPER", "GC_MODEL_NANO", "TOKEN_FACTO
 }
 $secrets = @("GC_DB_URL=gc-db-url:latest", "GC_SECRET_KEY=gc-secret-key:latest", "GC_AGENT_SIGNING_SECRET=gc-agent-signing-secret:latest")
 if ($haveKey) { $secrets += "TOKEN_FACTORY_API_KEY=gc-token-factory-key:latest" }
+if ($haveTavily) { $secrets += "TAVILY_API_KEY=gc-tavily-key:latest" }
 
 Say "Building the image and deploying $Service to $Region (5 to 10 minutes the first time)"
 Invoke-Gcloud run deploy $Service --project $Project --region $Region --source $RepoRoot --quiet `

@@ -6,8 +6,8 @@ Two supported shapes:
   disk.
 
 A third shape, for the free public demo, is Google Cloud Run with a free Neon PostgreSQL database and a
-keep-warm job: see [deploy/cloudrun/README.md](../deploy/cloudrun/README.md) (script written, not yet
-run).
+keep-warm job: see [deploy/cloudrun/README.md](../deploy/cloudrun/README.md) (deployed and checked
+on 27 October 2026).
 
 None of them needs any external SaaS, except that third one. GPU jobs, the AI assistant, error webhooks and telemetry are all
 optional and off by default.

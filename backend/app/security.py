@@ -170,6 +170,11 @@ def limit_agent(request: Request) -> None:
     _limit(request, "agent", _int_env("GC_AGENT_RATE_PER_HOUR", 40), 3600.0, "agent questions")
 
 
+def limit_datasheet(request: Request) -> None:
+    """Datasheet search and reading spend Tavily and Token Factory credits: a few per hour in the demo."""
+    _limit(request, "datasheet", _int_env("GC_DATASHEET_RATE_PER_HOUR", 5), 3600.0, "datasheet imports")
+
+
 def limit_analyse(request: Request) -> None:
     _limit(request, "analyse", _int_env("GC_ANALYSE_RATE_PER_MIN", 30), 60.0, "analyses")
 

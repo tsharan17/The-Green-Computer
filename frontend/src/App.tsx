@@ -2,6 +2,7 @@ import VerifyEmail from "./pages/VerifyEmail";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, auth, history, setWorkspace } from "./api";
 import AgentPanel from "./components/AgentPanel";
+import AgentStageCard from "./components/AgentStageCard";
 import DecisionBar from "./components/DecisionBar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ExecutionPanel from "./components/ExecutionPanel";
@@ -157,6 +158,7 @@ function Shell({
   const [devices, setDevices] = useState<HardwareProfile[]>([]);
   const [libError, setLibError] = useState<unknown>(null);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [agentAsk, setAgentAsk] = useState<{ text: string; n: number } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const refreshLibrary = useCallback(async () => {
@@ -293,7 +295,15 @@ function Shell({
                 setModels={setModels}
                 refreshLibrary={refreshLibrary}
                 agentOpen={agentOpen}
-                closeAgent={() => setAgentOpen(false)}
+                closeAgent={() => {
+                  setAgentOpen(false);
+                  setAgentAsk(null); // a picked question is asked once, not again when the drawer reopens
+                }}
+                agentAsk={agentAsk}
+                askAgent={(text) => {
+                  setAgentAsk((a) => ({ text, n: (a?.n ?? 0) + 1 }));
+                  setAgentOpen(true);
+                }}
               />
             ) : (
               <WorkspacePage me={me} models={models} devices={devices} />
@@ -343,6 +353,8 @@ function ProjectView({
   refreshLibrary,
   agentOpen,
   closeAgent,
+  agentAsk,
+  askAgent,
 }: {
   projectId: number;
   area: AreaId | null;
@@ -354,6 +366,8 @@ function ProjectView({
   refreshLibrary: () => Promise<void>;
   agentOpen: boolean;
   closeAgent: () => void;
+  agentAsk: { text: string; n: number } | null;
+  askAgent: (question: string) => void;
 }) {
   const [project, setProject] = useState<ProjectOut | null>(null);
   const [spec, setSpec] = useState<ProjectSpec | null>(null);
@@ -487,8 +501,16 @@ function ProjectView({
       <DecisionBar decide={area === "recommendations" || area === "verify"} project={project} res={res} stale={stale || (!!res && dirty)} busy={busy} canWrite={canWrite} model={model} device={device} onAnalyse={analyse}
         next={nextStep ? { label: `Next: ${nextStep.title}`, href: hrefOf(projectId, nextStep) } : null} />
       <ErrorNote error={error} onRetry={() => setError(null)} />
-      {here.step && <StepHeader projectId={projectId} step={here.step} side={here.side} />}
-      {here.step && <SubSteps projectId={projectId} step={here.step} side={here.side} />}
+      {here.step && (
+        <div className="step-row">
+          <div>
+            <StepHeader projectId={projectId} step={here.step} side={here.side} />
+            <SubSteps projectId={projectId} step={here.step} side={here.side} />
+          </div>
+          <AgentStageCard step={here.step} model={model?.name ?? spec.model_id} device={device?.name ?? spec.device_id}
+            spec={spec} res={res} canWrite={canWrite} onAsk={askAgent} />
+        </div>
+      )}
 
       {area === "summary" && (res ? <SummaryPage res={res} spec={spec} projectId={projectId} runId={runId} version={project.version} /> : needsResult)}
       {area === "input" && (
@@ -584,7 +606,7 @@ function ProjectView({
       {agentOpen && <div className="scrim" onClick={closeAgent} />}
       <aside className={`drawer ${agentOpen ? "open" : ""}`} aria-hidden={!agentOpen} aria-label="Assistant">
         <button className="drawer-close" onClick={closeAgent} aria-label="Close the assistant">×</button>
-        {agentOpen && <AgentPanel projectId={projectId} onProjectChanged={load} />}
+        {agentOpen && <AgentPanel projectId={projectId} onProjectChanged={load} ask={agentAsk} />}
       </aside>
     </TraceProvider>
   );

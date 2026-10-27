@@ -247,3 +247,29 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent) !importa
 .ai-callout .ai-badge { justify-self: start; margin: 6px 0; }
 .ai-badge.compact { flex-wrap: nowrap; white-space: nowrap; }
 .import-card > summary .ai-badge { margin: 4px 0 0 18px; display: flex; width: max-content; }
+
+/* Green Agent box beside each step: what the agent can do here, and questions built from the project. */
+.step-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); gap: 16px; align-items: start; margin-bottom: 12px; }
+.step-row .substeps { margin-bottom: 0; }
+@media (max-width: 960px) { .step-row { grid-template-columns: minmax(0, 1fr); } }
+.agent-stage { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--accent-strong); border-left-width: 4px; border-radius: var(--radius-sm); background: var(--accent-soft); }
+.agent-stage-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.agent-stage-head strong { font-size: 14px; color: var(--accent-strong); }
+.agent-stage-does { margin: 0; font-size: 13px; line-height: 1.45; }
+.agent-stage-tools { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.agent-stage-tools li { padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--muted); font-size: 11px; }
+.agent-stage-qs { display: grid; gap: 6px; }
+.agent-stage-qs button { min-height: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); color: var(--ink); font-size: 13px; font-weight: 500; line-height: 1.35; text-align: left; white-space: normal; }
+.agent-stage-qs button:hover:not(:disabled) { border-color: var(--accent-strong); background: var(--sunk); }
+.agent-stage-qs button::before { content: "Ask 92  "; color: var(--accent-strong); font-weight: 600; }
+.agent-stage-foot { margin: 0; color: var(--muted); font-size: 11px; }
+
+/* Agent replies rendered from Markdown. */
+.bubble.chat-md { white-space: normal; display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
+.chat-md > * { margin: 0; }
+.chat-md .chat-h { font-weight: 600; margin-top: 4px; }
+.chat-md ul, .chat-md ol { padding-left: 20px; }
+.chat-md hr { width: 100%; border: 0; border-top: 1px solid var(--line); }
+.chat-md code { padding: 0 4px; border-radius: 4px; background: var(--sunk); font-size: 12.5px; }
+.chat-md .table-wrap { overflow-x: auto; }
+.chat-md .tbl { font-size: 12.5px; }

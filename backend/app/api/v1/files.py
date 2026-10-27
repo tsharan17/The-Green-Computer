@@ -33,7 +33,7 @@ from app.engine.vendor_reports import detect, parse_power_csv, parse_report
 from app.integrations.tavily import SearchHit
 from app.schemas.hardware import HardwareProfile
 from app.sdk import ProjectFileError, load_project
-from app.security import block_in_demo, max_custom_items
+from app.security import limit_datasheet, max_custom_items
 from app.services import hardware_service as hw
 
 router = APIRouter()
@@ -131,7 +131,7 @@ async def inspect_file(
     name = filename.lower()
 
     if name.endswith(".pdf"):
-        block_in_demo("Datasheet reading")
+        limit_datasheet(request)
         text = _pdf_text(data)
         try:
             llm = _llm(request)

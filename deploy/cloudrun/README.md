@@ -1,6 +1,6 @@
 # Host the demo free on Google Cloud Run + Neon
 
-**Status: written, never run.** The deploy script was checked for syntax and for its input checks only. The Docker image has never been built, so expect a fix or two on the first run. Allow an hour, not ten minutes, and do it at least two days before the deadline.
+**Status: deployed and working (27 Oct 2026).** The first run exposed one bug (sign-up refused behind the HTTPS proxy), now fixed. Allow an hour on a fresh project.
 
 What you get: a public `https://green-computer-….run.app` link (HTTPS, no sign-in needed to open it), accounts and projects kept in a free Neon PostgreSQL database, and a free scheduled ping that keeps the app awake.
 
@@ -20,7 +20,7 @@ Nothing, if the demo stays inside the free allowances: Cloud Run 2 million reque
 
 - **Uploaded files and exports are kept on the instance's disk, which is wiped when Cloud Run restarts it.** Accounts, projects, analyses and plans survive (they are in Neon). A judge who generates an export and downloads it straight away is fine; one who comes back after a restart will find the old export's download fails and should create it again.
 - **A cold start takes 5 to 10 seconds** if the keep-warm ping ever misses. Neon pauses after 5 idle minutes and wakes in about a second on the next request.
-- The demo runs with `GC_PUBLIC_DEMO=1`: datasheet search and GPU jobs are refused, the Green Agent is rate limited, uploads are capped.
+- The demo runs with `GC_PUBLIC_DEMO=1`: GPU jobs are refused; the Green Agent (40 an hour) and datasheet import (5 an hour) are rate limited per visitor address; uploads are capped.
 
 ## Step by step
 
@@ -48,11 +48,12 @@ copy deploy\cloudrun\env.example deploy\cloudrun\.env.cloudrun
 notepad deploy\cloudrun\.env.cloudrun
 ```
 
-Fill in three lines and save (the name must stay `.env.cloudrun`, not `.env.cloudrun.txt`):
+Fill in these lines and save (the name must stay `.env.cloudrun`, not `.env.cloudrun.txt`):
 
 - `PROJECT_ID=` the project ID from step 2
 - `DATABASE_URL=` the Neon string from step 1
 - `TOKEN_FACTORY_API_KEY=` the same key as in your local `.env`
+- `TAVILY_API_KEY=` the same key as in your local `.env` (turns on datasheet search for judges)
 
 This file is git-ignored. Do not paste its contents anywhere.
 

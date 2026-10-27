@@ -156,8 +156,8 @@ Details: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [docs/api.md](doc
 | Nebius Serverless Jobs and Endpoints | Job and endpoint scripts built from vendor documentation; **never run live** (`GC_ENABLE_NEBIUS=0` by default) |
 | Terms, privacy and acceptable-use pages | Written to match the implementation; **draft, needs professional legal review** |
 | OCR for scanned PDFs | Implemented; untested here (no Tesseract installed) |
-| Docker image and compose stack | Written; **not yet built**. The way to run it is the Quick start above |
-| Cloud Run + Neon demo deployment (`deploy/cloudrun/`) | Script and guide written; input checks tested; **never run against Google Cloud** |
+| Docker image | Built by Cloud Build and running as the public demo. The compose stack is written but not run; the Quick start above is the way to run it locally |
+| Cloud Run + Neon demo deployment (`deploy/cloudrun/`) | Deployed 27 Oct 2026: readiness check passes, sign-up and sign-in work in a browser. Demo URL in docs/for-judges.md |
 | Browser journeys | 15 Playwright tests (sign-up to export, accessibility checks in light and dark) pass against a local server |
 | Recipes and deployment configs | Templates; syntax-checked, not run on devices |
 | Chip/board what-ifs | Directional analytical what-ifs, not designs |

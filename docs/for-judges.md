@@ -1,7 +1,7 @@
 # For judges: how to try The Green Computer in two minutes
 
 **Track:** Best Apps and Agents. **Started:** 13 October 2026, inside the submission period (see the git history).
-**Demo:** [DEMO URL] (free, no payment, stays up until the judging period ends).
+**Demo:** https://green-computer-7yy6xwxdna-ue.a.run.app (free, no payment, stays up until the judging period ends).
 
 ## Getting in
 
@@ -27,7 +27,7 @@ The engine computes every number. The language model only explains and suggests,
 
 - **Green Agent** (sidebar, **Ask the assistant**): **NVIDIA Nemotron on Nebius Token Factory** plans and answers by calling the engine as tools. A guardrail rejects any figure in its reply that is not in a tool result, and it cannot change your requirements. Allowed in the demo, rate limited to protect credits.
 - **AI candidates** (Recommendations, **Every recommendation, in full**, bottom of the page): Nemotron proposes extra changes as JSON. They are schema-checked, unknown change ids lose their link, unsupported figures are removed, and each is labelled *not evaluated* until you run it through the plan builder.
-- **Datasheet import** (**Tavily** finds datasheet pages for hardware that is not in the library; Nemotron extracts the values; a person confirms them) and **Nebius Serverless Jobs on NVIDIA GPUs** (real benchmarks that feed calibration) are switched **off in the public demo** because they spend credits. They are in the code and the README; see below for what has been run.
+- **Datasheet import** (**Tavily** finds datasheet pages for hardware that is not in the library; Nemotron Nano extracts each value with its source page; a person confirms them) is **on in the public demo**, limited to 5 imports an hour per visitor. Try it under Inputs > Hardware: "Your hardware isn't in the list?", for example "Hailo-8L". It takes 45 to 60 s. **Nebius Serverless Jobs on NVIDIA GPUs** (real benchmarks that feed calibration) are switched **off in the public demo** because they spend credits. They are in the code and the README; see below for what has been run.
 
 Where Token Factory is called: `backend/app/agent/` (client, agent loop, tools, recommender, datasheet). Model ids default to Nemotron Ultra, Super and Nano and are matched against the provider's own model list at run time.
 
@@ -36,7 +36,7 @@ Where Token Factory is called: `backend/app/agent/` (client, agent loop, tools, 
 - The performance, power and heat numbers are **predictions** from a physics model with stated assumptions and best-case to worst-case ranges. The only real measurements so far are ResNet-50 and MobileNetV2 latency on the developer's CPU. **No Jetson, GPU or power measurement exists yet**, so Jetson results are analytical.
 - **Green Agent: verified live** on 27 October 2026, on `nvidia/Nemotron-3-Ultra-550b-a55b`. The agent answered in the app, and a scripted check confirmed a full tool-call round trip.
 - **AI candidates: verified live** on 27 October 2026, on `nvidia/nemotron-3-super-120b-a12b`. The first two attempts failed: the reply was not valid JSON, then a reasoning model used its whole token budget thinking and returned no answer. The app now repairs the common JSON slip, retries once, and allows more room; after that, 4 of 4 runs returned six candidates each, in 12 to 21 seconds.
-- **Datasheet import (Tavily + Nemotron Nano): verified live** on a local copy, 27 October 2026. Four real devices were drafted, each value tied to its source page, and one went through confirmation and analysis. It is switched off in the public demo because it spends credits.
+- **Datasheet import (Tavily + Nemotron Nano): verified live** on a local copy, 27 October 2026. Four real devices were drafted, each value tied to its source page, and one went through confirmation and analysis. It is on in the public demo, rate limited.
 - **Nebius Serverless Jobs and Endpoints: not run live.** They are tested only against fakes.
 - The app has automated tests: a backend suite and 15 browser journeys with accessibility checks, all passing locally on 27 October 2026.
 - Generated recipes are syntax-checked, never run on a device. The chip-design what-ifs come from a simple model with no on-chip memory detail and are directional.

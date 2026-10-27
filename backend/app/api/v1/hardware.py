@@ -16,7 +16,7 @@ from app.engine.hwbuild import CustomHardwareSpec, build_custom
 from app.engine.vendor_reports import parse_power_csv, parse_report
 from app.integrations import tavily as tv
 from app.schemas.hardware import HardwareProfile
-from app.security import block_in_demo, max_custom_items
+from app.security import limit_datasheet, max_custom_items
 from app.services import audit
 from app.services import hardware_service as hw
 
@@ -41,7 +41,7 @@ def import_hardware(
     body: ImportIn, request: Request, db: Session = Depends(get_db),
     ctx: Ctx = Depends(require_writer),
 ) -> dict[str, Any]:  # fmt: skip
-    block_in_demo("Datasheet search")
+    limit_datasheet(request)
     factory = getattr(request.app.state, "tavily_factory", default_tavily_factory)
     try:
         tavily = factory()
