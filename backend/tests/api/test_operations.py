@@ -60,6 +60,7 @@ def test_request_ids_and_structured_logs(app):
 
 
 def test_metrics_need_a_token_and_use_route_templates(app, monkeypatch):
+    monkeypatch.delenv("GC_METRICS_TOKEN", raising=False)  # a developer .env may set one
     with AuthedClient(app) as c:
         pid = c.get(f"{P}/projects").json()[0]["id"]
         c.get(f"{P}/projects/{pid}")

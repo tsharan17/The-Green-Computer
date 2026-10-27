@@ -97,7 +97,7 @@ def input_hash(summary: dict[str, Any], model: str) -> str:
 _MISSING_COMMA = re.compile(r'(["}\]0-9el])([ \t]*\r?\n[ \t]*)(["{\[])')
 
 
-def _loads(text: str) -> Any:
+def loads_lenient(text: str) -> Any:
     try:
         return json.loads(text)
     except ValueError:
@@ -110,7 +110,7 @@ def parse(content: str) -> Reply:
     if start < 0 or end <= start:
         raise LLMError("the model did not return a JSON object")
     try:
-        return Reply.model_validate(_loads(text[start : end + 1]))
+        return Reply.model_validate(loads_lenient(text[start : end + 1]))
     except (ValueError, ValidationError) as e:
         raise LLMError(f"the model's reply did not match the expected schema: {str(e)[:200]}") from e
 

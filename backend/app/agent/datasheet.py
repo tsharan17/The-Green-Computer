@@ -8,12 +8,12 @@ derived from the power modes and are labelled "assumed".
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from app.agent.client import LLM, LLMError
+from app.agent.recommender import loads_lenient
 from app.integrations.tavily import SearchHit, TavilyClient
 from app.schemas.hardware import CoolingOption, HardwareProfile, PowerMode
 from app.schemas.metrics import Provenance
@@ -79,7 +79,7 @@ def _json_from(text: str) -> dict[str, Any]:
     if start < 0 or end <= start:
         raise DatasheetError("the model did not return a JSON object")
     try:
-        data = json.loads(t[start : end + 1])
+        data = loads_lenient(t[start : end + 1])
     except ValueError as e:
         raise DatasheetError(f"the model returned invalid JSON: {e}") from e
     if not isinstance(data, dict):
@@ -144,7 +144,7 @@ def clean_extraction(raw: dict[str, Any], urls: set[str]) -> Extraction:
 
 
 def extract_hardware_spec(
-    llm: LLM, model_id: str, device_name: str, hits: list[SearchHit]
+    llm: LLM, model_id: str, device_name: str, hits: list[SearchHit], max_tokens: int = 4096
 ) -> Extraction:
     if not hits:
         raise DatasheetError("no spec pages were found for that name")
@@ -153,15 +153,19 @@ def extract_hardware_spec(
         body = (h.raw_content or h.content or "")[:MAX_CHARS_PER_PAGE]
         pages.append(f"URL: {h.url}\nTITLE: {h.title}\nEXCERPT:\n{body}")
     user = f"Device: {device_name}\n\n" + "\n\n---\n\n".join(pages)
+    messages = [{"role": "system", "content": EXTRACT_PROMPT}, {"role": "user", "content": user}]
     try:
-        reply = llm.chat(
-            model_id,
-            [{"role": "system", "content": EXTRACT_PROMPT}, {"role": "user", "content": user}],
-            temperature=0.0,
-            max_tokens=1200,
-        )
+        reply = llm.chat(model_id, messages, temperature=0.0, max_tokens=max_tokens)
+        if reply.finish_reason == "length" and "}" not in reply.content:
+            # A reasoning model can spend the whole budget thinking and write nothing; give it twice the room once.
+            reply = llm.chat(model_id, messages, temperature=0.0, max_tokens=min(max_tokens * 2, 8192))
     except LLMError as e:
         raise DatasheetError(str(e)) from e
+    if reply.finish_reason == "length" and "}" not in reply.content:
+        raise DatasheetError(
+            "the model ran out of room before it wrote an answer (reasoning models spend part of their budget "
+            "thinking). Try again, or enter the device by hand"
+        )
     return clean_extraction(_json_from(reply.content), {h.url for h in hits})
 
 

@@ -74,7 +74,7 @@ def test_optimise_payload_has_the_new_advice_fields(client):
 # --- Tavily client ---------------------------------------------------------------------------
 
 
-def test_tavily_request_format_and_errors():
+def test_tavily_request_format_and_errors(monkeypatch):
     seen = {}
 
     def handler(req: httpx.Request):
@@ -96,6 +96,7 @@ def test_tavily_request_format_and_errors():
         bad = TavilyClient("k", transport=httpx.MockTransport(lambda r, c=code: httpx.Response(c)))
         with pytest.raises(TavilyError, match=msg):
             bad.search("x")
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)  # a developer .env may set one
     with pytest.raises(TavilyError, match="TAVILY_API_KEY"):
         TavilyClient()
 
@@ -215,6 +216,38 @@ def test_clean_extraction_only_accepts_sourced_plausible_values():
     ex = clean_extraction({**DEVICE_JSON, "t_throttle_c": 400, "kind": "toaster"}, {"https://acme.example/x1"})
     assert "t_throttle_c" not in ex.candidate and "kind" not in ex.candidate
     assert ex.dropped == ["t_throttle_c"]
+
+
+def test_extraction_repairs_a_missing_comma_between_lines():
+    from app.agent.datasheet import _json_from
+
+    assert _json_from('{"name": "X1",\n "peak_tflops": {"int8": 4}\n "mem_gb": 8}') == {
+        "name": "X1", "peak_tflops": {"int8": 4}, "mem_gb": 8}  # fmt: skip
+
+
+@pytest.mark.parametrize("answers", [True, False])
+def test_a_reasoning_model_that_runs_out_of_room_gets_twice_the_room_once(answers):
+    from app.agent.datasheet import DatasheetError, extract_hardware_spec
+
+    class Thinker(ExtractLLM):
+        def __init__(self, payload):
+            super().__init__(payload)
+            self.budgets: list[int] = []
+
+        def chat(self, model, messages, tools=None, tool_choice=None, temperature=0.2, max_tokens=2048):
+            self.budgets.append(max_tokens)
+            if len(self.budgets) == 2 and answers:
+                return super().chat(model, messages, max_tokens=max_tokens)
+            return ChatReply(content="", message={"role": "assistant", "content": ""}, finish_reason="length")
+
+    llm = Thinker(DEVICE_JSON)
+    hits = FakeTavily().search("x")
+    if answers:
+        assert extract_hardware_spec(llm, "n", "Acme X1", hits).candidate["mem_bw_gbs"] == 120.0
+    else:
+        with pytest.raises(DatasheetError, match="ran out of room"):
+            extract_hardware_spec(llm, "n", "Acme X1", hits)
+    assert llm.budgets == [4096, 8192]
 
 
 # --- agent tools -----------------------------------------------------------------------------
