@@ -58,7 +58,6 @@ export default function SummaryPage({ res, spec, projectId, runId, version }: { 
   ];
   return (
     <div className="summary-page">
-      <p className="step-label">Step 1 of 2: analysis of your current setup</p>
       <section className="verdict-band" aria-labelledby="vb-h">
         <div className="vb-outcomes"><span>Your setup today</span> <Outcome state={b.feasibility} size="lg" /></div>
         <h2 id="vb-h" className="vb-sentence">
@@ -102,10 +101,6 @@ export default function SummaryPage({ res, spec, projectId, runId, version }: { 
         </div>
       </Level>
 
-      <section className="next-cta" aria-label="Next step">
-        <p><strong>Step 2: the recommendation engine.</strong> See which software and hardware changes would improve this setup, and the updated analysis for each.</p>
-        <a className="btn-link primary" href={`#/p/${projectId}/recommendations`}>Open the recommendation engine</a>
-      </section>
     </div>
   );
 }

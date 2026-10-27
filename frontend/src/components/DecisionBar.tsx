@@ -14,6 +14,7 @@ export default function DecisionBar({
   model,
   device,
   onAnalyse,
+  next,
 }: {
   decide: boolean;
   project: ProjectOut;
@@ -24,20 +25,19 @@ export default function DecisionBar({
   model?: ModelProfile;
   device?: HardwareProfile;
   onAnalyse: () => void;
+  /** The next step along the path, from flow.ts. */
+  next: { label: string; href: string } | null;
 }) {
   const s = project.spec;
   const v = res?.verdict;
   const rec = res?.advice.filter((a) => a.in_recommended) ?? [];
   const conf = rec.some((a) => a.confidence === "low") ? "Low" : rec.some((a) => a.confidence === "medium") ? "Medium" : rec.length ? "High" : "–";
   const saving = v?.savings?.energy_percent;
-  const pid = project.id;
 
-  let action: { label: string; href?: string; run?: boolean };
+  // One button, and it always agrees with the page's own Next button: analyse first, then move on.
+  let action: { label: string; href?: string; run?: boolean } | null;
   if (!res || stale) action = { label: busy ? "Analysing…" : stale ? "Analyse the new inputs" : "Analyse", run: true };
-  else if (!decide) action = { label: "Next: recommendation engine", href: `#/p/${pid}/recommendations` };
-  else if (res.best && !v?.baseline.ok) action = { label: "Review the recommended plan", href: `#/p/${pid}/recommendations?tab=plan` };
-  else if (res.best) action = { label: "Export a summary", href: `#/p/${pid}/verify?tab=export` };
-  else action = { label: "See what limits it", href: `#/p/${pid}/summary` };
+  else action = next;
 
   return (
     <section className="decision-bar" aria-label="Decision summary">
@@ -80,13 +80,15 @@ export default function DecisionBar({
         <span className="db-sub">{res ? "predicted, not measured" : ""}</span>
       </div>
       </>)}
-      <div className="db-action">
-        {action.run ? (
-          <button className="primary" disabled={busy || !canWrite} onClick={onAnalyse}>{action.label}</button>
-        ) : (
-          <a className="btn-link primary" href={action.href}>{action.label}</a>
-        )}
-      </div>
+      {action && (
+        <div className="db-action">
+          {action.run ? (
+            <button className="primary" disabled={busy || !canWrite} onClick={onAnalyse}>{action.label}</button>
+          ) : (
+            <a className="btn-link primary" href={action.href}>{action.label} →</a>
+          )}
+        </div>
+      )}
     </section>
   );
 }

@@ -35,30 +35,38 @@ test("sign-up, analysis, design plan, comparison, export and history", async ({ 
 
   await analyseButton(page).click();
   await expect(page).toHaveURL(new RegExp(`#/p/${pid}/summary`));
-  await expect(page.getByText(/Your current setup fails/)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Biggest bottleneck" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Recommended next step" })).toBeVisible();
+  // Step 3: the analysis of today's setup only, with no recommended change on it.
+  await expect(page.getByText(/Step 3 of 6: Analysis/)).toBeVisible();
+  await expect(page.getByText(/today it is predicted to miss/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What limits it" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recommended next step" })).toHaveCount(0);
 
-  // The decision bar points at the plan; build, analyse and save it.
-  await page.getByRole("region", { name: "Decision summary" }).getByRole("link", { name: "Review the recommended plan" }).click();
-  await expect(page).toHaveURL(new RegExp(`#/p/${pid}/recommendations`));
-  // Build, analyse and save a plan.
-  await page.getByRole("tab", { name: "Build and compare a plan" }).click();
+  // Step 4: the decision bar and the page agree on the one next step.
+  await page.getByRole("region", { name: "Decision summary" }).getByRole("link", { name: /Next: Try changes/ }).click();
+  await expect(page).toHaveURL(new RegExp(`#/p/${pid}/recommendations[?]tab=engine`));
+  await page.getByRole("button", { name: "Start with the top-ranked change" }).click();
+  await expect(page.getByRole("heading", { name: "Updated analysis" })).toBeVisible({ timeout: 30_000 });
+
+  // Step 5: build, analyse and save a plan, reached with the page's own Next button.
+  await page.getByRole("navigation", { name: "Back and next" }).getByRole("link", { name: /Next: Build and compare a plan/ }).click();
   await page.getByRole("button", { name: /Analyse this plan/ }).click();
   await expect(page.getByRole("heading", { name: "Today vs the plan" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Each change on its own" })).toBeVisible();
   await page.getByLabel("Name").fill("E2E plan");
   await page.getByRole("button", { name: "Save plan" }).click();
   await expect(page.getByText(/Saved “E2E plan” as version 1/)).toBeVisible();
-  await page.getByRole("tab", { name: "Saved plans" }).click();
+  await page.getByRole("tab", { name: /Saved plans/ }).click();
   await expect(page.getByRole("cell", { name: /E2E plan/ })).toBeVisible();
-  // Recommendations by category: software and hardware, each with its validation state.
-  await page.getByRole("tab", { name: "Software and hardware" }).click();
+  // Every recommendation in full: software and hardware, each with its validation state (optional view).
+  await page.goto(`/#/p/${pid}/recommendations?tab=engine`);
+  await page.getByRole("tab", { name: "Every recommendation, in full" }).click();
   await expect(page.getByRole("heading", { name: "Recommendations by category" })).toBeVisible();
   await expect(page.getByRole("heading", { name: /^Software \(/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: /^Hardware \(/ })).toBeVisible();
   await expect(page.getByText(/Evaluated in a saved plan \(predicted\)/).first()).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Workflow stages" })).toBeVisible();
+  await page.getByRole("tab", { name: "Cooling options" }).click();
+  await expect(page.getByRole("heading", { name: "Cooling options for this workload" })).toBeVisible();
 
   // The verification report for the same inputs.
   await page.goto(`/#/p/${pid}/check`);
@@ -70,14 +78,12 @@ test("sign-up, analysis, design plan, comparison, export and history", async ({ 
   await expect(page.getByRole("heading", { name: "System map" })).toBeVisible();
   await expect(page.getByText("Predicted by the analytical engine", { exact: true })).toBeVisible();
   await page.goto(`/#/p/${pid}/thermal`);
-  await expect(page.getByRole("heading", { name: "Cooling options for this workload" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Cooling comparison maps" })).toBeVisible();
-  await expect(page.getByRole("img", { name: /Heatmap of steady temperature/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Cooling: how much heat can it take?" })).toBeVisible();
+  await expect(page.getByRole("img", { name: /warmest ambient temperature/ })).toBeVisible({ timeout: 30_000 });
 
   // Export: a generated report and a plan file download (the PDF itself is checked by the API tests;
   // Edge opens downloaded PDFs in a tab of its own, which would leak into later tests).
-  await page.goto(`/#/p/${pid}/verify`);
-  await page.getByRole("tab", { name: "Export" }).click();
+  await page.goto(`/#/p/${pid}/verify?tab=export`);
   const report = page.locator(".export-list li", { hasText: "Engineering report (Markdown)" });
   const dl = page.waitForEvent("download");
   await report.getByRole("button", { name: "Download" }).click();
@@ -184,18 +190,18 @@ test("guided start: use case, model, hardware, priority, then a plain result", a
   await expect(page).toHaveURL(/#\/p\/\d+\/summary/);
   const bar = page.getByRole("region", { name: "Decision summary" });
   await expect(bar.getByText("Current setup")).toBeVisible();
-  await expect(bar.getByText("predicted, not measured")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Biggest bottleneck" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Recommended next step" })).toBeVisible();
+  await expect(bar.getByText("What limits it")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What limits it" })).toBeVisible();
 
-  // Simple mode: detail is folded away and engineering views sit under one disclosure.
+  // Simple mode: detail is folded away and the analysis detail views sit under one closed disclosure.
   const eng = page.locator("details.level-block.engineering");
   await expect(eng).not.toHaveAttribute("open", "");
-  await expect(page.getByText(/Engineering views \(5\)/)).toBeVisible();
+  const more = page.locator("details.nav-more", { hasText: "More detail (5)" });
+  await expect(more).not.toHaveAttribute("open", "");
   // Engineering mode: detail opens and every view is listed; the choice survives a reload.
   await page.getByRole("radio", { name: "Engineering" }).click();
   await expect(eng).toHaveAttribute("open", "");
-  await expect(page.getByText(/Engineering views \(5\)/)).toHaveCount(0);
+  await expect(more).toHaveAttribute("open", "");
   await page.reload();
   await expect(page.getByRole("radio", { name: "Engineering" })).toHaveAttribute("aria-checked", "true");
   await page.getByRole("radio", { name: "Simple" }).click();
@@ -316,7 +322,7 @@ test("thermal attribution, runtime effects and evidence are labelled", async ({ 
 test("cooling v2: where it runs rules options out, with reasons and heat sources", async ({ page }) => {
   await signUp(page, email("cooling"));
   const pid = await openExample(page);
-  await page.goto(`/#/p/${pid}/thermal`);
+  await page.goto(`/#/p/${pid}/recommendations?tab=cooling`);
   const cool = page.getByRole("region", { name: "Cooling options for this workload" });
   await expect(cool.getByText(/Best fit here:/)).toBeVisible();
   await expect(cool.getByText(/Where it runs: no limits set/)).toBeVisible();
@@ -329,7 +335,7 @@ test("cooling v2: where it runs rules options out, with reasons and heat sources
   await page.getByRole("button", { name: /Save as version 2/ }).click();
   await expect(page.getByText(/inputs version 2/)).toBeVisible();
 
-  await page.goto(`/#/p/${pid}/thermal`);
+  await page.goto(`/#/p/${pid}/recommendations?tab=cooling`);
   await expect(cool.getByText(/Where it runs: sealed enclosure\./)).toBeVisible();
   await cool.getByText(/Options not considered here/).click();
   await expect(cool.getByText(/Heatsink with 40 mm fan.*needs an air path for a fan, but the enclosure is sealed/)).toBeVisible();

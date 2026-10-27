@@ -31,7 +31,7 @@ for (const scheme of ["light", "dark"] as const) {
     await page.getByRole("link", { name: /Example: YOLOv8s/ }).click();
     const pid = page.url().match(/#\/p\/(\d+)/)![1];
     await page.getByRole("region", { name: "Decision summary" }).getByRole("button", { name: /^Analyse/ }).click();
-    await expect(page.getByText(/Your current setup fails/)).toBeVisible();
+    await expect(page.getByText(/today it is predicted to miss/)).toBeVisible();
     // Both display densities: Simple folds detail away, Engineering opens it.
     for (const mode of ["Simple", "Engineering"]) {
       await page.getByRole("radio", { name: mode }).click();

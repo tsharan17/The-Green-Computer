@@ -159,7 +159,6 @@ export default function RecommendationEngine({ projectId, version, runKey, canWr
 
   return (
     <>
-      <p className="step-label">Step 2 of 2: recommendation engine</p>
       {set.stale && <p className="note-warn" role="status">The inputs changed after this analysis. Run the analysis again before acting on these.</p>}
       <p className="muted">
         Ranked for your requirements: changes that fix a failing requirement first, then your priority ({set.priority?.replace(/_/g, " ")}).

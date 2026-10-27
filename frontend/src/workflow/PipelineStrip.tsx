@@ -6,12 +6,13 @@ import type { Pipeline, Stage, StageState } from "./types";
  * done, ready (its inputs are there), blocked (an earlier stage must finish) or stale (the inputs it
  * used have changed; the record is kept). */
 const AREA_OF: Record<Stage["id"], string> = {
-  input: "input", verification: "check", analysis: "summary", recommendations: "recommendations",
+  input: "input", verification: "check", analysis: "summary", recommendations: "recommendations?tab=engine",
   validation: "recommendations?tab=plan", results: "verify?tab=export",
 };
 const STATE_TEXT: Record<StageState, string> = { done: "Done", ready: "Ready", blocked: "Waiting", stale: "Out of date" };
 
-export default function PipelineStrip({ projectId, refreshKey }: { projectId: number; refreshKey: string }) {
+/** `current` is the 1-based stage the user is on; it is the one highlighted. */
+export default function PipelineStrip({ projectId, refreshKey, current }: { projectId: number; refreshKey: string; current: number | null }) {
   const [p, setP] = useState<Pipeline | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -27,12 +28,12 @@ export default function PipelineStrip({ projectId, refreshKey }: { projectId: nu
     <nav className="pipeline" aria-label="Workflow stages">
       <ol>
         {p.stages.map((s, i) => (
-          <li key={s.id} className={`pl-${s.state}${p.next === s.id ? " pl-next" : ""}`}>
-            <a href={`#/p/${projectId}/${AREA_OF[s.id]}`} title={s.summary}>
+          <li key={s.id} className={`pl-${s.state}${p.next === s.id ? " pl-next" : ""}${current === i + 1 ? " pl-current" : ""}`}>
+            <a href={`#/p/${projectId}/${AREA_OF[s.id]}`} title={s.summary} aria-current={current === i + 1 ? "step" : undefined}>
               <span className="pl-n" aria-hidden>{i + 1}</span>
               <span className="pl-text">
                 <strong>{s.title}</strong>
-                <small>{STATE_TEXT[s.state]}</small>
+                <small>{current === i + 1 ? "You are here" : p.next === s.id ? `${STATE_TEXT[s.state]}, next` : STATE_TEXT[s.state]}</small>
               </span>
             </a>
           </li>
