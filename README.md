@@ -32,23 +32,50 @@ data stays in `green_computer.db` and `gc_data/` in this folder. Options: `--por
    Schematics, PCBs, RTL, netlists and assembly are shown as planned, with what to send instead.
 3. **Constraints and environment.** Throughput, power, latency, memory and accuracy limits; ambient
    temperature, cooling, hours of use, electricity price and grid carbon; how it runs today.
-4. **Analysis.** A predicted execution trace drives five views: a **system map** (model stages on the
-   hardware, memory paths, heat, bottlenecks, step-through playback), an **execution timeline**,
-   a **memory map** (tensor lifetimes, peak working set against capacity, bandwidth pressure),
-   **thermal and cooling** (warm-up, throttling, cooling needed, catalogue options ranked by stated
-   sustainability criteria) and **energy and performance** (energy by cause and stage, every metric
-   with its range and source). Charts have tooltips, table views and CSV/JSON export.
-5. **Recommendations and plans.** Changes at five levels: the AI model, how it runs, hardware
-   settings, hardware or cooling choice, and directional chip/board ideas. Select any of them into a
-   design plan; the engine re-analyses today, each change alone and the combination, and shows every
-   parameter and output old versus new. Plans are saved as immutable versions.
-6. **Verify, history, export.** Run the model on this server's CPU (ONNX Runtime, isolated and
+4. **Analysis (of today's setup only).** The verdict, what limits it, the numbers against your
+   limits, and four figures: a board heat map, the warm-up curve, where the energy goes and power
+   over one batch. No change is suggested here. Optional detail views (under "More detail") show a
+   **system map** (model stages on the hardware, memory paths, heat, bottlenecks, step-through
+   playback), an **execution timeline**, a **memory map** (tensor lifetimes, peak working set
+   against capacity), **thermal and cooling** (cooling charts that show how warm a room each
+   option can handle) and **energy and performance** (every metric with its range and source).
+5. **Recommendations: try changes.** Changes at five levels: the AI model, how it runs, hardware
+   settings, hardware or cooling choice, and directional chip/board ideas, ranked for your
+   requirements. Click one and the engine re-runs the analysis with it: new verdict, what moves, and
+   the same four figures today next to the change. Optionally ask the language model for more
+   candidates (see below); nothing it proposes is applied until the engine evaluates it.
+6. **Validation: plan, compare, measure.** Combine changes into a design plan; the engine
+   re-analyses today, each change alone and the combination, parameter by parameter. Plans are saved
+   as immutable versions. Run the model on this server's CPU (ONNX Runtime, isolated and
    time-limited) for measured latency and a measured operator trace; import measurements (bench
-   JSON, CSV, JSON, nvidia-smi, tegrastats); compare predicted with measured and calibrate. Export
-   the engineering report (Markdown, HTML, PDF), plan JSON, comparisons and recommendations
-   (CSV/JSON), traces, a hardware change specification, a deployment configuration, the recipe
-   scripts, a complete plan package, and an INT8 ONNX model when quantisation runs and its outputs
-   match the original.
+   JSON, CSV, JSON, nvidia-smi, tegrastats); compare predicted with measured and calibrate.
+7. **Results and export.** The engineering report (Markdown, HTML, PDF), plan JSON, comparisons and
+   recommendations (CSV/JSON), traces, a hardware change specification, a deployment
+   configuration, the recipe scripts, a complete plan package, and an INT8 ONNX model when
+   quantisation runs and its outputs match the original.
+
+The app walks you through this in order: a numbered stepper at the top, the same six stages in the
+side navigation, and Back / Next buttons on every page.
+
+## NVIDIA Nemotron and Nebius in this project
+
+The engine computes every number. The language model only explains and suggests, through **NVIDIA
+Nemotron on Nebius Token Factory** (an OpenAI-compatible API, `TOKEN_FACTORY_API_KEY`):
+
+| Where | What the model does | Code |
+|---|---|---|
+| **Green Agent** (sidebar, "Ask the assistant") | Plans and answers by calling the engine as tools; a guardrail rejects any figure that is not in a tool result, and it cannot change your requirements | `backend/app/agent/` |
+| **AI candidates** (Recommendations, "Every recommendation, in full") | Proposes extra changes as schema-checked JSON; unknown change ids lose their link, unsupported figures are removed, and each is labelled "not evaluated" | `backend/app/agent/recommender.py` |
+| **Datasheet import** | Reads specs from datasheet text that **Tavily** found, for hardware not in the library; a person confirms them | `backend/app/agent/datasheet.py`, `backend/app/integrations/tavily.py` |
+
+Model ids default to Nemotron Ultra, Super and Nano and are matched against the provider's own
+model list at run time (`GC_MODEL_ULTRA`, `GC_MODEL_SUPER`, `GC_MODEL_NANO` override them).
+**Nebius Serverless Jobs** (real GPU benchmarks for calibration) and **Serverless Endpoints** (to
+host the app) are built and documented ([docs/connecting-nebius.md](docs/connecting-nebius.md),
+[deploy/endpoint.md](deploy/endpoint.md)); see the status table for what has actually been run.
+
+This repository was started on 13 October 2026, inside the hackathon submission period. For the
+hackathon track, setup, and a two-minute tour for judges, see [docs/for-judges.md](docs/for-judges.md).
 
 ## Honesty rules
 
@@ -123,10 +150,14 @@ Details: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [docs/api.md](doc
 | Local execution | Real ONNX Runtime CPU runs tested; measures latency and operator time, not power or temperature |
 | Predictions | Analytical with stated assumptions; the only measurements so far are CPU latencies on the development machine |
 | CUDA / TensorRT backends | Detected and gated; never run here (no NVIDIA GPU) |
-| Nebius jobs, AI assistant, AI recommendation candidates, datasheet web search | Built from vendor documentation, tested with fakes and mocked providers; **no live Token Factory call has been made yet**; off unless configured |
+| Green Agent (Token Factory) | Tested with mocked providers. **Live:** a Token Factory key was accepted and the agent answered, checked by hand on 27 Oct 2026. Which Nemotron model id resolved is shown by `GET /api/v1/agent/status`. Off unless a key is set |
+| AI recommendation candidates | Tested with mocked providers. **Live:** the first two real attempts failed (invalid JSON, then no answer because a reasoning model used up its token budget). The app now repairs the common JSON slip, retries once, and gives a reasoning model more room; **not yet re-checked live** |
+| Datasheet web search (Tavily + Nemotron) | Tested with fakes only; **never run live** |
+| Nebius Serverless Jobs and Endpoints | Job and endpoint scripts built from vendor documentation; **never run live** (`GC_ENABLE_NEBIUS=0` by default) |
 | Terms, privacy and acceptable-use pages | Written to match the implementation; **draft, needs professional legal review** |
 | OCR for scanned PDFs | Implemented; untested here (no Tesseract installed) |
-| Docker image and compose stack | Written; not built in the development environment |
+| Docker image and compose stack | Written; **not yet built**. The way to run it is the Quick start above |
+| Browser journeys | 15 Playwright tests (sign-up to export, accessibility checks in light and dark) pass against a local server |
 | Recipes and deployment configs | Templates; syntax-checked, not run on devices |
 | Chip/board what-ifs | Directional analytical what-ifs, not designs |
 

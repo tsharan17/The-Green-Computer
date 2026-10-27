@@ -1,30 +1,45 @@
 # For judges: how to try The Green Computer in two minutes
 
-No login is needed. Open the demo URL, click **Robot that spots objects**, then press **Analyse my setup**.
+**Track:** Best Apps and Agents. **Started:** 13 October 2026, inside the submission period (see the git history).
+**Demo:** [DEMO URL] (free, no payment, stays up until the judging period ends).
 
-## What you will see
+## Getting in
 
-1. **Verdict.** The robot example (YOLOv8s on a Jetson Orin NX at 30 frames per second, 40 °C, under 55 W, at least 90% accuracy) fails today: the chip overheats and slows itself down to 70% of its speed. A changed setup meets every requirement and uses about 59% less power.
-2. **The cheapest fix.** Ranked by how little engineering work each takes, not just by energy.
-3. **Recommendations at four levels:** change the AI model (FP16/INT8, pruning, smaller input, a lighter model), change how you run it (batching, power mode, clock cap), choose better hardware (another board, better cooling), and redesign the chip or board (what-if ideas such as faster memory or power gating, with the modelled effect of each). Every item says what it gains, why, what it costs, how sure we are and how to check it.
-4. **Export.** A shareable report and a recipe (scripts to convert the model, build a TensorRT engine, set the Jetson power mode, measure on the board, plus design notes for hardware engineers).
-5. **Real measurements.** Predicted versus measured, with calibration that is applied only if it predicts held-out measurements better.
+Create a free account on the demo page (email and a password; no email confirmation is needed). Every new account comes with an
+example project, **Example: YOLOv8s on a robot (30 FPS, 55 W, 40 °C)**. [If you set up a ready test account, put it here: email
+and password.]
 
-Try the other examples, especially **Too much for the board**: it fails, says exactly why, and shows what would work instead without ever loosening your requirements.
+## The two-minute path
 
-## How it uses Nebius and NVIDIA
+The app is one numbered path, with a stepper at the top and Back / Next buttons on every page.
 
-- **NVIDIA Nemotron on Nebius Token Factory** powers the Green Agent (the **Describe** page, right-hand side). It plans, calls the engine through tools and explains; it never computes a number. A guardrail rejects any figure in its reply that is not in a tool result, and it cannot change your requirements.
-- **Nebius Serverless Jobs on NVIDIA GPUs** run real benchmarks that feed calibration. Launching them is switched off in the public demo because it spends credits.
-- **Tavily** finds datasheets for hardware that is not in the library; Nemotron extracts the values; a person confirms them.
+1. Open the example project. **Step 1, Inputs** is already filled in: a YOLOv8s object detector on a Jetson Orin NX, 30 inputs a second, at most 55 W, in a 40 °C room. Press **Analyse**.
+2. **Step 3, Analysis** shows today's setup only: it **fails**, because the chip overheats and slows itself to about 70% of its speed. You see what limits it, the numbers against your limits, a board heat map, the warm-up curve, where the energy goes and power over a batch. Nothing is recommended yet.
+3. **Step 4, Recommendations: Try changes.** Click **Start with the top-ranked change** (or any change in the list). The engine re-runs the analysis with that change: the new verdict, what moves (for example FP16 cuts energy per input by about half and raises throughput several times), and the same figures side by side, today and with the change. Software and hardware changes are listed separately; chip-design ideas are marked directional.
+4. **Step 5, Validation.** *Build and compare a plan* combines changes and compares each alone and all together against today; the recommended plan meets every requirement and uses about 59% less power. *Saved plans* keeps each version unchanged.
+5. **Step 6, Export** downloads a report, the plan, and a recipe (scripts to convert the model, build the engine, set the Jetson power mode and measure on the board).
+
+For other cases, **Start a new analysis** offers example cards (a smart camera, ResNet-50 on a Jetson AGX Orin, a Raspberry Pi camera with no fan, keyword spotting on a microcontroller, person detection on an FPGA), and **Add five example projects** on the Workspace page fills your workspace with analysed ones. When a setup cannot meet a requirement, the app says exactly why and never loosens your requirement to make it pass.
+
+## How it uses NVIDIA Nemotron and Nebius
+
+The engine computes every number. The language model only explains and suggests, and every reply is checked.
+
+- **Green Agent** (sidebar, **Ask the assistant**): **NVIDIA Nemotron on Nebius Token Factory** plans and answers by calling the engine as tools. A guardrail rejects any figure in its reply that is not in a tool result, and it cannot change your requirements. Allowed in the demo, rate limited to protect credits.
+- **AI candidates** (Recommendations, **Every recommendation, in full**, bottom of the page): Nemotron proposes extra changes as JSON. They are schema-checked, unknown change ids lose their link, unsupported figures are removed, and each is labelled *not evaluated* until you run it through the plan builder.
+- **Datasheet import** (**Tavily** finds datasheet pages for hardware that is not in the library; Nemotron extracts the values; a person confirms them) and **Nebius Serverless Jobs on NVIDIA GPUs** (real benchmarks that feed calibration) are switched **off in the public demo** because they spend credits. They are in the code and the README; see below for what has been run.
+
+Where Token Factory is called: `backend/app/agent/` (client, agent loop, tools, recommender, datasheet). Model ids default to Nemotron Ultra, Super and Nano and are matched against the provider's own model list at run time.
 
 ## Please read: what is and is not verified
 
 - The performance, power and heat numbers are **predictions** from a physics model with stated assumptions and best-case to worst-case ranges. The only real measurements so far are ResNet-50 and MobileNetV2 latency on the developer's CPU. **No Jetson, GPU or power measurement exists yet**, so Jetson results are analytical.
-- The Green Agent, GPU job launcher and datasheet import were built from the Nebius and Tavily documentation and tested against fakes. **They had not been run against the live services when this was written.** If the agent is not configured on the demo you will see a clear message; everything else works without it.
-- Generated recipes are syntax-checked, never run on a device.
-- The chip-design what-ifs come from a simple model with no on-chip memory detail: they are directional.
+- **Green Agent: verified live.** A Token Factory key was accepted and the agent answered (checked by hand, 27 October 2026). [Add the model id shown by the agent status, and anything you saw it do wrong.]
+- **AI candidates: partly verified.** The first two live attempts failed: the reply was not valid JSON, then a reasoning model used its whole token budget thinking and returned no answer. The app now repairs the common JSON slip, retries once, and allows more room. [Update after re-testing live: it worked / it still fails because ...]
+- **Datasheet import (Tavily) and Nebius Serverless Jobs: not run live.** They are tested only against fakes. [Update if you run them before submitting.]
+- The app has automated tests: a backend suite and 15 browser journeys with accessibility checks, all passing locally on 27 October 2026.
+- Generated recipes are syntax-checked, never run on a device. The chip-design what-ifs come from a simple model with no on-chip memory detail and are directional.
 
 ## Run your own copy
 
-See the [README](../README.md). `scripts/acceptance.py <url>` checks a running copy end to end as a judge would.
+See the [README](../README.md): `scripts/dev.ps1` (Windows) or `scripts/dev.sh` builds the interface and serves http://localhost:8000. Put `TOKEN_FACTORY_API_KEY` in `.env` to switch the agent on. `scripts/acceptance.py <url>` checks a running copy end to end as a judge would.
