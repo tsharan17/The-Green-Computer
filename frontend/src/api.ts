@@ -154,6 +154,8 @@ export const auth = {
 export const plans = {
   options: (pid: number) => req<{ source_run_id: number; recommended: string[]; changes: import("./types").PlanChange[] }>(`/projects/${pid}/plan-options`),
   analyse: (pid: number, change_ids: string[]) => req<import("./types").PlanAnalysis>(`/projects/${pid}/plans/analyse`, post({ change_ids })),
+  /** The predicted trace of today's setup with these changes applied (model, hardware, cooling and settings). */
+  trace: (pid: number, change_ids: string[]) => req<import("./twin/types").StoredTrace>(`/projects/${pid}/plans/trace`, post({ change_ids })),
   save: (pid: number, change_ids: string[], name: string, note: string) =>
     req<import("./types").SavedPlan>(`/projects/${pid}/plans`, post({ change_ids, name, note })),
   list: (pid: number) => req<import("./types").SavedPlan[]>(`/projects/${pid}/plans`),

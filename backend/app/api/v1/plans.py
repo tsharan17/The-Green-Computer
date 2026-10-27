@@ -52,6 +52,24 @@ def analyse_plan(project_id: int, body: PlanIn, db: Session = Depends(get_db),
     return out
 
 
+@router.post("/projects/{project_id}/plans/trace", status_code=201)
+def trace_plan(project_id: int, body: PlanIn, db: Session = Depends(get_db),
+               ctx: Ctx = Depends(require_writer)) -> dict[str, Any]:  # fmt: skip
+    """Predict the execution trace of today's setup with the selected changes applied, so every
+    analysis figure can be drawn for it. Stored like any other trace; `kind` stays "predicted"."""
+    from app.services import twin_service as twin
+
+    p = project_for(db, ctx, project_id)
+    try:
+        trace, label = plans.trace_for(db, p, body.change_ids, ctx.workspace_id)
+    except plans.PlanError as e:
+        raise _err(e) from e
+    tid = twin.store(db, ctx.workspace_id, project_id, ctx.user_id, trace, label)
+    audit.usage(db, "trace", 1, workspace_id=ctx.workspace_id, user_id=ctx.user_id, project_id=project_id,
+                detail={"trace_id": tid, "which": "changes", "changes": len(body.change_ids)})  # fmt: skip
+    return {"id": tid, "label": label, "trace": trace.model_dump(mode="json")}
+
+
 @router.post("/projects/{project_id}/plans", status_code=201)
 def save_plan(project_id: int, body: PlanIn, db: Session = Depends(get_db),
               ctx: Ctx = Depends(require_writer)) -> dict[str, Any]:  # fmt: skip

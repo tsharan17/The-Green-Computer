@@ -1,8 +1,11 @@
 import type { HardwareProfile, ModelProfile, OptimisationResult, ProjectOut } from "../types";
+import { BOTTLENECK_PLAIN } from "../lib/glossary";
 import { Outcome } from "./Help";
 
-/** The project's decision at a glance, on every project screen: where it stands, what to do. */
+/** The project's decision at a glance, on every project screen: where it stands, what to do.
+ * Until the user reaches the recommendation engine (`decide`), it describes today's setup only. */
 export default function DecisionBar({
+  decide,
   project,
   res,
   stale,
@@ -12,6 +15,7 @@ export default function DecisionBar({
   device,
   onAnalyse,
 }: {
+  decide: boolean;
   project: ProjectOut;
   res: OptimisationResult | null;
   stale: boolean;
@@ -30,6 +34,7 @@ export default function DecisionBar({
 
   let action: { label: string; href?: string; run?: boolean };
   if (!res || stale) action = { label: busy ? "Analysing…" : stale ? "Analyse the new inputs" : "Analyse", run: true };
+  else if (!decide) action = { label: "Next: recommendation engine", href: `#/p/${pid}/recommendations` };
   else if (res.best && !v?.baseline.ok) action = { label: "Review the recommended plan", href: `#/p/${pid}/recommendations?tab=plan` };
   else if (res.best) action = { label: "Export a summary", href: `#/p/${pid}/verify?tab=export` };
   else action = { label: "See what limits it", href: `#/p/${pid}/summary` };
@@ -46,6 +51,13 @@ export default function DecisionBar({
         <Outcome state={res?.baseline.feasibility} />
         {stale && <span className="db-sub warn-text">Inputs changed since this analysis</span>}
       </div>
+      {!decide && (
+        <div className="db-cell">
+          <span className="db-label">What limits it</span>
+          <span className="db-sub">{res ? BOTTLENECK_PLAIN[res.baseline.bottleneck] ?? res.baseline.bottleneck : "Analyse first"}</span>
+        </div>
+      )}
+      {decide && (<>
       <div className="db-cell">
         <span className="db-label">Recommended plan</span>
         {res?.best ? (
@@ -67,6 +79,7 @@ export default function DecisionBar({
         <strong>{conf}</strong>
         <span className="db-sub">{res ? "predicted, not measured" : ""}</span>
       </div>
+      </>)}
       <div className="db-action">
         {action.run ? (
           <button className="primary" disabled={busy || !canWrite} onClick={onAnalyse}>{action.label}</button>

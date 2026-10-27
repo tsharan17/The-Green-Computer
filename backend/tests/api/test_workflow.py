@@ -210,7 +210,7 @@ def test_cooling_sweep_is_engine_evaluated_and_drawn(c):
     assert len(o["temperature_c"]) == len(s["ambient_c"]) and len(o["temperature_c"][0]) == len(s["load_fraction"])
     assert any(any(row) for row in o["throttled"])  # the example overheats at its fitted cooling
     assert "not a CFD" in s["note"]
-    for name in ("cooling-heatmap", "mode-cooling-heatmap", "cooling-surfaces"):
+    for name in ("cooling-headroom", "cooling-heatmap", "mode-cooling-heatmap", "cooling-surfaces"):
         r = c.get(f"{P}/projects/{c.pid}/figures/{name}")
         assert r.status_code == 200 and r.content[:4] == PNG and r.headers["content-type"] == "image/png"
     assert c.get(f"{P}/projects/{c.pid}/figures/nope").status_code == 404

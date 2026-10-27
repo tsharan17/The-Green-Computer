@@ -28,6 +28,8 @@ import LegalPage, { LegalLinks } from "./pages/LegalPage";
 import CoolingFigures from "./workflow/CoolingFigures";
 import PipelineStrip from "./workflow/PipelineStrip";
 import RecommendationCatalogue from "./workflow/RecommendationCatalogue";
+import RecommendationEngine from "./workflow/RecommendationEngine";
+import CoolingOptions from "./components/CoolingOptions";
 import VerificationPanel from "./workflow/VerificationPanel";
 import { AREAS, type AreaId, navigate, useRoute } from "./router";
 import MemoryPage from "./twin/MemoryPage";
@@ -371,12 +373,12 @@ function ProjectView({
   const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState<"run" | "verify" | "history" | "export">("run");
   const [verifyKey, setVerifyKey] = useState(0);
-  const [recTab, setRecTab] = useState<"results" | "catalogue" | "plan" | "saved">("results");
+  const [recTab, setRecTab] = useState<"engine" | "results" | "catalogue" | "cooling" | "plan" | "saved">("engine");
   const [plansKey, setPlansKey] = useState(0);
   const qTab = query.get("tab");
   const qAdd = query.get("add");
   useEffect(() => {
-    if (qTab === "plan" || qTab === "saved" || qTab === "results" || qTab === "catalogue") setRecTab(qTab);
+    if (qTab === "engine" || qTab === "plan" || qTab === "saved" || qTab === "results" || qTab === "catalogue" || qTab === "cooling") setRecTab(qTab);
     if (qTab === "run" || qTab === "verify" || qTab === "history" || qTab === "export") setTab(qTab);
   }, [qTab, qAdd]);
 
@@ -489,10 +491,10 @@ function ProjectView({
         </div>
       </div>
       <PipelineStrip projectId={projectId} refreshKey={`${project.version}-${runId}-${plansKey}-${area}`} />
-      <DecisionBar project={project} res={res} stale={stale || (!!res && dirty)} busy={busy} canWrite={canWrite} model={model} device={device} onAnalyse={analyse} />
+      <DecisionBar decide={area === "recommendations" || area === "verify"} project={project} res={res} stale={stale || (!!res && dirty)} busy={busy} canWrite={canWrite} model={model} device={device} onAnalyse={analyse} />
       <ErrorNote error={error} onRetry={() => setError(null)} />
 
-      {area === "summary" && (res ? <SummaryPage res={res} spec={spec} projectId={projectId} runId={runId} /> : needsResult)}
+      {area === "summary" && (res ? <SummaryPage res={res} spec={spec} projectId={projectId} runId={runId} version={project.version} /> : needsResult)}
       {area === "input" && (
         <InputPage
           spec={spec}
@@ -543,12 +545,14 @@ function ProjectView({
         (res ? (
           <>
             <div className="tabs" role="tablist" aria-label="Recommendations">
-              {(["results", "catalogue", "plan", "saved"] as const).map((t) => (
+              {(["engine", "results", "catalogue", "cooling", "plan", "saved"] as const).map((t) => (
                 <button key={t} role="tab" aria-selected={recTab === t} className={`tab ${recTab === t ? "on" : ""}`} onClick={() => setRecTab(t)}>
-                  {{ results: "Verdict", catalogue: "Software and hardware", plan: "Build and compare a plan", saved: "Saved plans" }[t]}
+                  {{ engine: "Recommendation engine", results: "Recommended plan", catalogue: "Full details", cooling: "Cooling options", plan: "Build and compare a plan", saved: "Saved plans" }[t]}
                 </button>
               ))}
             </div>
+            {recTab === "engine" && <RecommendationEngine projectId={projectId} version={project.version} runKey={runId} canWrite={canWrite} />}
+            {recTab === "cooling" && <CoolingOptions projectId={projectId} which="baseline" />}
             {recTab === "results" && <ResultsPage res={res} spec={spec} go={goLegacy} />}
             {recTab === "catalogue" && <RecommendationCatalogue projectId={projectId} canWrite={canWrite} refreshKey={`${runId}-${plansKey}`} />}
             {recTab === "plan" && (

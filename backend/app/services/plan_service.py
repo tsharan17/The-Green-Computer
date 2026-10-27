@@ -278,3 +278,31 @@ def cooling_sweep(db: Session, project: ProjectOut, ws: int | None) -> dict[str,
                 "state). The grid sweeps ambient temperature and input rate; it is not a CFD or board-level "
                 "thermal simulation.",
     }  # fmt: skip
+
+
+def trace_for(db: Session, project: ProjectOut, ids: list[str], ws: int | None) -> tuple[Any, str]:
+    """The predicted execution trace of today's setup with the selected changes applied: the same
+    analysis views as today, drawn for the changed model, hardware, cooling and settings."""
+    from app.services.twin_service import graph_model
+    from app.twin.trace import build_trace
+
+    if not ids:
+        raise PlanError("Select at least one change.")
+    spec = project.spec
+    res, _ = _latest(db, project.id)
+    model = resolve_model(db, spec.model_id, ws)
+    hw = get_device(spec.device_id, ws)
+    cat = {e.id: e for e in load_cooling_catalogue()}
+    chosen = _find(changes_from_result(res, applicable(list(cat.values()), hw)), ids)
+    base_cfg = spec.baseline or baseline_config(hw, spec.cooling_id)
+    try:
+        m, h, applied = apply_changes(model, hw, base_cfg, chosen, lambda i: resolve_model(db, i, ws),
+                                      lambda i: get_device(i, ws), cat)  # fmt: skip
+        r = evaluator(db, spec, ws)(m, h, applied.config)
+        own = h.id == hw.id and not applied.config.cooling_id.startswith("cat-")  # as in evaluator()
+        cal = ms.active_calibrations(db, h.id, ws).get(applied.config.precision) if own else None
+        g, source = graph_model(m)
+        trace = build_trace(g, h, applied.config, spec.workload, r, cal, source)
+    except (ValueError, KeyError) as e:
+        raise PlanError(str(e).strip("'")) from e
+    return trace, "with: " + "; ".join(c.title for c in chosen)

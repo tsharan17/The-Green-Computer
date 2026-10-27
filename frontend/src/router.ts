@@ -31,7 +31,7 @@ export function navigate(to: string) {
 /** Areas of a project, in the order of the engineering workflow. `group` drives the Simple-mode
  * navigation (engineering views are tucked under one disclosure); every area exists in both modes. */
 export const AREAS = [
-  { id: "summary", n: 0, label: "Summary", sub: "The answer and the next step", group: "main" },
+  { id: "summary", n: 0, label: "Analysis", sub: "How your setup performs today", group: "main" },
   { id: "input", n: 2, label: "Model and hardware", sub: "Upload, validate, choose", group: "main" },
   { id: "constraints", n: 3, label: "Constraints and environment", sub: "Requirements, ambient, workload", group: "main" },
   { id: "check", n: 3.5, label: "Verification", sub: "Inputs checked before analysis", group: "main" },
@@ -40,7 +40,7 @@ export const AREAS = [
   { id: "memory", n: 6, label: "Memory map", sub: "Tensor lifetimes, peaks", group: "engineering" },
   { id: "thermal", n: 7, label: "Thermal and cooling", sub: "Heat over time, cooling options", group: "engineering" },
   { id: "energy", n: 8, label: "Energy and performance", sub: "Every metric with its range", group: "engineering" },
-  { id: "recommendations", n: 9, label: "Recommendations", sub: "Choose changes, compare plans", group: "main" },
+  { id: "recommendations", n: 9, label: "Recommendation engine", sub: "Try changes, see the new analysis", group: "main" },
   { id: "verify", n: 10, label: "Verify, history, export", sub: "Measure, track, hand over", group: "main" },
 ] as const;
 

@@ -14,6 +14,7 @@ from app.main import create_app
 from tests.helpers import AuthedClient, tiny_cnn_bytes
 
 P = "/api/v1"
+PNG_MAGIC = b"\x89PNG"
 OCTET = {"Content-Type": "application/octet-stream"}
 
 
@@ -75,6 +76,22 @@ def test_plan_analysis_compares_baseline_each_change_and_combined(c):
     assert all(r["risk"] for r in a["risks"])
     bad = c.post(f"{P}/projects/{c.pid}/plans/analyse", json={"change_ids": ["nope"]})
     assert bad.status_code == 422
+
+
+def test_plan_trace_draws_the_analysis_with_the_changes_applied(c):
+    opts = _analysed(c)
+    base = c.post(f"{P}/projects/{c.pid}/traces?which=baseline").json()
+    cooler = next(x["id"] for x in opts["changes"] if x["kind"] == "cooling")
+    t = c.post(f"{P}/projects/{c.pid}/plans/trace", json={"change_ids": [cooler]})
+    assert t.status_code == 201, t.text
+    t = t.json()
+    assert t["trace"]["kind"] == "predicted" and t["label"].startswith("with: ")
+    # the trace is drawn with the other cooler fitted, not today's
+    assert t["trace"]["thermal"]["cooling_name"] != base["trace"]["thermal"]["cooling_name"]
+    assert t["trace"]["thermal"]["unthrottled_c"] != base["trace"]["thermal"]["unthrottled_c"]
+    r = c.get(f"{P}/projects/{c.pid}/traces/{t['id']}/figures/thermal-board")
+    assert r.status_code == 200 and r.content[:4] == PNG_MAGIC
+    assert c.post(f"{P}/projects/{c.pid}/plans/trace", json={"change_ids": ["nope"]}).status_code == 422
 
 
 def test_hardware_swap_replaces_board_settings_and_design_items_are_directional(c):

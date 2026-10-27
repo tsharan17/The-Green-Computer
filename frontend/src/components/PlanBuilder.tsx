@@ -195,7 +195,7 @@ export default function PlanBuilder({
       .options(projectId)
       .then((o) => {
         setOpts(o);
-        setSel(Array.from(new Set([...o.recommended, ...(initialAdd ? [initialAdd] : [])])));
+        setSel(Array.from(new Set([...o.recommended, ...(initialAdd ? initialAdd.split(",") : [])])));
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [projectId, initialAdd]);
@@ -219,7 +219,7 @@ export default function PlanBuilder({
       const a = await plans.analyse(projectId, sel);
       setAnalysis(a);
       // Carry the analysed plan to the map stages, which can then show its trace.
-      pickPlan?.({ key: sel.join("+"), label: a.changes.map((c) => c.title).join("; "), config: a.applied.config });
+      pickPlan?.({ key: sel.join("+"), label: a.changes.map((c) => c.title).join("; "), changeIds: [...sel] });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

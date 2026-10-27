@@ -1,5 +1,4 @@
 import { EvidencePanel, RuntimeAndMemory, ThermalNodes } from "./PhysicsSections";
-import CoolingOptions from "../components/CoolingOptions";
 import TraceFigure from "../components/TraceFigure";
 import ExplorePage from "../pages/ExplorePage";
 import type { OptimisationResult, ProjectSpec } from "../types";
@@ -30,12 +29,12 @@ export function ThermalPage({ projectId, version, hasBest }: { projectId: number
         <div><span>Cooling fitted</span><strong className="num">{num(th.r_th_k_per_w)} K/W</strong><small>{th.cooling_name}</small></div>
         <div><span>Cooling needed</span><strong className="num">{th.r_th_needed_k_per_w ? `≤ ${num(th.r_th_needed_k_per_w)} K/W` : "–"}</strong><small>to stay below the throttle point</small></div>
       </div>
-      <Figure title="Board temperature map" note="Where the heat settles on the board at steady state, on this hardware. The peak is the engine's lumped result; the spatial spread is a diffusion of it, not a CFD solve.">
+      <Figure title="Board temperature map" note="Where the heat sits once the board has warmed up. Left: the board, hotter parts in deeper red; the dashed box is the cooler on the chip. Right: the hottest point of each part against the temperature where the chip slows itself down. The chip temperature is the engine's number; the spread around it is illustrative, not a CFD solve.">
         <TraceFigure projectId={projectId} traceId={tid} name="thermal-board" alt={`Predicted steady-state temperature field of ${t.device_name}, peaking at ${num(th.steady_c)} °C`} />
       </Figure>
       <Figure
         title="Temperature under sustained load"
-        note="Predicted warm-up from a cold start at this workload (lumped thermal model)."
+        note="How the chip heats up after it starts working at this workload, and whether it reaches the point where it slows down (lumped thermal model)."
         table={<table className="tbl"><thead><tr><th className="num">Time</th><th className="num">°C</th></tr></thead><tbody>{th.warmup.map(([a, b]) => <tr key={a}><td className="num">{fmtTime(a)}</td><td className="num">{num(b)}</td></tr>)}</tbody></table>}
       >
         <TraceFigure projectId={projectId} traceId={tid} name="thermal-warmup" alt={`Predicted temperature over time, settling at ${num(th.steady_c)} °C against a throttle point of ${num(th.throttle_c)} °C`} />
@@ -50,7 +49,6 @@ export function ThermalPage({ projectId, version, hasBest }: { projectId: number
       {state.which === "plan" ? PLAN_NOTE : (
         <>
           <ThermalNodes projectId={projectId} which={state.which} version={version} />
-          <CoolingOptions projectId={projectId} which={state.which} />
         </>
       )}
     </div>

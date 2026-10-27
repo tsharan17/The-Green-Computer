@@ -64,7 +64,7 @@ def _finish(fig: Any, t: dict[str, Any], pal: dict[str, Any], extra: str = "") -
     from matplotlib.backends.backend_agg import FigureCanvasAgg
 
     foot = _provenance(t) + (f" | {extra}" if extra else "")
-    fig.text(0.01, 0.01, foot, fontsize=7.5, color=pal["muted"], ha="left", va="bottom")
+    fig.text(0.01, 0.01, "\n".join(textwrap.wrap(foot, 170)), fontsize=7.5, color=pal["muted"], ha="left", va="bottom")
     FigureCanvasAgg(fig)
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=160)
@@ -82,67 +82,121 @@ def _cbar(fig: Any, mappable: Any, ax: Any, label: str, pal: dict[str, Any], cax
 # --- thermal --------------------------------------------------------------------------------------
 
 
-def _board_field(t: dict[str, Any], n: int = 240) -> np.ndarray:
-    """Heat-source map blurred by a diffusion kernel, scaled to the engine's lumped rise."""
+def _board_field(t: dict[str, Any], n: int = 200) -> np.ndarray:
+    """Heat-source footprints spread by a diffusion kernel, scaled so the hottest point equals the
+    engine's chip temperature. Only the peak is the engine's number; the spread is illustrative."""
     th = t["thermal"]
     rise = max(th["steady_c"] - th["ambient_c"], 0.05)
     q = np.zeros((n, n))
     for c in t["components"]:
-        if c["heat_w"] <= 0:
+        if c["heat_w"] <= 0 or c["kind"] == "cooling":
             continue
         lay = c["layout"]
-        x0 = int(lay["x"] * n)
-        x1 = max(int((lay["x"] + lay["w"]) * n), x0 + 1)
-        y0 = int(lay["y"] * n)
-        y1 = max(int((lay["y"] + lay["h"]) * n), y0 + 1)
+        x0, y0 = int(lay["x"] * n), int(lay["y"] * n)
+        x1, y1 = max(int((lay["x"] + lay["w"]) * n), x0 + 1), max(int((lay["y"] + lay["h"]) * n), y0 + 1)
         q[y0:y1, x0:x1] += c["heat_w"] / max((x1 - x0) * (y1 - y0), 1)
-    sigma = 0.07 * n  # diffusion length: seven percent of the board
-    k = np.fft.fftfreq(n)
-    kernel = np.exp(-2 * (np.pi * sigma) ** 2 * (k[:, None] ** 2 + k[None, :] ** 2))
-    field = np.real(np.fft.ifft2(np.fft.fft2(q) * kernel))
-    weight = q / max(q.sum(), 1e-12)
-    scale = rise / max(float((field * weight).sum()), 1e-12)
-    return th["ambient_c"] + field * scale
+    sigma = 0.06 * n  # diffusion length: six percent of the board
+    pad = n // 2  # zero padding keeps heat from wrapping round the board edges
+    qp = np.pad(q, pad)
+    kp = np.fft.fftfreq(n + 2 * pad)
+    kernel = np.exp(-2 * (np.pi * sigma) ** 2 * (kp[:, None] ** 2 + kp[None, :] ** 2))
+    field = np.real(np.fft.ifft2(np.fft.fft2(qp) * kernel))[pad:pad + n, pad:pad + n]
+    field = np.clip(field, 0, None)
+    return th["ambient_c"] + rise * field / max(float(np.max(field)), 1e-12)
+
+
+# Pale at ambient, deep red at the hot spot: calm parts of the board read as calm.
+_BOARD_RAMP = ["#f4f8fb", "#dbeaf3", "#fde9a8", "#f9b24e", "#ec6a2c", "#c4261d", "#7a0f12"]
+
+
+def _part_temps(t: dict[str, Any], temp: np.ndarray) -> list[tuple[str, float, float]]:
+    n = temp.shape[0]
+    out = []
+    for c in t["components"]:
+        if c["kind"] == "cooling":
+            continue
+        lay = c["layout"]
+        x0, y0 = int(lay["x"] * n), int(lay["y"] * n)
+        x1, y1 = max(int((lay["x"] + lay["w"]) * n), x0 + 1), max(int((lay["y"] + lay["h"]) * n), y0 + 1)
+        out.append((c["name"], float(temp[y0:y1, x0:x1].max()), float(c["heat_w"])))
+    return sorted(out, key=lambda r: -r[1])
 
 
 def thermal_board(t: dict[str, Any], pal: dict[str, Any]) -> bytes:
     from matplotlib.colors import LinearSegmentedColormap
     from matplotlib.figure import Figure
-    from matplotlib.patches import Rectangle
+    from matplotlib.patches import FancyBboxPatch, Rectangle
 
     th = t["thermal"]
     temp = _board_field(t)
-    cmap = LinearSegmentedColormap.from_list("gc_heat", pal["heat_ramp"])
-    fig = Figure(figsize=(9.6, 5.2))
-    ax = fig.add_axes((0.04, 0.1, 0.78, 0.8))
+    amb, peak = float(th["ambient_c"]), float(th["steady_c"])
+    cmap = LinearSegmentedColormap.from_list("gc_board", _BOARD_RAMP)
+    vmax = max(peak, float(th["throttle_c"]), amb + 5)
+    fig = Figure(figsize=(10.4, 5.0))
+    ax = fig.add_axes((0.02, 0.13, 0.52, 0.74))
+    cax = fig.add_axes((0.555, 0.13, 0.012, 0.74))
+    bx = fig.add_axes((0.735, 0.13, 0.245, 0.74))
     ax.grid(False)
-    lo, hi = float(th["ambient_c"]), float(max(temp.max(), th["ambient_c"] + 0.5))
-    im = ax.imshow(temp, extent=(0, 1, 1, 0), cmap=cmap, vmin=lo, vmax=hi, interpolation="bicubic", aspect="auto")
+    im = ax.imshow(temp, extent=(0, 1, 1, 0), cmap=cmap, vmin=amb, vmax=vmax, interpolation="bilinear", aspect="auto")
     grid = np.linspace(0, 1, temp.shape[0])
-    levels = np.linspace(lo, hi, 9)[1:-1]
-    cs = ax.contour(grid, grid, temp, levels=levels, colors=pal["contour"], linewidths=0.6, alpha=0.7)
-    ax.clabel(cs, fmt="%.0f°", fontsize=7, colors=pal["contour"])
-    if lo < th["throttle_c"] < hi:
-        ax.contour(grid, grid, temp, levels=[th["throttle_c"]], colors="#ffffff", linewidths=2.2, linestyles="--")
+    step = 10.0 if vmax - amb > 25 else 5.0
+    levels = np.arange(np.ceil((amb + 1) / step) * step, peak, step)
+    if len(levels):
+        cs = ax.contour(grid, grid, temp, levels=levels, colors="#5b6470", linewidths=0.6, alpha=0.55)
+        ax.clabel(cs, fmt="%.0f °C", fontsize=7, colors="#3b424b")
+    ax.add_patch(FancyBboxPatch((-0.01, -0.01), 1.02, 1.02, boxstyle="round,pad=0,rounding_size=0.03",
+                                fill=False, ec="#2f6b3a", lw=2.0))  # fmt: skip
+    cooler = next((c for c in t["components"] if c["kind"] == "cooling"), None)
     for c in t["components"]:
+        if c["kind"] == "cooling":
+            continue
         lay = c["layout"]
-        ax.add_patch(Rectangle((lay["x"], lay["y"]), lay["w"], lay["h"], fill=False, ec="#ffffff", lw=1.2, alpha=0.9))
-        label = c["name"] + (f"\n{c['heat_w']:.1f} W" if c["heat_w"] > 0 else "")
-        ax.text(lay["x"] + lay["w"] / 2, lay["y"] + lay["h"] / 2, label, ha="center", va="center", fontsize=8,
-                color=pal["on_heat"](temp, lay), fontweight="bold")  # fmt: skip
-    ax.set_xlim(0, 1)
-    ax.set_ylim(1, 0)
+        ax.add_patch(Rectangle((lay["x"], lay["y"]), lay["w"], lay["h"], fill=False, ec="#1f2933", lw=1.0, alpha=0.8))
+        hot = temp[int((lay["y"] + lay["h"] / 2) * 199), int((lay["x"] + lay["w"] / 2) * 199)]
+        ink = "#ffffff" if (hot - amb) / max(vmax - amb, 1e-9) > 0.62 else "#111111"
+        label = c["name"] + (f"\n{c['heat_w']:.1f} W of heat" if c["heat_w"] > 0 else "")
+        ax.text(lay["x"] + lay["w"] / 2, lay["y"] + lay["h"] - 0.035, label, ha="center", va="bottom", fontsize=8,
+                color=ink, fontweight="bold")  # fmt: skip
+        if c["kind"] == "compute" and cooler is not None:
+            inset = 0.025
+            ax.add_patch(Rectangle((lay["x"] + inset, lay["y"] + inset), lay["w"] - 2 * inset, lay["h"] - 2 * inset,
+                                   fill=False, ec=ink, lw=1.0, ls=(0, (4, 3))))  # fmt: skip
+            ax.text(lay["x"] + lay["w"] / 2, lay["y"] + lay["h"] + 0.015, f"dashed: {cooler['name']} on the chip ({cooler['capacity']:g} K/W)",
+                    ha="center", va="top", fontsize=7.5, color="#1f2933", zorder=5,
+                    bbox={"fc": "#ffffff", "ec": "none", "alpha": 0.85, "pad": 1.5})  # fmt: skip
+    ax.set_xlim(-0.015, 1.015)
+    ax.set_ylim(1.015, -0.015)
     ax.set_xticks([])
     ax.set_yticks([])
-    for s in ax.spines.values():
-        s.set_visible(True)
-        s.set_edgecolor(pal["line"])
-    _cbar(fig, im, ax, "Predicted temperature (°C)", pal)
-    ax.set_title(f"Board temperature at steady state: peak {hi:.0f} °C, ambient {lo:.0f} °C", pad=10)
-    tail = "spatial spread is a diffusion of the engine's lumped result, not a CFD solve"
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    _cbar(fig, im, ax, "", pal, cax=cax)
+
+    parts = _part_temps(t, temp)
+    names = [textwrap.shorten(p[0], 22, placeholder="…") for p in parts]
+    vals = [p[1] for p in parts]
+    y = np.arange(len(parts))
+    bx.barh(y, [v - amb for v in vals], left=amb, color=[cmap((v - amb) / max(vmax - amb, 1e-9)) for v in vals],
+            edgecolor="#1f2933", linewidth=0.6, height=0.55)  # fmt: skip
+    for yi, v in enumerate(vals):
+        bx.text(v + 1, yi, f"{v:.0f} °C", va="center", fontsize=8.5, color=pal["ink"])
+    bx.axvline(th["throttle_c"], color="#c4261d", lw=1.4, ls="--")
+    bx.text(th["throttle_c"], -0.75, f"slows down at {th['throttle_c']:.0f} °C ", color="#c4261d", fontsize=7.5, va="bottom", ha="right")
+    bx.axvline(amb, color=pal["muted"], lw=1.0)
+    bx.text(amb, len(parts) - 0.3, f" room {amb:.0f} °C", color=pal["muted"], fontsize=7.5, va="top")
+    bx.set_yticks(y, names)
+    bx.invert_yaxis()
+    bx.set_ylim(len(parts) - 0.2, -0.9)
+    bx.set_xlim(amb - 2, max(vmax, th["throttle_c"]) + 14)
+    bx.set_xlabel("Hottest point (°C)")
+    bx.grid(axis="y", visible=False)
+    bx.set_title("Each part", fontsize=10.5)
+    head = f"Board heat at steady state (°C): chip {peak:.0f} °C in a {amb:.0f} °C room"
+    ax.set_title(head, pad=8)
     if th["throttled"]:
-        tail += "; dashed line = throttle point"
-    return _finish(fig, t, pal, tail)
+        fig.text(0.02, 0.06, f"Held at {peak:.0f} °C by slowing the clock to {th['clock_factor'] * 100:.0f}%; "
+                 f"without that it would reach {th['unthrottled_c']:.0f} °C.", fontsize=8.5, color="#c4261d")  # fmt: skip
+    return _finish(fig, t, pal, "peak = engine's chip temperature; the spread across the board is illustrative, not CFD")
 
 
 def thermal_warmup(t: dict[str, Any], pal: dict[str, Any]) -> bytes:
@@ -421,7 +475,7 @@ def _sweep_heatmap(fig: Any, ax: Any, cax: Any, mat: np.ndarray, thr: np.ndarray
     import seaborn as sns
     from matplotlib.colors import LinearSegmentedColormap
 
-    cmap = LinearSegmentedColormap.from_list("gc_heat", pal["heat_ramp"])
+    cmap = LinearSegmentedColormap.from_list("gc_board", _BOARD_RAMP)
     labels = np.array([[f"{v:.0f}{'*' if t else ''}" for v, t in zip(r, tr, strict=True)] for r, tr in zip(mat, thr, strict=True)])
     sns.heatmap(mat, ax=ax, cbar_ax=cax, cmap=cmap, vmin=float(min(mat.min(), s["t_throttle_c"] - 40)),
                 vmax=float(max(mat.max(), s["t_throttle_c"])), annot=labels, fmt="", annot_kws={"fontsize": 8},
@@ -434,38 +488,115 @@ def _sweep_heatmap(fig: Any, ax: Any, cax: Any, mat: np.ndarray, thr: np.ndarray
     ax.grid(False)
 
 
+def _outline(ax: Any, col: int, rows: int) -> None:
+    from matplotlib.patches import Rectangle
+
+    ax.add_patch(Rectangle((col, 0), 1, rows, fill=False, ec="#111111", lw=2.0, clip_on=False, zorder=4))
+
+
+def _mark_fitted(ax: Any, names: list[str]) -> None:
+    for lab in ax.get_yticklabels():
+        if "(fitted)" in lab.get_text():
+            lab.set_fontweight("bold")
+            lab.set_color("#111111")
+
+
+def _safe_ambient(s: dict[str, Any], o: dict[str, Any], j: int) -> tuple[float | None, bool]:
+    """The warmest room this option keeps the chip below its throttle point in, at today's input
+    rate. Read from the engine's own grid: between the last cool cell and the first throttled one the
+    chip temperature rises about one degree per degree of room, so the crossing is interpolated
+    there. Returns (ambient, is_lower_bound) and None when even the coolest room throttles."""
+    amb = s["ambient_c"]
+    temps = [o["temperature_c"][i][j] for i in range(len(amb))]
+    thr = [o["throttled"][i][j] for i in range(len(amb))]
+    limit = s["t_throttle_c"]
+    if thr[0]:
+        return None, False
+    k = max(i for i, t in enumerate(thr) if not t)
+    if k == len(amb) - 1:
+        return amb[-1], True
+    return min(amb[k] + max(limit - temps[k], 0.0), amb[k + 1]), False
+
+
+def cooling_headroom(s: dict[str, Any], pal: dict[str, Any]) -> bytes:
+    """One bar per cooling option: the warmest room it can run in at today's input rate without the
+    chip slowing down. The simplest answer to "is this cooling enough here?"."""
+    from matplotlib.figure import Figure
+
+    j = s["load_fraction"].index(1.0)
+    here = float(s["project_ambient_c"])
+    lo_axis = float(s["ambient_c"][0])
+    rows = []
+    for o in s["options"]:
+        safe, more = _safe_ambient(s, o, j)
+        rows.append((o["name"], safe, more, o["r_th_k_per_w"]))
+    rows.sort(key=lambda r: -1e9 if r[1] is None else r[1])
+    fig = Figure(figsize=(10.4, 1.9 + 0.46 * len(rows)))
+    ax = fig.add_axes((0.36, 0.25, 0.56, 0.62))
+    y = np.arange(len(rows))
+    ok, tight, bad = "#3a8a4f", "#e0a43a", "#c4261d"
+    for yi, (_, safe, more, _) in enumerate(rows):
+        if safe is None:
+            ax.text(lo_axis + 0.3, yi, f"too hot even at {lo_axis:g} °C", va="center", fontsize=8.5, color=bad)
+            continue
+        colour = ok if safe >= here + 5 else tight if safe >= here else bad
+        ax.barh(yi, safe - lo_axis, left=lo_axis, color=colour, height=0.58, edgecolor="none")
+        txt = f"{'over ' if more else 'up to '}{safe:.0f} °C"
+        ax.text(safe + 0.4, yi, txt, va="center", fontsize=8.5, color=pal["ink"])
+    ax.axvline(here, color="#111111", lw=1.6, ls="--")
+    ax.text(here, -0.85, f"your room: {here:g} °C", ha="center", va="bottom", fontsize=8.5, fontweight="bold")
+    ax.set_yticks(y, [textwrap.shorten(r[0], 40, placeholder="…") + f" ({r[3]:.2g} K/W)" for r in rows])
+    _mark_fitted(ax, [r[0] for r in rows])
+    ax.invert_yaxis()
+    ax.set_ylim(len(rows) - 0.4, -1.1)
+    ax.set_xlim(lo_axis, max(float(s["ambient_c"][-1]), here) + 8)
+    ax.set_xlabel("Warmest room it can run in without slowing down (°C)")
+    ax.grid(axis="y", visible=False)
+    ax.set_title(f"How warm a room can each cooling option handle at {s['fps'][j]:g} inputs/s?", pad=10)
+    fig.text(0.36, 0.09, "green: at least 5 °C to spare   amber: less than 5 °C to spare   red: slows down in your room",
+             fontsize=8, color=pal["muted"])  # fmt: skip
+    return _finish(fig, s, pal, "read from the engine's ambient sweep, interpolated between grid points | not CFD")
+
+
 def cooling_heatmap(s: dict[str, Any], pal: dict[str, Any]) -> bytes:
     """Cooling option x ambient at the project's input rate."""
     from matplotlib.figure import Figure
 
     j = s["load_fraction"].index(1.0)
     cols = [i for i, a in enumerate(s["ambient_c"]) if a % 5 == 0]  # every 5 °C keeps the labels legible
-    names = [o["name"][:34] for o in s["options"]]
+    names = [textwrap.shorten(o["name"], 36, placeholder="…") for o in s["options"]]
     mat = np.array([[o["temperature_c"][i][j] for i in cols] for o in s["options"]])
     thr = np.array([[o["throttled"][i][j] for i in cols] for o in s["options"]])
     fig = Figure(figsize=(9.6, 1.6 + 0.42 * len(names)))
     ax = fig.add_axes((0.27, 0.22, 0.6, 0.66))
     cax = fig.add_axes((0.9, 0.22, 0.018, 0.66))
     _sweep_heatmap(fig, ax, cax, mat, thr, [f"{s['ambient_c'][i]:g}" for i in cols], names, s, pal)
-    ax.set_xlabel("Ambient temperature (°C)")
-    ax.set_title(f"Thermal map by cooling option at {s['fps'][j]:g} inputs/s", pad=10)
-    return _finish(fig, s, pal, f"* throttles (clock reduced to hold {s['t_throttle_c']:g} °C) | analytical sweep, not CFD")
+    amb = [s["ambient_c"][i] for i in cols]
+    if s["project_ambient_c"] in amb:
+        _outline(ax, col=amb.index(s["project_ambient_c"]), rows=len(names))
+    _mark_fitted(ax, names)
+    ax.set_xlabel("Room (ambient) temperature (°C)")
+    ax.set_title(f"Chip temperature for each cooling option at {s['fps'][j]:g} inputs/s", pad=10)
+    return _finish(fig, s, pal, f"* = too hot: the chip slows down to hold {s['t_throttle_c']:g} °C | boxed column = your room | "
+                   "analytical sweep, not CFD")
 
 
 def mode_cooling_heatmap(s: dict[str, Any], pal: dict[str, Any]) -> bytes:
     """Power mode x cooling option at the project's ambient and input rate."""
     from matplotlib.figure import Figure
 
-    names = [o["name"][:34] for o in s["options"]]
+    names = [textwrap.shorten(o["name"], 36, placeholder="…") for o in s["options"]]
     mat = np.array([[m["temperature_c"] for m in o["modes"]] for o in s["options"]])
     thr = np.array([[m["throttled"] for m in o["modes"]] for o in s["options"]])
     fig = Figure(figsize=(8.4, 1.6 + 0.42 * len(names)))
     ax = fig.add_axes((0.3, 0.22, 0.55, 0.66))
     cax = fig.add_axes((0.88, 0.22, 0.02, 0.66))
     _sweep_heatmap(fig, ax, cax, mat, thr, s["power_modes"], names, s, pal)
+    _mark_fitted(ax, names)
     ax.set_xlabel("Power mode")
-    ax.set_title(f"Power mode × cooling at {s['project_ambient_c']:g} °C ambient", pad=10)
-    return _finish(fig, s, pal, f"* throttles | {s.get('modes_provenance', 'analytical')}")
+    ax.set_title(f"Chip temperature for each power mode and cooling option in a {s['project_ambient_c']:g} °C room", pad=10)
+    return _finish(fig, s, pal, f"* = too hot: the chip slows down to hold {s['t_throttle_c']:g} °C | "
+                   f"{s.get('modes_provenance', 'analytical')}")
 
 
 def cooling_surfaces(s: dict[str, Any], pal: dict[str, Any]) -> bytes:
@@ -512,6 +643,7 @@ def cooling_surfaces(s: dict[str, Any], pal: dict[str, Any]) -> bytes:
 
 
 SWEEP_FIGURES: dict[str, Callable[[dict[str, Any], dict[str, Any]], bytes]] = {
+    "cooling-headroom": cooling_headroom,
     "cooling-heatmap": cooling_heatmap,
     "mode-cooling-heatmap": mode_cooling_heatmap,
     "cooling-surfaces": cooling_surfaces,
