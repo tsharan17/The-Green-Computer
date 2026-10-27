@@ -16,3 +16,6 @@ bench/*.json
 gc_data/
 frontend/test-results/
 frontend/playwright-report/
+
+# Filled-in Cloud Run deploy settings (database password, API key)
+.env.cloudrun

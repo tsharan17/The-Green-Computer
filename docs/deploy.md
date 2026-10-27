@@ -5,7 +5,11 @@ Two supported shapes:
 - one managed platform, Render, as a Docker web service with managed PostgreSQL and a persistent
   disk.
 
-Neither needs any external SaaS. GPU jobs, the AI assistant, error webhooks and telemetry are all
+A third shape, for the free public demo, is Google Cloud Run with a free Neon PostgreSQL database and a
+keep-warm job: see [deploy/cloudrun/README.md](../deploy/cloudrun/README.md) (script written, not yet
+run).
+
+None of them needs any external SaaS, except that third one. GPU jobs, the AI assistant, error webhooks and telemetry are all
 optional and off by default.
 
 > Status: the Dockerfile and `docker-compose.yml` are written and checked for syntax, but Docker

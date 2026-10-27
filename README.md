@@ -157,6 +157,7 @@ Details: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [docs/api.md](doc
 | Terms, privacy and acceptable-use pages | Written to match the implementation; **draft, needs professional legal review** |
 | OCR for scanned PDFs | Implemented; untested here (no Tesseract installed) |
 | Docker image and compose stack | Written; **not yet built**. The way to run it is the Quick start above |
+| Cloud Run + Neon demo deployment (`deploy/cloudrun/`) | Script and guide written; input checks tested; **never run against Google Cloud** |
 | Browser journeys | 15 Playwright tests (sign-up to export, accessibility checks in light and dark) pass against a local server |
 | Recipes and deployment configs | Templates; syntax-checked, not run on devices |
 | Chip/board what-ifs | Directional analytical what-ifs, not designs |

@@ -30,3 +30,14 @@ def test_llm_settings_defaults_and_overrides(monkeypatch):
     monkeypatch.setenv("GC_AGENT_MAX_TOOL_CALLS", "5")
     s2 = config.get_llm_settings()
     assert s2.configured and s2.base_url == "https://example.test/v1/" and s2.max_tool_calls == 5
+
+
+def test_postgres_connections_are_tested_before_use_because_managed_databases_pause():
+    import pytest
+
+    pytest.importorskip("psycopg")
+    from app.db.session import make_engine
+
+    pg = make_engine("postgresql+psycopg://u:p@localhost:5432/d")
+    assert pg.pool._pre_ping is True and pg.pool._recycle == 300
+    assert make_engine("sqlite://").pool._pre_ping is False
