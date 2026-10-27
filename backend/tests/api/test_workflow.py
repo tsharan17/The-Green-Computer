@@ -128,14 +128,17 @@ def test_saved_plan_turns_a_recommendation_into_an_evaluated_one(c):
 
 
 class FakeLLM:
+    """`content` is one reply (text or an exception) used for every call, or a list of replies in order."""
+
     def __init__(self, content):
         self.content, self.calls = content, []
 
     def chat(self, model, messages, tools=None, tool_choice=None, temperature=0.2, max_tokens=2048):
-        self.calls.append(messages)
-        if isinstance(self.content, Exception):
-            raise self.content
-        return ChatReply(content=self.content, model=model, usage={"total_tokens": 321})
+        self.calls.append(list(messages))
+        reply = self.content[min(len(self.calls), len(self.content)) - 1] if isinstance(self.content, list) else self.content
+        if isinstance(reply, Exception):
+            raise reply
+        return ChatReply(content=reply, model=model, usage={"total_tokens": 321})
 
     def list_models(self):
         return ["nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3-nano-30b"]
@@ -190,6 +193,39 @@ def test_ai_candidates_fail_gracefully(c, monkeypatch, content, needle):
     r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={})
     assert r.status_code == 502 and needle in r.json()["detail"]
     assert "test-key" not in r.text
+
+
+_GOOD = {"summary": "Heat is the limit.", "candidates": [
+    {"change_id": None, "category": "software", "area": "model", "title": "Quantise", "rationale": "Fewer bytes moved."},
+    {"change_id": None, "category": "software", "area": "model", "title": "Batch more", "rationale": "Better use."},
+]}  # fmt: skip
+
+
+def test_ai_candidates_repair_a_missing_comma_without_a_second_call(c, monkeypatch):
+    c.post(f"{P}/projects/{c.pid}/optimise")
+    broken = json.dumps(_GOOD, indent=2).replace("},\n    {", "}\n    {")  # the slip models make
+    assert broken != json.dumps(_GOOD, indent=2)
+    llm = FakeLLM(broken)
+    _use(c, monkeypatch, llm)
+    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={})
+    assert r.status_code == 200, r.text
+    assert len(r.json()["candidates"]) == 2 and len(llm.calls) == 1
+
+
+def test_ai_candidates_retry_once_with_the_error_quoted_back(c, monkeypatch):
+    c.post(f"{P}/projects/{c.pid}/optimise")
+    llm = FakeLLM(['{"summary": "cut off', json.dumps(_GOOD)])
+    _use(c, monkeypatch, llm)
+    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={})
+    assert r.status_code == 200, r.text
+    assert len(r.json()["candidates"]) == 2 and len(llm.calls) == 2
+    assert "could not be read" in llm.calls[1][-1]["content"] and llm.calls[1][-2]["role"] == "assistant"
+    # a provider failure is not retried: it would only repeat the cost
+    c.post(f"{P}/projects/{c.pid}/optimise")
+    down = FakeLLM(LLMError("could not reach the model provider: ReadTimeout"))
+    _use(c, monkeypatch, down)
+    assert c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={"refresh": True}).status_code == 502
+    assert len(down.calls) == 1
 
 
 def test_ai_candidates_need_a_key_and_an_analysis(c, monkeypatch):

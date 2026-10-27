@@ -92,13 +92,25 @@ def input_hash(summary: dict[str, Any], model: str) -> str:
     return hashlib.sha256(json.dumps([summary, model], sort_keys=True, default=str).encode()).hexdigest()
 
 
+# A value that ends a line and a key, string or object that starts the next with no comma between them:
+# the usual slip in model-written JSON. Valid JSON never matches (a comma, colon or bracket sits there).
+_MISSING_COMMA = re.compile(r'(["}\]0-9el])([ \t]*\r?\n[ \t]*)(["{\[])')
+
+
+def _loads(text: str) -> Any:
+    try:
+        return json.loads(text)
+    except ValueError:
+        return json.loads(_MISSING_COMMA.sub(r"\1,\2\3", text))  # the error raised here is the one reported
+
+
 def parse(content: str) -> Reply:
     text = _FENCE.sub("", (content or "").strip()).strip()
     start, end = text.find("{"), text.rfind("}")
     if start < 0 or end <= start:
         raise LLMError("the model did not return a JSON object")
     try:
-        return Reply.model_validate(json.loads(text[start : end + 1]))
+        return Reply.model_validate(_loads(text[start : end + 1]))
     except (ValueError, ValidationError) as e:
         raise LLMError(f"the model's reply did not match the expected schema: {str(e)[:200]}") from e
 
@@ -153,7 +165,18 @@ def generate(llm: LLM, model: str, summary: dict[str, Any], max_tokens: int = 14
         {"role": "user", "content": json.dumps(summary, separators=(",", ":"), default=str)},
     ]  # fmt: skip
     reply = llm.chat(model, messages, temperature=0.2, max_tokens=max_tokens)
-    out = validate(parse(reply.content), summary)
+    try:
+        parsed = parse(reply.content)
+    except LLMError as first:
+        # One retry, quoting the problem back to the model, with no randomness; a second failure is reported.
+        messages += [
+            {"role": "assistant", "content": reply.content[:6000]},
+            {"role": "user", "content": f"That reply could not be read ({first}). Reply again with the one JSON "
+                                        "object only: valid JSON, commas between all items, no prose."},
+        ]  # fmt: skip
+        reply = llm.chat(model, messages, temperature=0.0, max_tokens=max_tokens)
+        parsed = parse(reply.content)
+    out = validate(parsed, summary)
     return {
         "schema": SCHEMA, "model": reply.model or model, "usage": reply.usage, **out,
         "label": "AI candidates: proposed by the language model from the engine's numbers. Not evaluated until "
