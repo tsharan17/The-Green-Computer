@@ -30,14 +30,14 @@ function Warn([string]$m) { Write-Host "  warning: $m" -ForegroundColor Yellow }
 function Fail([string]$m) { Write-Host ""; Write-Host "ERROR: $m" -ForegroundColor Red; exit 1 }
 
 # Run gcloud and stop with a clear message if it fails. Output goes to the screen, not to the caller.
-function Gc {
-    & gcloud @args | Out-Host
+function Invoke-Gcloud {
+    & gcloud.cmd @args | Out-Host
     if ($LASTEXITCODE -ne 0) { Fail ("gcloud " + ($args -join " ") + " failed (exit " + $LASTEXITCODE + ")") }
 }
 
 # Run gcloud and return its output as one trimmed string.
 function GcOut {
-    $out = & gcloud @args
+    $out = & gcloud.cmd @args
     if ($LASTEXITCODE -ne 0) { Fail ("gcloud " + ($args -join " ") + " failed (exit " + $LASTEXITCODE + ")") }
     return ($out | Out-String).Trim()
 }
@@ -98,7 +98,7 @@ if ($LASTEXITCODE -eq 0 -and $billing -ne "True") {
 
 # --- 2. services -----------------------------------------------------------------------------------
 Say "Enabling Google Cloud services (a minute or two the first time)"
-Gc services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com compute.googleapis.com --project $Project
+Invoke-Gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com compute.googleapis.com --project $Project
 
 # --- 3. service account, permissions, secrets ----------------------------------------------------------
 Say "Service account and permissions"
@@ -106,7 +106,7 @@ $saName = "green-computer-run"
 $saEmail = "$saName@$Project.iam.gserviceaccount.com"
 $haveSa = GcOut iam service-accounts list --project $Project "--format=value(email)"
 if ($haveSa -notmatch [regex]::Escape($saEmail)) {
-    Gc iam service-accounts create $saName --project $Project "--display-name=Green Computer on Cloud Run"
+    Invoke-Gcloud iam service-accounts create $saName --project $Project "--display-name=Green Computer on Cloud Run"
 }
 $bound = $false
 for ($try = 1; $try -le 4 -and -not $bound; $try++) {
@@ -133,12 +133,12 @@ function Set-Secret([string]$name, [string]$value, [bool]$generate) {
     try {
         [IO.File]::WriteAllText($tmp, $value, (New-Object Text.UTF8Encoding($false)))
         if (-not $exists) {
-            Gc secrets create $name --project $Project --replication-policy=automatic "--data-file=$tmp"
+            Invoke-Gcloud secrets create $name --project $Project --replication-policy=automatic "--data-file=$tmp"
             $script:existing += $name
         } else {
             $current = (& gcloud secrets versions access latest "--secret=$name" --project $Project | Out-String).Trim()
             if ($LASTEXITCODE -eq 0 -and $current -eq $value.Trim()) { Write-Host "  ${name}: unchanged" }
-            else { Gc secrets versions add $name --project $Project "--data-file=$tmp" }
+            else { Invoke-Gcloud secrets versions add $name --project $Project "--data-file=$tmp" }
         }
     } finally {
         Remove-Item $tmp -Force -ErrorAction SilentlyContinue
@@ -163,7 +163,7 @@ $secrets = @("GC_DB_URL=gc-db-url:latest", "GC_SECRET_KEY=gc-secret-key:latest",
 if ($haveKey) { $secrets += "TOKEN_FACTORY_API_KEY=gc-token-factory-key:latest" }
 
 Say "Building the image and deploying $Service to $Region (5 to 10 minutes the first time)"
-Gc run deploy $Service --project $Project --region $Region --source $RepoRoot --quiet `
+Invoke-Gcloud run deploy $Service --project $Project --region $Region --source $RepoRoot --quiet `
     --allow-unauthenticated --port 8000 --cpu 2 --memory 2Gi --cpu-boost `
     --min-instances 0 --max-instances 3 --concurrency 20 --timeout 300 `
     "--service-account=$saEmail" ("--set-env-vars=" + ($envVars -join ",")) ("--set-secrets=" + ($secrets -join ","))
@@ -171,7 +171,7 @@ Gc run deploy $Service --project $Project --region $Region --source $RepoRoot --
 $url = GcOut run services describe $Service --project $Project --region $Region "--format=value(status.url)"
 if ($url -ne $publicUrl) {
     Say "Setting GC_PUBLIC_URL to the address Cloud Run gave"
-    Gc run services update $Service --project $Project --region $Region --quiet "--update-env-vars=GC_PUBLIC_URL=$url"
+    Invoke-Gcloud run services update $Service --project $Project --region $Region --quiet "--update-env-vars=GC_PUBLIC_URL=$url"
 }
 
 # --- 5. keep it warm -----------------------------------------------------------------------------------
@@ -180,7 +180,7 @@ $jobName = "$Service-keepwarm"
 $jobs = Names (GcOut scheduler jobs list --project $Project --location $Region "--format=value(name)")
 $verb = "create"
 if ($jobs -contains $jobName) { $verb = "update" }
-Gc scheduler jobs $verb http $jobName --project $Project --location $Region "--schedule=*/5 * * * *" "--uri=$url/api/v1/health" --http-method=GET --attempt-deadline=60s --time-zone=Etc/UTC "--description=Keeps the demo warm"
+Invoke-Gcloud scheduler jobs $verb http $jobName --project $Project --location $Region "--schedule=*/5 * * * *" "--uri=$url/api/v1/health" --http-method=GET --attempt-deadline=60s --time-zone=Etc/UTC "--description=Keeps the demo warm"
 
 # --- 6. check it -----------------------------------------------------------------------------------------
 Say "Checking $url"

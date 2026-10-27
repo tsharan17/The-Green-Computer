@@ -218,7 +218,11 @@ class OriginCheck(BaseHTTPMiddleware):
             and request.method not in ("GET", "HEAD", "OPTIONS")
             and request.url.path.startswith("/api/")
         ):
-            own = f"{request.url.scheme}://{request.headers.get('host', '')}"
+            scheme = request.url.scheme
+            if _truthy(os.environ.get("GC_TRUST_PROXY")):
+                # Behind a TLS-terminating proxy (Cloud Run, Render) the app itself sees plain http.
+                scheme = request.headers.get("x-forwarded-proto", scheme).split(",")[0].strip()
+            own = f"{scheme}://{request.headers.get('host', '')}"
             if origin.rstrip("/") not in self.allowed | {own}:
                 return Response(
                     '{"detail":"Cross-origin request refused."}', status_code=403,

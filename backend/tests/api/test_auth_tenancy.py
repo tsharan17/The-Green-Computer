@@ -77,6 +77,20 @@ def test_csrf_header_and_origin_are_enforced_for_cookie_sessions(app):
         assert r.status_code == 403
 
 
+def test_origin_check_uses_the_forwarded_scheme_behind_a_tls_proxy(app, monkeypatch):
+    # Cloud Run and Render end TLS and pass plain http on, so the browser's https Origin must still match.
+    with AuthedClient(app) as c:
+        pid = c.get(f"{P}/projects").json()[0]["id"]
+        url = f"{P}/projects/{pid}/evaluate"
+        origin = {"Origin": "https://testserver"}
+        monkeypatch.delenv("GC_TRUST_PROXY", raising=False)
+        assert c.post(url, headers={**H, **origin}).status_code == 403
+        monkeypatch.setenv("GC_TRUST_PROXY", "1")
+        assert c.post(url, headers={**H, **origin, "X-Forwarded-Proto": "https"}).status_code == 200
+        r = c.post(url, headers={**H, "Origin": "https://evil.example", "X-Forwarded-Proto": "https"})
+        assert r.status_code == 403
+
+
 def test_api_token_works_without_cookie_or_csrf_header(app):
     with AuthedClient(app) as c:
         tok = c.post(f"{P}/auth/tokens", json={"label": "ci"}).json()["token"]
