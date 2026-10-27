@@ -24,7 +24,7 @@ Optional, only if each works live and fits in the time: **AI candidates** (Recom
 ## Before recording
 
 - Run `scripts/acceptance.py <url>` against the demo.
-- Run `scripts/check_nebius.py` and re-test AI candidates with the real key. If AI candidates still fail, leave them out and say nothing about them in the video.
-- Run the datasheet import once with the Tavily key if you want to show it (and to support the Tavily bonus award, which needs a runtime call to Tavily).
+- Run `scripts/check_nebius.py` again on the day (it passed on 27 October). AI candidates passed 4 of 4 live runs on 27 October; if they fail on the day, leave them out of the video.
+- Datasheet import with Tavily worked live on 27 October (45 to 60 s per device). To show it for the Tavily bonus, record it from your local copy and cut the wait; a device that is not in the library works best (for example "NVIDIA Jetson Orin Nano Super Developer Kit").
 - Delete earlier test projects so the workspace is tidy; use a fresh account.
 - Keep it under three minutes: judges need not watch beyond that.

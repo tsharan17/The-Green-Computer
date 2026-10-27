@@ -34,9 +34,10 @@ Where Token Factory is called: `backend/app/agent/` (client, agent loop, tools, 
 ## Please read: what is and is not verified
 
 - The performance, power and heat numbers are **predictions** from a physics model with stated assumptions and best-case to worst-case ranges. The only real measurements so far are ResNet-50 and MobileNetV2 latency on the developer's CPU. **No Jetson, GPU or power measurement exists yet**, so Jetson results are analytical.
-- **Green Agent: verified live.** A Token Factory key was accepted and the agent answered (checked by hand, 27 October 2026). [Add the model id shown by the agent status, and anything you saw it do wrong.]
-- **AI candidates: partly verified.** The first two live attempts failed: the reply was not valid JSON, then a reasoning model used its whole token budget thinking and returned no answer. The app now repairs the common JSON slip, retries once, and allows more room. [Update after re-testing live: it worked / it still fails because ...]
-- **Datasheet import (Tavily) and Nebius Serverless Jobs: not run live.** They are tested only against fakes. [Update if you run them before submitting.]
+- **Green Agent: verified live** on 27 October 2026, on `nvidia/Nemotron-3-Ultra-550b-a55b`. The agent answered in the app, and a scripted check confirmed a full tool-call round trip.
+- **AI candidates: verified live** on 27 October 2026, on `nvidia/nemotron-3-super-120b-a12b`. The first two attempts failed: the reply was not valid JSON, then a reasoning model used its whole token budget thinking and returned no answer. The app now repairs the common JSON slip, retries once, and allows more room; after that, 4 of 4 runs returned six candidates each, in 12 to 21 seconds.
+- **Datasheet import (Tavily + Nemotron Nano): verified live** on a local copy, 27 October 2026. Four real devices were drafted, each value tied to its source page, and one went through confirmation and analysis. It is switched off in the public demo because it spends credits.
+- **Nebius Serverless Jobs and Endpoints: not run live.** They are tested only against fakes.
 - The app has automated tests: a backend suite and 15 browser journeys with accessibility checks, all passing locally on 27 October 2026.
 - Generated recipes are syntax-checked, never run on a device. The chip-design what-ifs come from a simple model with no on-chip memory detail and are directional.
 

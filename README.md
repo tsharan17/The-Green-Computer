@@ -150,9 +150,9 @@ Details: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [docs/api.md](doc
 | Local execution | Real ONNX Runtime CPU runs tested; measures latency and operator time, not power or temperature |
 | Predictions | Analytical with stated assumptions; the only measurements so far are CPU latencies on the development machine |
 | CUDA / TensorRT backends | Detected and gated; never run here (no NVIDIA GPU) |
-| Green Agent (Token Factory) | Tested with mocked providers. **Live:** a Token Factory key was accepted and the agent answered, checked by hand on 27 Oct 2026. Which Nemotron model id resolved is shown by `GET /api/v1/agent/status`. Off unless a key is set |
-| AI recommendation candidates | Tested with mocked providers. **Live:** the first two real attempts failed (invalid JSON, then no answer because a reasoning model used up its token budget). The app now repairs the common JSON slip, retries once, and gives a reasoning model more room; **not yet re-checked live** |
-| Datasheet web search (Tavily + Nemotron) | Tested with fakes only; **never run live** |
+| Green Agent (Token Factory) | Tested with mocked providers. **Live** on 27 Oct 2026 with `nvidia/Nemotron-3-Ultra-550b-a55b`: the agent answered, and `scripts/check_nebius.py` passed chat and a tool-call round trip. `GET /api/v1/agent/status` shows the resolved ids. Off unless a key is set |
+| AI recommendation candidates | Tested with mocked providers. **Live** on 27 Oct 2026 with `nvidia/nemotron-3-super-120b-a12b`: the first two attempts failed (invalid JSON, then no answer because a reasoning model used up its token budget). After the fix (JSON repair, one retry, more room), 4 of 4 runs succeeded |
+| Datasheet web search (Tavily + Nemotron) | Tested with fakes. **Live** on 27 Oct 2026 with `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`: the first runs failed the same two ways and got the same fix. After that, four real devices were drafted with each value sourced, and one was confirmed and analysed. Takes 45 to 60 s |
 | Nebius Serverless Jobs and Endpoints | Job and endpoint scripts built from vendor documentation; **never run live** (`GC_ENABLE_NEBIUS=0` by default) |
 | Terms, privacy and acceptable-use pages | Written to match the implementation; **draft, needs professional legal review** |
 | OCR for scanned PDFs | Implemented; untested here (no Tesseract installed) |
