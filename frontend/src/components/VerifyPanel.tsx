@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import type {
-  BenchmarkStatus,
   CalibrationHistoryItem,
   HardwareProfile,
   ModelProfile,
   VerifyOut,
 } from "../types";
-import NebiusJobsPanel from "./NebiusJobsPanel";
 import PredVsMeasuredChart from "./PredVsMeasuredChart";
 import { fmt } from "./common";
 
@@ -25,17 +23,15 @@ export default function VerifyPanel({
 }) {
   const [data, setData] = useState<VerifyOut | null>(null);
   const [history, setHistory] = useState<CalibrationHistoryItem[]>([]);
-  const [status, setStatus] = useState<BenchmarkStatus | null>(null);
   const [deviceFilter, setDeviceFilter] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [v, c, s] = await Promise.all([api.verify(deviceFilter || undefined), api.calibration(), api.benchmarkStatus()]);
+      const [v, c] = await Promise.all([api.verify(deviceFilter || undefined), api.calibration()]);
       setData(v);
       setHistory(c.history);
-      setStatus(s);
       setErr(null);
     } catch (e) {
       setErr(String(e));
@@ -124,12 +120,9 @@ export default function VerifyPanel({
             </select>
           </label>
         </div>
-        {status && (
-          <p className="note-info">
-            Nebius Serverless Jobs: <strong>{status.jobs_configured ? "configured" : "not configured"}</strong> — {status.detail}.
-            Measurements enter by import or manual entry; the committed examples were run on the development machine&apos;s CPU, not a GPU.
-          </p>
-        )}
+        <p className="note-info">
+          Measurements enter by import or manual entry; the committed examples were run on the development machine&apos;s CPU, not a GPU.
+        </p>
         {!rows.length && <p className="hint">No latency measurements for this selection yet.</p>}
         {data?.summaries.map((s) => (
           <div key={`${s.device_id}/${s.precision}`} className="verify-card">
@@ -205,8 +198,6 @@ export default function VerifyPanel({
           </table>
         </section>
       )}
-
-      <NebiusJobsPanel devices={devices} onIngested={() => { load(); onChanged(); }} />
 
       <section className="panel">
         <h2>Add measurements</h2>

@@ -2,9 +2,8 @@
 
 No AI is needed. Candidates are found by pattern (compute TOPS/TFLOPS, memory size and bandwidth,
 power, temperature limits) and always returned with the page and the line they came from, so a
-person confirms each one before it enters a profile. If the optional AI provider is configured,
-the existing extraction (agent/datasheet.py) can propose a full profile instead; either way
-nothing is used unconfirmed.
+person confirms each one before it enters a profile (datasheet_profile.extraction_from_scan turns
+them into a draft). Nothing is used unconfirmed.
 
 OCR: only when the server has Tesseract (binary) plus the `pytesseract` and `pymupdf` packages.
 Otherwise a scanned PDF is marked for manual review, never guessed.

@@ -24,11 +24,6 @@ configured it **and** you use the feature that needs it.
 
 | Service | Feature | What is sent |
 |---|---|---|
-| Nebius Token Factory (NVIDIA Nemotron models) | AI assistant chat | Your question, the conversation so far, and the engine's results for the project (model and device names, settings, numbers) |
-| Nebius Token Factory | "Ask the AI for candidates" on Recommendations | The engine's summary only: model and device names, today's settings and metrics, failing requirements, your requirements and workload, and the ids of changes the engine can evaluate. No file contents |
-| Nebius Token Factory | Reading an uploaded datasheet PDF | Up to 5,000 characters of the PDF's text, to extract hardware values that you then confirm |
-| Tavily | Datasheet search by device name | The device name you type |
-| Nebius (GPU jobs) | Running a benchmark on a cloud GPU | The model file and benchmark settings for that run |
 | Email provider (SMTP) | Verification and password-reset emails | Your email address and the message |
 | Error reporting (webhook or Sentry) | Server errors | Error type, route and request id; no request bodies, passwords or tokens |
 | Telemetry | Off by default; only after the operator enables it | Aggregate counts; no personal data or file contents |

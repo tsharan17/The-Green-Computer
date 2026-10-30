@@ -168,9 +168,9 @@ def test_formats_template_validation_and_capabilities_endpoints(client):
     assert client.post(f"{P}/intake/validate/device-profile", json={"name": "x"}).json()["ok"] is False
     caps = {c["id"]: c for c in client.get(f"{P}/capabilities").json()}
     assert caps["engine"]["status"] == "available" and caps["local-cpu"]["status"] == "available"
-    assert caps["nebius-jobs"]["status"] in ("disabled", "needs_credential")
     assert caps["remote-device"]["status"] == "available"
-    assert caps["ai"]["status"] == "needs_credential"
+    assert not {"nebius-jobs", "ai", "datasheet-search"} & caps.keys()  # no provider features
+    assert caps["datasheet-offline"]["status"] == "available"
     assert caps["eda"]["status"] == "planned"
     assert caps["database"]["status"] == "available"
 

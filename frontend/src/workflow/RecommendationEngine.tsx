@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { plans, workflow } from "../api";
-import AiBadge from "../components/AiBadge";
 import { ErrorNote } from "../components/Help";
 import { DiffTables } from "../components/PlanBuilder";
-import { hrefOf } from "../flow";
 import { navigate } from "../router";
 import KeyFigures, { TraceKpis, useBaselineTrace } from "../twin/KeyFigures";
 import { num } from "../twin/chart";
@@ -166,14 +164,6 @@ export default function RecommendationEngine({ projectId, version, runKey, canWr
         Ranked for your requirements: changes that fix a failing requirement first, then your priority ({set.priority?.replace(/_/g, " ")}).
         Pick a change to see the analysis re-run with it. Every number is an engine prediction, not a measurement.
       </p>
-      <div className="ai-callout">
-        <AiBadge role="more ideas" />
-        <p>
-          Ask the language model for changes this list may have missed. It sees the engine's numbers, never your files, and its ideas
-          stay labelled not evaluated until the engine runs them.{" "}
-          <a href={`${hrefOf(projectId, { area: "recommendations", tab: "catalogue" })}&focus=ai`}>Ask the AI for candidates →</a>
-        </p>
-      </div>
       <div className="rec-engine">
         <nav className="rec-list" aria-label="Changes">
           {recommended.length > 1 && (

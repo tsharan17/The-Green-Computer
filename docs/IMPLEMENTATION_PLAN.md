@@ -1,5 +1,8 @@
 # Implementation plan: from hackathon build to product
 
+Historical. The provider integrations it mentions (Nebius, Token Factory, Tavily, the AI assistant)
+were removed for the product; the current plan is `docs/LAUNCH_PLAN.md`.
+
 Source of truth for intended UX: `docs/original-system-map.pdf.pdf` (one hand-drawn page). This plan
 maps every box on that page to work, keeps the existing engine, and lands in vertical slices that
 leave the app runnable after each phase. Status lives in `IMPLEMENTATION_STATUS.md`.

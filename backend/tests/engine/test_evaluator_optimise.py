@@ -33,7 +33,7 @@ def test_every_metric_has_provenance_and_ordered_band():
         assert v.low <= v.value <= v.high, k
 
 
-@pytest.mark.parametrize("dev", ["jetson-agx-orin", "nebius-l40s"])
+@pytest.mark.parametrize("dev", ["jetson-agx-orin", "nvidia-l40s"])
 def test_over_55w_is_never_feasible(dev):
     """Property: nothing whose power band exceeds the limit may be certified feasible."""
     hw = get_device(dev)

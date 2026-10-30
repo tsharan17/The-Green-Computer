@@ -85,7 +85,7 @@ def test_library_models_run_only_when_a_reference_graph_exists(app):
         assert r.status_code == 409
 
 
-def test_measurement_csv_import_and_nebius_gate(app):
+def test_measurement_csv_import(app):
     with AuthedClient(app) as c:
         csv = ("device_id,model_id,precision,batch,latency_ms,power_w\n"
                "jetson-orin-nano,resnet-50,fp16,1,9.5,11.2\njetson-orin-nano,resnet-50,fp16,4,30.1,\n")  # fmt: skip
@@ -96,8 +96,6 @@ def test_measurement_csv_import_and_nebius_gate(app):
         bad = c.post(f"{P}/measurements/import?format=csv", content="device_id,latncy\nx,1\n",
                      headers={"Content-Type": "text/plain"})  # fmt: skip
         assert bad.status_code == 422 and "latncy" in bad.json()["detail"]
-        r = c.post(f"{P}/benchmarks", json={"device_id": "nebius-l40s"})
-        assert r.status_code == 503 and "GC_ENABLE_NEBIUS" in r.json()["detail"]
 
 
 def test_runs_interrupted_by_a_restart_are_marked_failed(tmp_path):

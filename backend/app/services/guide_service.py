@@ -34,7 +34,7 @@ USE_CASES: list[dict[str, Any]] = [
      "model_id": "resnet-50", "device_id": "nvidia-l4", "fps": 500, "ambient_c": 30, "max_power_w": 75,
      "max_latency_ms": 50, "priority": "lower_cost", "category": "accelerator"},
     {"id": "cloud-inference", "title": "Cloud detection service", "blurb": "Run a larger detector for many video streams in the cloud.",
-     "model_id": "yolov8m", "device_id": "nebius-l40s", "fps": 300, "ambient_c": 25, "max_power_w": 350,
+     "model_id": "yolov8m", "device_id": "nvidia-l40s", "fps": 300, "ambient_c": 25, "max_power_w": 350,
      "max_latency_ms": 100, "priority": "balanced", "category": "accelerator"},
 ]  # fmt: skip
 

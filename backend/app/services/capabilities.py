@@ -3,7 +3,6 @@ unavailable, or planned. Drives the capability screen and every "can I do X here
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from sqlalchemy.engine import Engine
@@ -12,7 +11,6 @@ from app import __version__
 from app.db.migrate import current_revision, head_revision
 from app.engine import assumptions as A
 from app.engine.datasheet_scan import ocr_available
-from app.providers.ai import ai_status
 from app.providers.execution import backend_infos
 
 
@@ -51,17 +49,6 @@ def capabilities(engine: Engine, email_sender: str, blob_store: str) -> list[dic
     out.append(_row("Model transformation", "fp16", "FP16 conversion, pruning, distillation", "planned",
                     "Not performed by the platform. The recipe export contains scripts to run them "
                     "yourself; the analysis models their effect as predictions."))  # fmt: skip
-    ai = ai_status()
-    out.append(_row("Assistant", "ai", "AI assistant (optional)",
-                    "available" if ai["configured"] else "needs_credential",
-                    ai["role"] + (f" Endpoint: {ai['base_url']}" if ai["configured"] else ""),
-                    "" if ai["configured"] else "Set TOKEN_FACTORY_API_KEY (or any OpenAI-compatible "
-                    "endpoint via TOKEN_FACTORY_BASE_URL) and restart."))  # fmt: skip
-    tav = bool(os.environ.get("TAVILY_API_KEY"))
-    out.append(_row("Intake", "datasheet-search", "Datasheet web search",
-                    "available" if tav and ai["configured"] else "needs_credential",
-                    "Finds a datasheet online and drafts a profile for you to confirm.",
-                    "" if tav and ai["configured"] else "Needs TAVILY_API_KEY and the AI assistant."))  # fmt: skip
     out.append(_row("Intake", "datasheet-offline", "Datasheet reading (offline)", "available",
                     "Text PDFs: candidate values with the line they came from, for you to confirm."))  # fmt: skip
     ocr_ok, ocr_why = ocr_available()

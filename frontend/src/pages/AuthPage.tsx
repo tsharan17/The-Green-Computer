@@ -93,7 +93,7 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
           <p className="ae-line"><strong>Do this:</strong> switch to INT8 and the 25 W power mode.</p>
           <p className="hint">Predicted, with a range. Measured once you run it on the device.</p>
         </figure>
-        <p className="hint">Runs fully on your own server. GPU and AI-assistant integrations are optional.</p>
+        <p className="hint">Runs offline. No API keys, no vendor accounts; GPU execution is optional.</p>
       </section>
 
       <section className="auth-card" aria-labelledby="auth-title">
@@ -160,7 +160,7 @@ export default function AuthPage({ mode, token, onSignedIn }: { mode: Mode; toke
             )}
             {mode === "signup" && (
               <p id="consent-hint" className="hint">
-                Your uploads stay yours: they are processed only to give you results. Nothing is sent to an AI provider unless you use an AI feature.
+                Your uploads stay yours: they are processed only to give you results and are never sent to a third party.
               </p>
             )}
             {error && <p className="error" role="alert">{error}</p>}

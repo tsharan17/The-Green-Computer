@@ -3,10 +3,6 @@ import type {
   LayerProfile,
   ReportParse,
   RecipeOut,
-  AgentEvent,
-  AgentStatus,
-  BenchmarkJob,
-  BenchmarkStatus,
   CalibrationHistoryItem,
   Measurement,
   VerifyOut,
@@ -30,7 +26,7 @@ import type {
   FormatCatalogue,
   IntakeResult,
 } from "./types";
-import type { AiCandidates, LegalDocInfo, Pipeline, RecommendationSet, TermsStatus, VerificationReport } from "./workflow/types";
+import type { LegalDocInfo, Pipeline, RecommendationSet, TermsStatus, VerificationReport } from "./workflow/types";
 
 const BASE = "/api/v1";
 
@@ -187,7 +183,6 @@ export const workflow = {
   pipeline: (pid: number) => req<Pipeline>(`/projects/${pid}/pipeline`),
   verification: (pid: number) => req<VerificationReport>(`/projects/${pid}/verification`),
   recommendations: (pid: number) => req<RecommendationSet>(`/projects/${pid}/recommendations`),
-  aiCandidates: (pid: number, refresh = false) => req<AiCandidates>(`/projects/${pid}/recommendations/ai`, post({ refresh })),
   figure: (pid: number, name: string) => pngDataUrl(`/projects/${pid}/figures/${name}?theme=light`),
 };
 
@@ -262,7 +257,6 @@ export const api = {
   verify: (deviceId?: string) => req<VerifyOut>(`/verify${deviceId ? `?device_id=${deviceId}` : ""}`),
   calibration: () =>
     req<{ active: Record<string, unknown>; history: CalibrationHistoryItem[] }>("/calibration"),
-  benchmarkStatus: () => req<BenchmarkStatus>("/benchmarks/status"),
   addMeasurement: (body: Record<string, unknown>) =>
     req<{ created: number; measurements: Measurement[] }>("/measurements", {
       method: "POST",
@@ -273,11 +267,6 @@ export const api = {
       `/measurements/import?${new URLSearchParams({ format, ...params })}`,
       { method: "POST", headers: { "Content-Type": "text/plain" }, body: text },
     ),
-  agentStatus: () => req<AgentStatus>("/agent/status"),
-  benchmarks: () => req<BenchmarkJob[]>("/benchmarks"),
-  refreshBenchmark: (id: number) => req<BenchmarkJob>(`/benchmarks/${id}`),
-  submitBenchmark: (body: { device_id: string; model_id: string; precision: string; batches: number[] }) =>
-    req<BenchmarkJob>("/benchmarks", { method: "POST", body: JSON.stringify(body) }),
   recipe: (id: number) => req<RecipeOut>(`/projects/${id}/recipe`),
   reportText: async (id: number, format: "md" | "html") => {
     const r = await fetch(`${BASE}/projects/${id}/report?format=${format}`, { headers: baseHeaders(), credentials: "same-origin" });
@@ -285,8 +274,6 @@ export const api = {
     return r.text();
   },
   drafts: () => req<HardwareDraft[]>("/hardware/drafts"),
-  importHardware: (name: string) =>
-    req<HardwareDraft>("/hardware/import", { method: "POST", body: JSON.stringify({ name }) }),
   manualHardware: (body: Record<string, unknown>) =>
     req<HardwareDraft>("/hardware/manual", { method: "POST", body: JSON.stringify(body) }),
   confirmDraft: (id: number, overrides: Record<string, unknown>) =>
@@ -314,50 +301,6 @@ export const api = {
   evaluate: (id: number) => req<EvaluationResult>(`/projects/${id}/evaluate`, { method: "POST" }),
   optimise: (id: number) => req<OptimisationResult>(`/projects/${id}/optimise`, { method: "POST" }),
 };
-
-/** POST a chat turn and read the server-sent events as they arrive. */
-export async function agentChat(
-  body: { project_id: number; message: string; history: { role: string; content: string }[] },
-  onEvent: (e: AgentEvent) => void,
-): Promise<void> {
-  let res: Response;
-  try {
-    res = await fetch(BASE + "/agent/chat", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: baseHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify(body),
-    });
-  } catch {
-    throw new Error("Cannot reach the Green Computer server. Is it running? Start it with scripts/dev.ps1.");
-  }
-  if (!res.ok || !res.body) {
-    let detail = res.statusText;
-    try {
-      const j = await res.json();
-      detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
-    } catch {
-      /* keep statusText */
-    }
-    throw new Error(detail);
-  }
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let i: number;
-    while ((i = buf.indexOf("\n\n")) >= 0) {
-      const chunk = buf.slice(0, i);
-      buf = buf.slice(i + 2);
-      for (const line of chunk.split("\n")) {
-        if (line.startsWith("data: ")) onEvent(JSON.parse(line.slice(6)) as AgentEvent);
-      }
-    }
-  }
-}
 
 export interface ExecutionJob {
   id: number;

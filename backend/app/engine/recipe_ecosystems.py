@@ -41,7 +41,7 @@ def ecosystem_key(hw: HardwareProfile) -> str:
         return "intel"
     if "amd-ryzen" in i:
         return "amd_npu"
-    if hw.kind == "datacenter_gpu" or i.startswith("nebius-") or i.startswith("nvidia-"):
+    if hw.kind == "datacenter_gpu" or i.startswith("nvidia-"):
         return "nvidia_gpu"
     if hw.kind == "mcu":
         return "mcu"

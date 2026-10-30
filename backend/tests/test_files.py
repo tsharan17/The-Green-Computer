@@ -108,9 +108,13 @@ def _pdf(text: str) -> bytes:
     return out + b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF" % (len(objs) + 1, xref)
 
 
-def test_pdf_needs_text_and_agent(client):
-    assert up(client, "scan.pdf", _pdf("hi")).status_code == 422  # too little text
-    long = "Peak 26 TOPS int8, memory bandwidth 100 GB/s. " * 12
-    r = up(client, "datasheet.pdf", _pdf(long))
-    assert r.status_code == 503 and "Green Agent" in r.json()["detail"]  # no key in tests
+def test_pdf_datasheet_becomes_a_draft_read_offline(client):
+    assert up(client, "scan.pdf", _pdf("hi")).status_code == 422  # nothing recognisable
+    r = up(client, "datasheet.pdf", _pdf("Peak 26 TOPS int8, memory bandwidth 100 GB/s."))
+    assert r.status_code == 200 and r.json()["kind"] == "datasheet"
+    d = r.json()["draft"]
+    assert d["needs_confirmation"] and d["candidate"]["peak_tflops"] == {"int8": 26.0}
+    assert d["candidate"]["mem_bw_gbs"] == 100.0 and d["missing"] == ["mem_gb"]
+    ev = {e["field"]: e for e in d["evidence"]}
+    assert ev["mem_bw_gbs"]["source"] == "datasheet.pdf, page 1"
     assert up(client, "broken.pdf", b"not a pdf at all").status_code == 422

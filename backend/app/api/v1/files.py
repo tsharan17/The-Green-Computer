@@ -4,8 +4,8 @@
                      full device profile
   .rpt/.txt/.log     a vendor tool report (Vivado, ST Edge AI, Vela)
   .csv               a power-meter capture (Joulescope, Otii, PPK2...)
-  .pdf               a datasheet: text is extracted here, specs are read by the Green Agent and
-                     must be confirmed by a person (same gate as web datasheet import)
+  .pdf               a datasheet: candidate values are found offline by pattern, with the page and
+                     line each came from, and must be confirmed by a person
 
 ONNX models go to /models/upload (they need options such as the dynamic-dimension default).
 Nothing is executed; text is parsed as data, and uploads are size limited.
@@ -13,7 +13,6 @@ Nothing is executed; text is parsed as data, and uploads are size limited.
 
 from __future__ import annotations
 
-import io
 import json
 from typing import Any
 
@@ -22,15 +21,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.agent.client import LLMError
-from app.agent.datasheet import DatasheetError, extract_hardware_spec
-from app.api.v1.agent import _llm, _models
 from app.auth.deps import Ctx, get_db, require_writer
 from app.data_loader import load_devices, load_models
 from app.db import repository as repo
+from app.engine.datasheet_profile import extraction_from_scan
+from app.engine.datasheet_scan import scan_datasheet
 from app.engine.hwbuild import CustomHardwareSpec, build_custom
 from app.engine.vendor_reports import detect, parse_power_csv, parse_report
-from app.integrations.tavily import SearchHit
 from app.schemas.hardware import HardwareProfile
 from app.sdk import ProjectFileError, load_project
 from app.security import limit_datasheet, max_custom_items
@@ -39,32 +36,6 @@ from app.services import hardware_service as hw
 router = APIRouter()
 
 MAX_FILE_BYTES = 20 * 1024 * 1024
-PDF_MAX_PAGES = 40
-PDF_MAX_CHARS = 60_000
-
-
-def _pdf_text(data: bytes) -> str:
-    try:
-        from pypdf import PdfReader
-    except ImportError as e:  # pragma: no cover - pypdf is a declared dependency
-        raise HTTPException(503, "PDF reading is not installed (pip install pypdf).") from e
-    try:
-        reader = PdfReader(io.BytesIO(data))
-        parts = []
-        for page in reader.pages[:PDF_MAX_PAGES]:
-            parts.append(page.extract_text() or "")
-            if sum(map(len, parts)) > PDF_MAX_CHARS:
-                break
-    except Exception as e:  # noqa: BLE001 - any parse failure is a user-facing 422
-        raise HTTPException(422, f"could not read this PDF: {e}") from e
-    text = "\n".join(parts).strip()
-    if len(text) < 200:
-        raise HTTPException(
-            422, "this PDF has almost no extractable text (is it a scan?). Paste the specs by hand."
-        )
-    return text[:PDF_MAX_CHARS]
-
-
 def _structured(text: str, name: str) -> dict[str, Any]:
     try:
         doc = json.loads(text) if name.endswith(".json") else yaml.safe_load(text)
@@ -132,21 +103,12 @@ async def inspect_file(
 
     if name.endswith(".pdf"):
         limit_datasheet(request)
-        text = _pdf_text(data)
-        try:
-            llm = _llm(request)
-            model_id = _models(request, llm).for_task("fast")
-            hit = SearchHit(filename, f"uploaded:{filename}", text[:400], 1.0, text)
-            ex = extract_hardware_spec(llm, model_id, filename.rsplit(".", 1)[0], [hit])
-        except LLMError as e:
-            raise HTTPException(
-                503,
-                f"{e}. Reading datasheets needs the Green Agent (TOKEN_FACTORY_API_KEY). "
-                "You can describe the hardware by hand instead.",
-            ) from e
-        except DatasheetError as e:
-            raise HTTPException(422, str(e)) from e
-        draft = hw.store_draft(db, filename.rsplit(".", 1)[0], ex, [f"uploaded:{filename}"], ws)
+        stem = filename.rsplit(".", 1)[0]
+        scan = scan_datasheet(data)
+        if not scan["candidates"]:
+            raise HTTPException(422, scan["errors"][0] if scan["errors"] and not scan["n_pages"] else scan["message"])
+        ex = extraction_from_scan(stem, scan["candidates"], filename)
+        draft = hw.store_draft(db, stem, ex, [f"uploaded:{filename}"], ws)
         return {"kind": "datasheet", "draft": draft}
 
     text = data.decode("utf-8", errors="replace")

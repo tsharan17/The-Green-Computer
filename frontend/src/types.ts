@@ -259,14 +259,6 @@ export interface CalibrationHistoryItem {
   power: { n: number; accepted: boolean; reason: string };
 }
 
-export interface BenchmarkStatus {
-  jobs_configured: boolean;
-  detail: string;
-  replay_available: boolean;
-  cli_found?: boolean;
-  import_formats: string[];
-}
-
 export interface Workload {
   fps: number;
   ambient_c: number;
@@ -454,38 +446,6 @@ export interface HardwareProfile {
   default_cooling: string;
 }
 
-export interface AgentStatus {
-  configured: boolean;
-  base_url: string;
-  detail: string | null;
-  models?: Record<string, string | null>;
-  available_models?: number;
-}
-
-export type AgentEvent =
-  | { type: "status"; text: string }
-  | { type: "tool_call"; name: string; arguments: Record<string, unknown> }
-  | { type: "tool_result"; name: string; ok: boolean; summary: string }
-  | { type: "guardrail"; action: "rewrite" | "redacted"; figures: string[] }
-  | { type: "message"; text: string; guardrail_ok: boolean }
-  | { type: "error"; text: string }
-  | { type: "done" };
-
-export interface BenchmarkJob {
-  id: number;
-  job_name: string;
-  job_id: string;
-  device_id: string;
-  model_id: string;
-  precision: string;
-  batches: number[];
-  state: string;
-  ingested: boolean;
-  measurement_ids: number[];
-  error: string | null;
-  created_at: string;
-}
-
 export interface HardwareDraft {
   id: number;
   query: string;
@@ -501,7 +461,7 @@ export interface HardwareDraft {
     tdp_w?: number;
     t_throttle_c?: number;
   };
-  evidence: { field: string; value: unknown; source_url: string | null }[];
+  evidence: { field: string; value: unknown; source_url: string | null; source?: string; line?: string }[];
   missing: string[];
   device_id: string | null;
   needs_confirmation: boolean;

@@ -27,8 +27,8 @@ export default function CapabilitiesPage() {
       <header className="ws-head">
         <h1>What this installation can do</h1>
         <p className="muted">
-          Checked live on the server. Everything marked available works offline with no account at any vendor. GPU execution and the
-          AI assistant are optional accelerators; nothing in the analysis depends on them.
+          Checked live on the server. Everything marked available works offline with no account at any vendor. GPU execution is
+          optional; nothing in the analysis depends on it.
         </p>
       </header>
       {error && <p className="error" role="alert">{error}</p>}

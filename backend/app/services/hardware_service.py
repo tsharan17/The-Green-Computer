@@ -8,14 +8,6 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.agent.client import LLM
-from app.agent.datasheet import (
-    DatasheetError,
-    Extraction,
-    build_profile,
-    extract_hardware_spec,
-    search_hits,
-)
 from app.data_loader import (
     all_device_ids,
     clear_custom_devices,
@@ -24,8 +16,8 @@ from app.data_loader import (
     unregister_device,
 )
 from app.db.models import HardwareDraftRow
+from app.engine.datasheet_profile import DatasheetError, Extraction, build_profile
 from app.engine.hwbuild import CustomHardwareSpec, build_custom
-from app.integrations.tavily import TavilyClient
 from app.schemas.hardware import HardwareProfile
 
 
@@ -41,14 +33,6 @@ def _view(row: HardwareDraftRow) -> dict[str, Any]:
         "needs_confirmation": row.status == "draft",
         "created_at": row.created_at.isoformat(),
     }
-
-
-def create_draft(
-    db: Session, name: str, tavily: TavilyClient, llm: LLM, model_id: str, ws: int | None = None
-) -> dict[str, Any]:
-    hits = search_hits(tavily, name)
-    ex = extract_hardware_spec(llm, model_id, name, hits)
-    return store_draft(db, name, ex, [h.url for h in hits], ws)
 
 
 def store_draft(

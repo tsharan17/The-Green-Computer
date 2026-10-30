@@ -53,10 +53,6 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 |---|---|---|---|
 | `DELETE` | `/api/v1/hardware/custom/{device_id}` | session | Custom Delete |
 | `DELETE` | `/api/v1/measurements/{measurement_id}` | session | Delete one of your own measurements (library measurements are read-only). |
-| `GET` | `/api/v1/agent/status` | session | Agent Status |
-| `GET` | `/api/v1/benchmarks/status` | session | Benchmark Status |
-| `GET` | `/api/v1/benchmarks/{row_id}` | session | Get Benchmark |
-| `GET` | `/api/v1/benchmarks` | session | List Benchmarks |
 | `GET` | `/api/v1/calibration` | session | Calibration State |
 | `GET` | `/api/v1/hardware/drafts/{draft_id}` | session | Draft |
 | `GET` | `/api/v1/hardware/drafts` | session | Drafts |
@@ -73,16 +69,12 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `GET` | `/api/v1/projects/{project_id}` | session | Get Project |
 | `GET` | `/api/v1/projects` | session | List Projects |
 | `GET` | `/api/v1/verify` | session | Verify |
-| `POST` | `/api/v1/agent/chat` | session | Agent Chat |
-| `POST` | `/api/v1/benchmarks/{row_id}/cancel` | session | Cancel Benchmark |
-| `POST` | `/api/v1/benchmarks` | session | Launch a Nebius Serverless Job on an NVIDIA GPU. 503 when jobs are not available. |
 | `POST` | `/api/v1/calibration/refit` | session | Refit Calibration |
 | `POST` | `/api/v1/files/inspect` | session | Inspect File |
 | `POST` | `/api/v1/hardware/custom/preview` | session | What the wizard would create, without saving it (live preview of derived values). |
 | `POST` | `/api/v1/hardware/custom` | session | Custom Create |
-| `POST` | `/api/v1/hardware/drafts/{draft_id}/confirm` | session | Only a person can confirm: the agent has no tool for this. |
+| `POST` | `/api/v1/hardware/drafts/{draft_id}/confirm` | session | Only a person can confirm a draft. |
 | `POST` | `/api/v1/hardware/drafts/{draft_id}/reject` | session | Reject Draft |
-| `POST` | `/api/v1/hardware/import` | session | Import Hardware |
 | `POST` | `/api/v1/hardware/manual` | session | Manual Draft |
 | `POST` | `/api/v1/hardware/parse-report` | session | Pull numbers out of a Vivado / ST Edge AI / Vela report or a power-meter CSV. |
 | `POST` | `/api/v1/hardware/profile` | session | Register a full device profile the user uploaded (after seeing what it contains). |
@@ -167,6 +159,7 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `GET` | `/api/v1/projects/{project_id}/plans` | session | List Plans |
 | `POST` | `/api/v1/projects/{project_id}/exports` | session | Create Export |
 | `POST` | `/api/v1/projects/{project_id}/plans/analyse` | session | Re-analyse a selection: baseline, each change alone, and all of them combined (not saved). |
+| `POST` | `/api/v1/projects/{project_id}/plans/trace` | session | Predict the execution trace of today's setup with the selected changes applied, so every |
 | `POST` | `/api/v1/projects/{project_id}/plans` | session | Save Plan |
 | `POST` | `/api/v1/reproduce/verify` | session | Recompute the numbers in a reproducibility manifest with this engine and compare them. |
 
@@ -207,7 +200,6 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `GET` | `/api/v1/projects/{project_id}/pipeline` | session | Each workflow stage with its stored record and whether it is done, ready, blocked or stale. |
 | `GET` | `/api/v1/projects/{project_id}/recommendations` | session | Software and hardware recommendations from the latest analysis, ranked by the project's |
 | `GET` | `/api/v1/projects/{project_id}/verification` | session | Verification and Requirements Manager report for the project's current inputs. |
-| `POST` | `/api/v1/projects/{project_id}/recommendations/ai` | session | Candidate changes from the optional language model. Sends only the engine's numbers and the |
 
 ## Workspace
 

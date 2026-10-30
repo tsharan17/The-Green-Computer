@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from app import __version__
 from app.auth.deps import Ctx, get_db, require_ctx, require_writer
-from app.config import get_llm_settings
 from app.data_loader import load_devices
 from app.db import repository as repo
 from app.engine.workload.onnx_parser import ModelParseError, manual_profile
@@ -59,16 +58,7 @@ def project_for(db: Session, ctx: Ctx, project_id: int) -> ProjectOut:
 
 @router.get("/health")
 def health() -> dict:
-    from app.integrations.jobs import status as jobs_status
-
-    jobs = jobs_status()
-    return {
-        "status": "ok",
-        "version": __version__,
-        "demo_mode": demo_mode(),
-        "agent": {"configured": get_llm_settings().configured},
-        "jobs": {"configured": jobs.configured, "detail": jobs.reason},
-    }
+    return {"status": "ok", "version": __version__, "demo_mode": demo_mode()}
 
 
 @router.get(

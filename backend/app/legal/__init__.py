@@ -12,8 +12,8 @@ from pathlib import Path
 HERE = Path(__file__).parent
 # id -> (title, version, file, needs acceptance)
 DOCS: dict[str, tuple[str, str, str, bool]] = {
-    "terms": ("Terms and Conditions", "2026-10-26", "terms.md", True),
-    "privacy": ("Privacy Policy", "2026-10-26", "privacy.md", True),
+    "terms": ("Terms and Conditions", "2026-10-30", "terms.md", True),
+    "privacy": ("Privacy Policy", "2026-10-30", "privacy.md", True),
     "acceptable-use": ("Acceptable Use Policy", "2026-10-26", "acceptable-use.md", False),
     "data": ("Your account and data", "2026-10-26", "data.md", False),
 }  # fmt: skip

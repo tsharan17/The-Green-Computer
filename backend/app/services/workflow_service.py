@@ -138,7 +138,7 @@ def recommendations(db: Session, project: ProjectOut, ws: int) -> dict[str, Any]
     got = _latest_analysis(db, project.id)
     if got is None:
         return {"schema": recs_engine.SCHEMA, "analysed": False, "message": NOT_ANALYSED,
-                "software": [], "hardware": [], "ai": None}  # fmt: skip
+                "software": [], "hardware": []}  # fmt: skip
     res, row = got
     hw = load_devices(ws)[project.spec.device_id]
     changes = changes_from_result(res, applicable(load_cooling_catalogue(), hw))
@@ -146,41 +146,11 @@ def recommendations(db: Session, project: ProjectOut, ws: int) -> dict[str, Any]
                      if a.kind in DESIGN_KINDS and a.status in ("valid", "needs_review")})  # fmt: skip
     out = recs_engine.build(project.spec, res, changes, design)
     _validation_states(db, project, ws, row.id, [*out["software"], *out["hardware"]])
-    ai = repo.latest_run_row(db, project.id, "ai_candidates")
-    ai_view = None
-    if ai is not None and ai.result.get("source_run_id") == row.id:
-        ai_view = ai.result
-        _validation_states(db, project, ws, row.id, ai_view.get("candidates", []))
     cur_row = repo.current_version_row(db, project.id)
     cur = _version_hash(db, cur_row.id) if cur_row else None
-    out.update({"analysed": True, "source_run_id": row.id, "design_files": design, "ai": ai_view,
+    out.update({"analysed": True, "source_run_id": row.id, "design_files": design,
                 "stale": _version_hash(db, row.version_id) not in (None, cur)})  # fmt: skip
     return out
-
-
-def ai_candidates(db: Session, project: ProjectOut, ws: int, user_id: int | None, llm: Any, model: str,
-                  refresh: bool = False) -> dict[str, Any]:  # fmt: skip
-    """Ask the language model for candidate changes, once per analysis (cached by input hash)."""
-    from app.agent import recommender
-
-    got = _latest_analysis(db, project.id)
-    if got is None:
-        raise ValueError(NOT_ANALYSED)
-    res, row = got
-    deterministic = recommendations(db, project, ws)
-    resolved = resolve_model(db, project.spec.model_id, ws)
-    analysis = res.model_dump(mode="json")
-    analysis["model_name"] = resolved.name
-    analysis["device_name"] = load_devices(ws)[project.spec.device_id].name
-    summary = recommender.summary_for(analysis, deterministic, project.spec.model_dump(mode="json"))
-    h = recommender.input_hash(summary, model)
-    cached = repo.latest_run_row(db, project.id, "ai_candidates")
-    if cached is not None and not refresh and cached.result.get("input_hash") == h:
-        return {**cached.result, "cached": True}
-    out = recommender.generate(llm, model, summary)
-    out.update({"input_hash": h, "source_run_id": row.id, "sent": sorted(summary)})
-    repo.save_run(db, project.id, "ai_candidates", f"llm:{out['model']}"[:40], out, user_id)
-    return {**out, "cached": False}
 
 
 # --- pipeline --------------------------------------------------------------------------------------
@@ -225,13 +195,10 @@ def pipeline(db: Session, project: ProjectOut, ws: int) -> dict[str, Any]:
         stages.append({"id": "recommendations", "title": "Recommendations", "depends_on": ["analysis"],
                        "state": "blocked", "record": None, "summary": NOT_ANALYSED})  # fmt: skip
     else:
-        ai = repo.latest_run_row(db, project.id, "ai_candidates")
         n_adv = len(got[0].advice) if got else 0
         stages.append({"id": "recommendations", "title": "Recommendations", "depends_on": ["analysis"],
                        "state": "stale" if stale else "done",
-                       "record": {"source_run_id": run_id, "engine_items": n_adv,
-                                  "ai_candidates": len(ai.result.get("candidates", []))
-                                  if ai is not None and ai.result.get("source_run_id") == run_id else 0},
+                       "record": {"source_run_id": run_id, "engine_items": n_adv},
                        "summary": f"{n_adv} engine recommendation(s) from analysis #{run_id}."})  # fmt: skip
     plans = list(db.scalars(select(DesignPlanRow).where(DesignPlanRow.workspace_id == ws,
                                                         DesignPlanRow.project_id == project.id)

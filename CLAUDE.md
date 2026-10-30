@@ -2,8 +2,8 @@
 
 Vendor-neutral AI + hardware co-design platform: predict latency, memory, power, energy, heat,
 throttling, cost and carbon for an AI model on a hardware system, recommend software/hardware
-changes, compare plans, verify against real runs, export. Works fully offline; NVIDIA/Nebius and
-LLM providers are optional.
+changes, compare plans, verify against real runs, export. Works fully offline with no API keys or providers. Launch plan:
+`docs/LAUNCH_PLAN.md`.
 
 Plan: `docs/IMPLEMENTATION_PLAN.md`. Progress and verification commands: `IMPLEMENTATION_STATUS.md`.
 Product map (hand-drawn, image-only PDF): `docs/original-system-map.pdf.pdf`.
@@ -12,7 +12,7 @@ Product map (hand-drawn, image-only PDF): `docs/original-system-map.pdf.pdf`.
 
 - `backend/app/engine/` pure, deterministic physics + search + advice. No I/O, no network, no LLM.
 - `backend/app/twin/` digital twin v1: execution trace, tensor lifetimes, memory timeline, components.
-- `backend/app/providers/` interfaces: execution backends, AI provider, blob store, email.
+- `backend/app/providers/` interfaces: execution backends, blob store, email.
 - `backend/app/auth/` accounts, sessions, workspaces, access checks.
 - `backend/app/api/v1/` FastAPI routers. `services/` orchestrates engine + DB. `db/` models + repo.
 - `backend/app/migrations/` Alembic. Never edit an applied revision; add a new one.
@@ -39,8 +39,8 @@ scripts/dev.ps1                                           # build UI + serve on 
   `provenance` and a `low..high` band. Analytical traces are "predicted"; only execution backends or
   imported logs produce "measured".
 - Never fall back silently from measured to predicted; show both, labelled.
-- The engine computes every number. The optional AI assistant only explains, and its guardrail
-  rejects numbers that are not in tool results.
+- The engine computes every number. The product has no AI assistant and calls no LLM or search
+  provider; datasheet values are found offline by pattern and confirmed by a person.
 - Tenant isolation: every owned row has `workspace_id`; always resolve projects/models/devices/
   artifacts through the access helpers in `app/auth/deps.py`, `api/v1/routes.project_for`, `services/model_lookup.py` and
   `data_loader.load_devices(workspace_id)`. Built-in

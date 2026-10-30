@@ -86,8 +86,8 @@ def _materialize(kind: str, value: str, folder: str) -> str:
 def start(sf: sessionmaker[Session], db: Session, project: ProjectOut, ws: int, user_id: int | None,
           backend_id: str, batch: int, runs: int, warmup: int, blobs: BlobStore) -> ExecutionJobRow:  # fmt: skip
     backend = get_backend(backend_id)
-    if backend is None or backend_id in ("nebius-jobs", "remote-device"):
-        raise ExecutionError("Choose a local backend (remote GPU jobs are started from the Nebius panel).")
+    if backend is None or backend_id == "remote-device":
+        raise ExecutionError("Choose a local backend (runs on your own device are started under Run on a device).")
     info = backend.info()
     if info.status != "available":
         raise ExecutionError(f"{info.name} is {info.status.replace('_', ' ')} here: {info.detail} {info.enable}".strip())

@@ -122,7 +122,7 @@ class CalibrationRow(Base):
 
 
 class BenchmarkJobRow(Base):
-    """A Nebius Serverless Job launched to measure real GPU behaviour."""
+    """A remote GPU benchmark job. The product no longer launches these; the table stays for existing data."""
 
     __tablename__ = "benchmark_jobs"
 

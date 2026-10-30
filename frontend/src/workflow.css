@@ -48,7 +48,6 @@
 .rec-status.st-rec { background: var(--ok-bg); color: var(--ok); }
 .rec-status.st-dir { background: var(--warn-bg); color: var(--warn); border-style: dashed; }
 .rec-status.st-guide, .rec-status.st-need { background: var(--sunk); color: var(--muted); }
-.rec-status.st-ai { background: var(--info-bg); color: var(--info); border-style: dotted; }
 .rec-kv { display: grid; grid-template-columns: 112px 1fr; gap: 4px 10px; margin: 0; font-size: 14px; }
 .rec-kv dt { color: var(--muted); font-weight: 600; }
 .rec-kv dd { margin: 0; }

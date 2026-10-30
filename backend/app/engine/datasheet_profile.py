@@ -1,4 +1,4 @@
-"""Hardware import from datasheets: Tavily finds spec pages, Nemotron extracts values, a person confirms.
+"""Hardware drafts from datasheets: the offline scan proposes values, a person confirms.
 
 Nothing extracted is trusted. Every value is tied to the page it came from, implausible values are
 dropped, anything not stated stays missing (never guessed), and the draft cannot be used in an
@@ -12,29 +12,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.agent.client import LLM, LLMError
-from app.agent.recommender import loads_lenient
-from app.integrations.tavily import SearchHit, TavilyClient
 from app.schemas.hardware import CoolingOption, HardwareProfile, PowerMode
 from app.schemas.metrics import Provenance
-
-MAX_CHARS_PER_PAGE = 5000
-MAX_PAGES = 3
-
-EXTRACT_PROMPT = """You extract hardware specifications for an AI accelerator / SoC / board from web page excerpts.
-Respond with ONLY one JSON object, no prose. Rules:
-- Use null for anything the excerpts do not state. NEVER guess or use prior knowledge.
-- peak_tflops are DENSE throughput in TFLOPS (fp32, fp16) or TOPS (int8). If a page gives only a "sparse" figure, put sparse/2 and say so in notes.
-- mem_bw_gbs is memory bandwidth in GB/s; mem_gb is memory size in GB.
-- power_modes: the vendor's named power modes with their power cap in watts.
-- t_throttle_c: thermal throttle / max operating temperature in Celsius, if stated.
-- "sources" maps each field name you filled to the URL of the excerpt it came from.
-Schema:
-{"name": str|null, "vendor": str|null, "kind": "edge_soc"|"datacenter_gpu"|null,
- "peak_tflops": {"fp32": num|null, "fp16": num|null, "int8": num|null},
- "mem_bw_gbs": num|null, "mem_gb": num|null,
- "power_modes": [{"name": str, "cap_w": num}], "tdp_w": num|null, "t_throttle_c": num|null,
- "sources": {field: url}, "notes": str}"""
 
 RANGES = {
     "peak_tflops": (0.01, 5000.0),
@@ -60,31 +39,12 @@ class Extraction:
     dropped: list[str] = field(default_factory=list)
 
 
-def search_hits(tavily: TavilyClient, device_name: str) -> list[SearchHit]:
-    q = f"{device_name} datasheet specifications memory bandwidth TOPS TFLOPS power modes thermal"
-    return tavily.search(q, max_results=5, include_raw_content=True)[:MAX_PAGES]
-
-
 def _num(v: Any, lo: float, hi: float) -> float | None:
     try:
         x = float(v)
     except (TypeError, ValueError):
         return None
     return x if lo <= x <= hi else None
-
-
-def _json_from(text: str) -> dict[str, Any]:
-    t = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
-    start, end = t.find("{"), t.rfind("}")
-    if start < 0 or end <= start:
-        raise DatasheetError("the model did not return a JSON object")
-    try:
-        data = loads_lenient(t[start : end + 1])
-    except ValueError as e:
-        raise DatasheetError(f"the model returned invalid JSON: {e}") from e
-    if not isinstance(data, dict):
-        raise DatasheetError("the model returned JSON that is not an object")
-    return data
 
 
 def clean_extraction(raw: dict[str, Any], urls: set[str]) -> Extraction:
@@ -143,30 +103,54 @@ def clean_extraction(raw: dict[str, Any], urls: set[str]) -> Extraction:
     )
 
 
-def extract_hardware_spec(
-    llm: LLM, model_id: str, device_name: str, hits: list[SearchHit], max_tokens: int = 4096
-) -> Extraction:
-    if not hits:
-        raise DatasheetError("no spec pages were found for that name")
-    pages = []
-    for h in hits:
-        body = (h.raw_content or h.content or "")[:MAX_CHARS_PER_PAGE]
-        pages.append(f"URL: {h.url}\nTITLE: {h.title}\nEXCERPT:\n{body}")
-    user = f"Device: {device_name}\n\n" + "\n\n---\n\n".join(pages)
-    messages = [{"role": "system", "content": EXTRACT_PROMPT}, {"role": "user", "content": user}]
-    try:
-        reply = llm.chat(model_id, messages, temperature=0.0, max_tokens=max_tokens)
-        if reply.finish_reason == "length" and "}" not in reply.content:
-            # A reasoning model can spend the whole budget thinking and write nothing; give it twice the room once.
-            reply = llm.chat(model_id, messages, temperature=0.0, max_tokens=min(max_tokens * 2, 8192))
-    except LLMError as e:
-        raise DatasheetError(str(e)) from e
-    if reply.finish_reason == "length" and "}" not in reply.content:
-        raise DatasheetError(
-            "the model ran out of room before it wrote an answer (reasoning models spend part of their budget "
-            "thinking). Try again, or enter the device by hand"
-        )
-    return clean_extraction(_json_from(reply.content), {h.url for h in hits})
+_TERA = {"G": 1e-3, "T": 1.0, "P": 1e3}
+_PREC = {"int8": "int8", "fp16": "fp16", "bf16": "fp16", "fp32": "fp32", "tf32": "fp32"}
+_BYTES_GB = {"gb": 1.0, "gib": 1.0, "mb": 1 / 1024, "mib": 1 / 1024, "kb": 1 / 1024**2, "kib": 1 / 1024**2}
+
+
+def extraction_from_scan(name: str, cands: list[dict[str, Any]], filename: str) -> Extraction:
+    """Turn the offline scan's candidates (datasheet_scan.candidates) into a draft.
+
+    The first plausible value per field is proposed, with the page and line it came from. Unqualified
+    TOPS are taken as INT8 and unqualified TFLOPS as FP32; the person confirming sees the line and
+    corrects either. Program memory (Flash, eMMC) is not taken as working memory.
+    """
+    raw: dict[str, Any] = {"name": name, "peak_tflops": {}}
+    where: dict[str, dict[str, Any]] = {}
+
+    def take(key: str, value: Any, c: dict[str, Any]) -> None:
+        if key not in where:
+            where[key] = c
+            raw[key] = value
+
+    for c in cands:
+        f, v, unit, q = c["field"], float(c["value"]), str(c["unit"]), (c.get("qualifier") or "")
+        if f == "peak_compute":
+            u = unit.upper()
+            if q == "int4":
+                continue
+            prec = _PREC.get(q) or ("fp32" if "FL" in u else "int8")
+            if prec not in raw["peak_tflops"]:
+                raw["peak_tflops"][prec] = v * _TERA.get(u[0], 1.0)
+                where.setdefault("peak_tflops", c)
+        elif f == "mem_bw_gbs":
+            take("mem_bw_gbs", v * (1000.0 if unit.lower().startswith("tb") else 1.0), c)
+        elif f == "memory":
+            size, kind = (unit.split(" ", 1) + [""])[:2]
+            if kind.lower() not in ("flash", "emmc") and size.lower() in _BYTES_GB:
+                take("mem_gb", v * _BYTES_GB[size.lower()], c)
+        elif f == "power_w":
+            take("tdp_w", v / 1000.0 if unit == "mW" else v, c)
+        elif f == "temperature_c" and q.startswith(("junction", "tj", "throttl", "shutdown")):
+            take("t_throttle_c", v, c)
+    ex = clean_extraction(raw, set())
+    for e in ex.evidence:
+        hit = where.get(e["field"])
+        if hit is not None:
+            e.update(source_url=None, source=f"{filename}, page {hit['page']}", line=hit["line"])
+    ex.notes = ("Values were found by pattern in the PDF text. Check each against the datasheet "
+                "before confirming.")  # fmt: skip
+    return ex
 
 
 def build_profile(

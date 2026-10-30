@@ -14,9 +14,9 @@ The Workspace has one drop zone; the app works out what each file is:
 | `.yaml` / `.json` full device profile | Registers it as `custom-...` |
 | `.rpt` / `.txt` Vivado, ST Edge AI, Vela report | Values go into *Describe your own hardware* |
 | `.csv` power-meter capture | Active and idle power go into *Describe your own hardware* |
-| `.pdf` datasheet | Text is extracted; the Green Agent reads the specs into a draft you must confirm (needs the agent key; off in the public demo) |
+| `.pdf` datasheet | Text is read offline and candidate values (compute, memory, bandwidth, power, temperature) are found by pattern, each with its page and line, into a draft you must confirm |
 
-`.pt`, `.pkl`, `.tflite` and other formats are refused with an explanation. Nothing you upload is executed. The PDF-to-specs step was tested only up to the point of calling the agent (no live model was available).
+`.pt`, `.pkl`, `.tflite` and other formats are refused with an explanation. Nothing you upload is executed. The PDF-to-specs step is tested with generated PDFs; real datasheet layouts vary and some values will be missed.
 
 ## Hardware engineers (boards, MCUs, FPGAs, accelerators)
 

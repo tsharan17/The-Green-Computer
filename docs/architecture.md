@@ -41,7 +41,7 @@ stage as done, ready, waiting or out of date (`GET /projects/{id}/pipeline`).
 |---|---|---|
 | AI model | ONNX (graph, layers, tensors), library models, manual description | PyTorch `.pt`, TFLite, GGUF |
 | Hardware | Library boards; device profile YAML/JSON; datasheet PDF (values confirmed by you); KiCad `.kicad_sch` / `.kicad_pcb` (structure only); Verilog / SystemVerilog (structure only); Vivado utilisation, power and timing reports; HLS csynth reports; firmware ELF (flash/RAM footprint) | VHDL, EDIF, Gerber, Allegro/OrCAD, assembly |
-| Measurements | Power CSV, `nvidia-smi`, `tegrastats`, local ONNX Runtime runs, remote agent runs, Nebius GPU jobs | |
+| Measurements | Power CSV, `nvidia-smi`, `tegrastats`, local ONNX Runtime runs, remote agent runs | |
 | Workload and requirements | Input rate, ambient, hours per day, grid intensity, price; limits for power, accuracy, latency, memory, throttling; enclosure and environment | |
 
 ### 3.2 Verification and Requirements Manager (built)
@@ -90,22 +90,12 @@ evaluated), **directional** (analytical chip/board what-if, not a design), **gui
 engineering step the engine cannot quantify; no number given), **needs input** (for example
 circuit suggestions need the board file; accelerator suggestions need RTL or HLS data).
 
-### Optional AI candidates (built; live call not yet run)
-
-`POST /projects/{id}/recommendations/ai` sends a compact summary of the engine's analysis to the
-configured OpenAI-compatible provider (Nebius Token Factory, Nemotron Super by default) and gets
-JSON candidates back. The reply is validated against a schema, links to changes the engine does
-not offer are removed, figures not present in the analysis are redacted, results are cached per
-analysis, and every candidate is labelled "AI candidate, not evaluated" until you evaluate it.
-File contents are never sent.
-
 ## 6. Validation, application and comparison (built)
 
 The plan builder evaluates any selection of changes: baseline, each change alone, and the combined
 plan, side by side with improvements and regressions. Saving a plan stores it as an immutable
 version; the recommendation then shows **evaluated** or **rejected** (predicted), or **measured**
-when a real run of that setup exists. Real runs: local ONNX Runtime, the remote device agent, or
-Nebius GPU jobs.
+when a real run of that setup exists. Real runs: local ONNX Runtime or the remote device agent.
 
 Exports: engineering report (Markdown/PDF), evidence bundle, handoff zip with a hashed
 `MANIFEST.json` (the change receipt), reproducibility manifest, the INT8 ONNX model (generated and
@@ -119,7 +109,7 @@ changes are exported as instructions.
 | Inputs | Your edits and uploads | Project version (immutable), artifacts | – |
 | Verification | Current version, artifacts | Computed on request | – |
 | Analysis | Current version | Run (`runs`, kind optimise), linked to the version | The analysed inputs change (renaming does not count) |
-| Recommendations | Latest analysis run | Derived; AI candidates stored per run | Its analysis is out of date |
+| Recommendations | Latest analysis run | Derived from the run | Its analysis is out of date |
 | Validation | Selected change ids, latest run | Design plan versions | A newer analysis exists |
 | Results and exports | Plans, runs, traces | Export rows with SHA-256 | – |
 
@@ -128,24 +118,13 @@ Nothing is deleted when you go back: earlier records are kept and marked out of 
 ## 8. Design principles
 
 Sustainability-aware, hardware-aware, evidence-driven (measured vs predicted vs assumed),
-validation-first, modular, provider-independent (any OpenAI-compatible endpoint, set by
-`TOKEN_FACTORY_BASE_URL`).
+validation-first, modular, and free of external providers: no API keys, no LLM, no search service.
 
 ## 9. Status summary
 
 | Part | Status |
 |---|---|
 | Verification report, pipeline status, structured recommendations, cooling sweep figures | Built and tested |
-| AI candidates via Token Factory | Built and tested with a mocked provider; **live call not yet run** (needs your key) |
 | Circuit, chip and microarchitecture recommendations | Directional what-ifs or "needs input"; no EDA simulation |
 | Accuracy on your own data | Partial: measured retention via local INT8 comparison; no general dataset evaluator |
 | Terms, privacy, consent records | Built; legal text is a **draft for professional review** |
-
-## 10. Hackathons
-
-**NVIDIA × Nebius:** set `TOKEN_FACTORY_API_KEY` in `.env`, run `scripts/check_nebius.py`, then
-use the assistant and "Ask the AI for candidates". Each candidate request is one chat call capped
-at 1,400 output tokens and cached per analysis.
-
-**Meta (future):** point `TOKEN_FACTORY_BASE_URL` at any OpenAI-compatible Llama endpoint and set
-`GC_MODEL_SUPER` (and the other tiers) to its model id. No code changes are needed.

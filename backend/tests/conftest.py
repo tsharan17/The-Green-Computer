@@ -6,15 +6,8 @@ import pytest
 os.environ.setdefault("GC_SCRYPT_LOG2_N", "10")
 
 SECRET_VARS = (
-    "TOKEN_FACTORY_API_KEY",
-    "TOKEN_FACTORY_BASE_URL",
-    "GC_MODEL_ULTRA",
-    "GC_MODEL_SUPER",
-    "GC_MODEL_NANO",
-    "NEBIUS_PROJECT_ID",
-    "GC_NEBIUS_PLATFORM_OVERRIDE",
-    "GC_NEBIUS_PRESET_OVERRIDE",
-    "GC_BENCH_IMAGE",
+    "GC_SMTP_PASSWORD",
+    "GC_SENTRY_DSN",
 )
 
 

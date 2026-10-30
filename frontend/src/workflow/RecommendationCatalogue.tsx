@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import AiBadge from "../components/AiBadge";
+import { useCallback, useEffect, useState } from "react";
 import { workflow } from "../api";
 import { ErrorNote } from "../components/Help";
 import { navigate } from "../router";
-import type { AiCandidates, Rec, RecommendationSet } from "./types";
+import type { Rec, RecommendationSet } from "./types";
 
 const STATUS: Record<Rec["status"], { label: string; cls: string }> = {
   recommended: { label: "Recommended (predicted)", cls: "st-rec" },
@@ -11,7 +10,6 @@ const STATUS: Record<Rec["status"], { label: string; cls: string }> = {
   directional: { label: "Directional what-if", cls: "st-dir" },
   guidance: { label: "Engineering guidance", cls: "st-guide" },
   needs_input: { label: "Needs input", cls: "st-need" },
-  ai_candidate: { label: "AI candidate, not evaluated", cls: "st-ai" },
 };
 const VALIDATION: Record<Rec["validation"]["state"], string> = {
   not_evaluated: "Not evaluated yet",
@@ -70,7 +68,6 @@ function RecCard({ r, projectId, canWrite }: { r: Rec; projectId: number; canWri
           {r.evidence && <><dt>Evidence</dt><dd>{r.evidence}</dd></>}
           {r.confidence && <><dt>Confidence</dt><dd>{r.confidence}</dd></>}
           {!!r.assumptions?.length && <><dt>Assumptions</dt><dd>{r.assumptions.join(" ")}</dd></>}
-          {!!r.notes?.length && <><dt>Checks on the AI reply</dt><dd>{r.notes.join("; ")}</dd></>}
         </dl>
       </details>
       <footer>
@@ -87,58 +84,6 @@ function RecCard({ r, projectId, canWrite }: { r: Rec; projectId: number; canWri
         )}
       </footer>
     </article>
-  );
-}
-
-function AiSection({ projectId, canWrite, initial }: { projectId: number; canWrite: boolean; initial: AiCandidates | null }) {
-  const [ai, setAi] = useState<AiCandidates | null>(initial);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-  const here = useRef<HTMLElement>(null);
-  useEffect(() => {
-    // The recommendation engine links here with focus=ai.
-    if (window.location.hash.includes("focus=ai")) here.current?.scrollIntoView({ block: "start" });
-  }, []);
-  async function ask(refresh: boolean) {
-    setBusy(true);
-    setError(null);
-    try {
-      setAi(await workflow.aiCandidates(projectId, refresh));
-    } catch (e) {
-      setError(e);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <section ref={here} className="panel" aria-labelledby="ai-h">
-      <div className="row">
-        <h3 id="ai-h">AI candidates (optional)</h3>
-        <button disabled={busy || !canWrite} onClick={() => ask(!!ai)}>
-          {busy ? "Asking the model…" : ai ? "Ask again" : "Ask the AI for candidates"}
-        </button>
-      </div>
-      <AiBadge role="proposes extra changes, labelled not evaluated" />
-      <p className="hint">
-        Sends the engine's summary for this analysis (model and device names, today's settings and metrics, failing requirements,
-        your requirements and the ids of changes the engine can evaluate) to the configured provider, Nebius Token Factory by default.
-        No file contents are sent. Replies are checked against a schema, figures not in the analysis are removed, and nothing is applied.
-      </p>
-      <ErrorNote error={error} />
-      {ai && (
-        <>
-          <p className="muted">{ai.label} Model: {ai.model}{ai.cached ? " (cached for this analysis)" : ""}.</p>
-          {ai.summary && <p>{ai.summary}</p>}
-          <div className="rec-grid">
-            {ai.candidates.map((r) => <RecCard key={r.id} r={r} projectId={projectId} canWrite={canWrite} />)}
-          </div>
-          {ai.candidates.length === 0 && <p className="hint">The model returned no usable candidates.</p>}
-          {ai.dropped.length > 0 && (
-            <p className="hint">Rejected by the checks: {ai.dropped.map((d) => `${d.title} (${d.reason})`).join("; ")}.</p>
-          )}
-        </>
-      )}
-    </section>
   );
 }
 
@@ -179,7 +124,6 @@ export default function RecommendationCatalogue({ projectId, canWrite, refreshKe
           </div>
         </section>
       ))}
-      <AiSection projectId={projectId} canWrite={canWrite} initial={set.ai} />
     </>
   );
 }

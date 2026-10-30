@@ -1,12 +1,12 @@
 """Acceptance check for a RUNNING copy of The Green Computer (local or the public URL).
 
     python scripts/acceptance.py                      # http://localhost:8000
-    python scripts/acceptance.py https://your-demo    # the deployed endpoint, as a judge would see it
+    python scripts/acceptance.py https://your-site    # the deployed site, as a new visitor sees it
 
-Standard library only, so it runs anywhere. It walks the journey a judge would: health, analyse the
-robot example, read the verdict and the four levels of advice, confirm requirements were not
-relaxed, export the report and recipe, and report what is connected. Steps that need a key (the
-Green Agent) or are switched off in the public demo are reported as SKIP, never faked.
+Standard library only, so it runs anywhere. It walks the journey a new visitor would: health, analyse
+the robot example, read the verdict and the four levels of advice, confirm requirements were not
+relaxed, export the report and recipe, and report what is connected. Steps that are switched off in
+the public demo are reported as SKIP, never faked.
 Exit code 0 = every non-skipped step passed.
 """
 
@@ -72,7 +72,6 @@ def main() -> int:
     if not step("API health", code == 200 and health and health["status"] == "ok",
                 f"v{health.get('version')} demo_mode={health.get('demo_mode')}" if health else ""):  # fmt: skip
         return 1
-    agent_on = bool(health["agent"]["configured"])
 
     code, _, _ = call("GET", "/projects")
     step("data needs an account", code == 401)
@@ -143,20 +142,6 @@ def main() -> int:
     code, ver, _ = call("GET", "/verify")
     step("real measurements are shown (honestly labelled)", code == 200 and bool(ver["summaries"]),
          "; ".join(f"{s['device_id']}/{s['precision']} n={s['n']}" for s in ver["summaries"][:2]) if ver else "")  # fmt: skip
-
-    if agent_on:
-        code, _, hdr = call("POST", "/agent/chat", {"project_id": pid, "message": "hi"}, raw=True, timeout=120)
-        step("the Green Agent answers", code == 200)
-    else:
-        skip("the Green Agent", "not configured (no TOKEN_FACTORY_API_KEY); the rest of the app does not need it")
-
-    code, _, _ = call("POST", "/benchmarks", {"device_id": "nebius-l40s"})
-    if code == 403:
-        skip("GPU benchmark launch", "switched off in the public demo (it spends credits)")
-    elif code == 503:
-        skip("GPU benchmark launch", "Nebius Serverless Jobs not available here")
-    else:
-        step("GPU benchmark launch is reachable", code in (200, 202, 422), f"HTTP {code}")
 
     code, _, _ = call("POST", "/auth/account/delete", {"password": PASSWORD, "confirm": "DELETE"})
     step("the account and its data can be deleted", code == 200)

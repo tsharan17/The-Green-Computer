@@ -32,7 +32,7 @@ export interface VerificationReport {
   note: string;
 }
 
-export type RecStatus = "recommended" | "option" | "directional" | "guidance" | "needs_input" | "ai_candidate";
+export type RecStatus = "recommended" | "option" | "directional" | "guidance" | "needs_input";
 export interface RecValidation {
   state: "not_evaluated" | "evaluated" | "rejected" | "measured";
   plan_id?: number;
@@ -65,20 +65,9 @@ export interface Rec {
   plan_change_id: string | null;
   in_recommended?: boolean;
   rank?: number;
-  source?: "engine" | "ai";
+  source?: "engine";
   notes?: string[];
   validation: RecValidation;
-}
-export interface AiCandidates {
-  schema: string;
-  model: string;
-  label: string;
-  summary: string;
-  candidates: Rec[];
-  dropped: { title: string; reason: string }[];
-  sent?: string[];
-  cached?: boolean;
-  usage?: { total_tokens?: number };
 }
 export interface RecommendationSet {
   schema: string;
@@ -92,7 +81,6 @@ export interface RecommendationSet {
   source_run_id?: number;
   design_files?: string[];
   stale?: boolean;
-  ai: AiCandidates | null;
 }
 
 export interface TermsStatus {

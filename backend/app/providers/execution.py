@@ -2,14 +2,12 @@
 
 Provider-neutral interface. The local ONNX Runtime CPU backend is the required one; CUDA and
 TensorRT appear only when ONNX Runtime reports those providers AND the operator enables them;
-Nebius remote jobs are behind a flag and need credentials; a generic customer-device backend is
-an interface for later. Nothing here is ever required for the analytical product to work.
+the customer-device backend runs on a paired device through the device agent. Nothing here is ever required for the analytical product to work.
 """
 
 from __future__ import annotations
 
 import os
-import shutil
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -103,28 +101,6 @@ class LocalTensorRtBackend(LocalCudaBackend):
     _flag_name = "GC_ENABLE_TENSORRT"
 
 
-class NebiusBackend:
-    id = "nebius-jobs"
-
-    def info(self) -> BackendInfo:
-        from app.integrations.jobs import status as jobs_status
-
-        name = "Nebius Serverless Jobs (remote NVIDIA GPUs)"
-        if not _flag("GC_ENABLE_NEBIUS"):
-            return BackendInfo(self.id, name, "remote", "disabled",
-                               "Optional and off. The platform never needs it.",
-                               "Set GC_ENABLE_NEBIUS=1, NEBIUS_PROJECT_ID and install and log in to the "
-                               "`nebius` CLI (docs/connecting-nebius.md). Billed by Nebius.")  # fmt: skip
-        st = jobs_status()
-        if not st.configured:
-            return BackendInfo(self.id, name, "remote", "needs_credential", st.reason,
-                               "See docs/connecting-nebius.md.")  # fmt: skip
-        return BackendInfo(self.id, name, "remote", "available",
-                           "Configured. Built from vendor documentation and tested with fakes; "
-                           "a live run has not been verified in this codebase.",
-                           measures=["latency", "throughput", "GPU power and temperature (nvidia-smi)"])  # fmt: skip
-
-
 class RemoteDeviceBackend:
     id = "remote-device"
 
@@ -138,7 +114,7 @@ class RemoteDeviceBackend:
 
 
 BACKENDS: list[ExecutionBackend] = [
-    LocalCpuBackend(), LocalCudaBackend(), LocalTensorRtBackend(), NebiusBackend(), RemoteDeviceBackend(),
+    LocalCpuBackend(), LocalCudaBackend(), LocalTensorRtBackend(), RemoteDeviceBackend(),
 ]
 
 
@@ -149,6 +125,3 @@ def backend_infos() -> list[BackendInfo]:
 def get_backend(backend_id: str) -> ExecutionBackend | None:
     return next((b for b in BACKENDS if b.id == backend_id), None)
 
-
-def nebius_cli() -> bool:
-    return shutil.which("nebius") is not None

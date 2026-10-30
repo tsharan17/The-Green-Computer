@@ -5,12 +5,10 @@ Two supported shapes:
 - one managed platform, Render, as a Docker web service with managed PostgreSQL and a persistent
   disk.
 
-A third shape, for the free public demo, is Google Cloud Run with a free Neon PostgreSQL database and a
-keep-warm job: see [deploy/cloudrun/README.md](../deploy/cloudrun/README.md) (deployed and checked
-on 27 October 2026).
+The free hosting plan for the product launch (Render free web service, Neon, Cloudflare R2) is in
+[LAUNCH_PLAN.md](LAUNCH_PLAN.md).
 
-None of them needs any external SaaS, except that third one. GPU jobs, the AI assistant, error webhooks and telemetry are all
-optional and off by default.
+Neither shape needs any external SaaS. Error webhooks and telemetry are optional and off by default.
 
 > Status: the Dockerfile and `docker-compose.yml` are written and checked for syntax, but Docker
 > was not available in the development environment, so the images have **not** been built or run

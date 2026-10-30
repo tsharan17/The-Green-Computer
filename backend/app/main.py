@@ -9,7 +9,6 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api.v1.agent import router as agent_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.executions import router as executions_router
 from app.api.v1.export import router as export_router
@@ -96,7 +95,7 @@ def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAP
     app.state.data_dir = default_data_dir(url, data_dir or settings.data_dir)
     app.state.blobs = LocalBlobStore(app.state.data_dir / "blobs")
     app.state.email_sender = make_email_sender()
-    for r in (auth_router, workspace_router, router, measurement_router, agent_router,
+    for r in (auth_router, workspace_router, router, measurement_router,
               export_router, hardware_router, files_router, intake_router, twin_router, plans_router,
               executions_router, guide_router, system_graph_router, physics_router, remote_router, ops_router,
               workflow_router):  # fmt: skip

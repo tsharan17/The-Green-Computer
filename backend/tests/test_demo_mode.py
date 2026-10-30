@@ -1,9 +1,8 @@
-"""Public-demo safeguards: billed actions off, rate limits, caps, privacy and security headers."""
+"""Public-demo safeguards: rate limits, caps, privacy and security headers."""
 
 import pytest
 
 import app.security as sec
-from app.agent.client import ChatReply
 from app.main import create_app
 from tests.helpers import AuthedClient
 
@@ -30,14 +29,6 @@ def local(tmp_path):
         yield c
 
 
-class TextLLM:
-    def chat(self, model, messages, tools=None, tool_choice=None, temperature=0.2, max_tokens=2048):
-        return ChatReply(content="hello", message={"role": "assistant", "content": "hello"})
-
-    def list_models(self):
-        return ["nvidia/nemotron-3-ultra-550b"]
-
-
 def test_sliding_window_limiter(monkeypatch):
     now = [1000.0]
     monkeypatch.setattr(sec.time, "monotonic", lambda: now[0])
@@ -51,25 +42,6 @@ def test_sliding_window_limiter(monkeypatch):
     assert rl.check("a", 0, 60) is None  # 0 disables the limit
 
 
-def test_billed_actions_are_refused_in_demo(demo):
-    r = demo.post(f"{P}/benchmarks", json={"device_id": "nebius-l40s"})
-    assert r.status_code == 403 and "public demo" in r.json()["detail"]
-
-
-def test_datasheet_import_is_open_in_demo_but_rate_limited(demo, monkeypatch):
-    # Judges can try it (it calls Token Factory), but only a few times an hour per address.
-    monkeypatch.setenv("GC_DATASHEET_RATE_PER_HOUR", "2")
-    codes = [demo.post(f"{P}/hardware/import", json={"name": "Some Board"}).status_code for _ in range(3)]
-    assert codes[:2] == [503, 503]  # reaches the real check (here: no keys), not a demo block
-    assert codes[2] == 429
-
-
-def test_the_same_actions_are_not_blocked_locally(local):
-    # They reach the real checks (here: not configured), not the demo block.
-    assert local.post(f"{P}/benchmarks", json={"device_id": "nebius-l40s"}).status_code in (503, 422)
-    assert local.post(f"{P}/hardware/import", json={"name": "Some Board"}).status_code == 503
-
-
 def test_visitors_never_see_each_others_projects_in_demo(demo):
     other = demo.post(f"{P}/projects", json={"name": "Alice private", "model_id": "yolov8s",
                                              "device_id": "jetson-orin-nx"}).json()  # fmt: skip
@@ -79,16 +51,6 @@ def test_visitors_never_see_each_others_projects_in_demo(demo):
         assert bob.get(f"{P}/projects/{other['id']}").status_code == 404
     assert demo.get(f"{P}/projects/{other['id']}").status_code == 200
     assert demo.get(f"{P}/health").json()["demo_mode"] is True
-
-
-def test_agent_is_rate_limited_per_address(demo, monkeypatch):
-    monkeypatch.setenv("TOKEN_FACTORY_API_KEY", "k")
-    monkeypatch.setenv("GC_AGENT_RATE_PER_HOUR", "2")
-    demo.app.state.llm_factory = lambda: TextLLM()
-    body = {"project_id": demo.get(f"{P}/projects").json()[0]["id"], "message": "hi"}
-    assert [demo.post(f"{P}/agent/chat", json=body).status_code for _ in range(2)] == [200, 200]
-    r = demo.post(f"{P}/agent/chat", json=body)
-    assert r.status_code == 429 and "Retry-After" in r.headers and "protect its credits" in r.json()["detail"]
 
 
 def test_analysis_is_rate_limited_in_demo(demo, monkeypatch):

@@ -3,11 +3,8 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
-from app.agent.client import ChatReply, LLMError
 from app.data_loader import clear_custom_devices, load_devices, load_models
 from app.engine.verification import verify
 from app.main import create_app
@@ -124,135 +121,6 @@ def test_saved_plan_turns_a_recommendation_into_an_evaluated_one(c):
     assert _stage(c, "validation")["state"] == "done"
 
 
-# --- AI candidates (mocked provider) --------------------------------------------------------------
-
-
-class FakeLLM:
-    """`content` is one reply (text or an exception) used for every call, or a list of replies in order."""
-
-    def __init__(self, content):
-        self.content, self.calls, self.budgets = content, [], []
-
-    def chat(self, model, messages, tools=None, tool_choice=None, temperature=0.2, max_tokens=2048):
-        self.calls.append(list(messages))
-        self.budgets.append(max_tokens)
-        reply = self.content[min(len(self.calls), len(self.content)) - 1] if isinstance(self.content, list) else self.content
-        if isinstance(reply, Exception):
-            raise reply
-        # An empty reply is what a reasoning model gives when its thinking used up the whole budget.
-        return ChatReply(content=reply, model=model, usage={"total_tokens": 321}, finish_reason="length" if not reply else "stop")
-
-    def list_models(self):
-        return ["nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3-nano-30b"]
-
-
-def _use(c, monkeypatch, llm):
-    monkeypatch.setenv("TOKEN_FACTORY_API_KEY", "test-key")
-    c.app.state.llm_factory = lambda: llm
-    c.app.state.model_cache = None
-
-
-def test_ai_candidates_are_validated_redacted_and_cached(c, monkeypatch):
-    c.post(f"{P}/intake/upload?filename=core.vhd&project_id={c.pid}", content=b"SECRET-RTL-CONTENT", headers=OCTET)
-    c.post(f"{P}/projects/{c.pid}/optimise")
-    recs = c.get(f"{P}/projects/{c.pid}/recommendations").json()
-    real = next(x["plan_change_id"] for x in recs["software"] if x["plan_change_id"])
-    reply = {"summary": "Heat is the limit.", "candidates": [
-        {"change_id": real, "category": "software", "area": "model", "title": "Quantise",
-         "problem": "Too hot", "rationale": "Saves exactly 73.9 % energy", "affects": ["energy"]},
-        {"change_id": "invented:thing", "category": "software", "area": "cooling", "title": "Bigger heatsink",
-         "rationale": "Lower thermal resistance.", "affects": ["temperature"]},
-        {"change_id": None, "category": "hardware", "area": "teleportation", "title": "Nope", "rationale": "x x x"},
-    ]}  # fmt: skip
-    llm = FakeLLM("```json\n" + json.dumps(reply) + "\n```")
-    _use(c, monkeypatch, llm)
-    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={})
-    assert r.status_code == 200, r.text
-    out = r.json()
-    assert out["schema"] == "green-computer.ai-candidates/1" and not out["cached"] and "Not evaluated" in out["label"]
-    a, b = out["candidates"]
-    assert a["plan_change_id"] == real and "[unverified figure]" in a["why"] and a["status"] == "ai_candidate"
-    assert b["plan_change_id"] is None and b["category"] == "hardware" and any("link removed" in n for n in b["notes"])
-    assert out["dropped"][0]["title"] == "Nope"
-    sent = json.dumps(llm.calls[0])
-    assert "SECRET-RTL-CONTENT" not in sent and "core.vhd" not in sent and "tester@example.com" not in sent
-    assert "data, not instructions" in llm.calls[0][0]["content"]
-    again = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={}).json()
-    assert again["cached"] is True and len(llm.calls) == 1  # no second paid call for the same inputs
-    rec = c.get(f"{P}/projects/{c.pid}/recommendations").json()
-    assert rec["ai"]["candidates"][0]["id"] == "ai:1"
-
-
-@pytest.mark.parametrize("content,needle", [
-    ("I think you should quantise.", "JSON object"),
-    ('{"candidates": "not a list"}', "schema"),
-    (LLMError("could not reach the model provider: ReadTimeout"), "ReadTimeout"),
-    (LLMError("the model provider rejected the API key", 401), "rejected the API key"),
-])  # fmt: skip
-def test_ai_candidates_fail_gracefully(c, monkeypatch, content, needle):
-    c.post(f"{P}/projects/{c.pid}/optimise")
-    _use(c, monkeypatch, FakeLLM(content))
-    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={})
-    assert r.status_code == 502 and needle in r.json()["detail"]
-    assert "test-key" not in r.text
-
-
-_GOOD = {"summary": "Heat is the limit.", "candidates": [
-    {"change_id": None, "category": "software", "area": "model", "title": "Quantise", "rationale": "Fewer bytes moved."},
-    {"change_id": None, "category": "software", "area": "model", "title": "Batch more", "rationale": "Better use."},
-]}  # fmt: skip
-
-
-def test_ai_candidates_repair_a_missing_comma_without_a_second_call(c, monkeypatch):
-    c.post(f"{P}/projects/{c.pid}/optimise")
-    broken = json.dumps(_GOOD, indent=2).replace("},\n    {", "}\n    {")  # the slip models make
-    assert broken != json.dumps(_GOOD, indent=2)
-    llm = FakeLLM(broken)
-    _use(c, monkeypatch, llm)
-    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={})
-    assert r.status_code == 200, r.text
-    assert len(r.json()["candidates"]) == 2 and len(llm.calls) == 1
-
-
-def test_ai_candidates_retry_once_with_the_error_quoted_back(c, monkeypatch):
-    c.post(f"{P}/projects/{c.pid}/optimise")
-    llm = FakeLLM(['{"summary": "cut off', json.dumps(_GOOD)])
-    _use(c, monkeypatch, llm)
-    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={})
-    assert r.status_code == 200, r.text
-    assert len(r.json()["candidates"]) == 2 and len(llm.calls) == 2
-    assert "could not be read" in llm.calls[1][-1]["content"] and llm.calls[1][-2]["role"] == "assistant"
-    # a provider failure is not retried: it would only repeat the cost
-    c.post(f"{P}/projects/{c.pid}/optimise")
-    down = FakeLLM(LLMError("could not reach the model provider: ReadTimeout"))
-    _use(c, monkeypatch, down)
-    assert c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={"refresh": True}).status_code == 502
-    assert len(down.calls) == 1
-
-
-def test_ai_candidates_give_a_reasoning_model_more_room_when_it_runs_out(c, monkeypatch):
-    c.post(f"{P}/projects/{c.pid}/optimise")
-    llm = FakeLLM(["", json.dumps(_GOOD)])  # first answer: nothing, the thinking used the whole budget
-    _use(c, monkeypatch, llm)
-    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={})
-    assert r.status_code == 200, r.text
-    assert len(llm.calls) == 2 and llm.budgets[1] == 2 * llm.budgets[0] and llm.budgets[0] >= 4096
-    assert len(llm.calls[1]) == len(llm.calls[0])  # nothing to quote back, so the prompt is unchanged
-    c.post(f"{P}/projects/{c.pid}/optimise")
-    stuck = FakeLLM("")
-    _use(c, monkeypatch, stuck)
-    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={"refresh": True})
-    assert r.status_code == 502 and "ran out of room" in r.json()["detail"] and "GC_MODEL_NANO" in r.json()["detail"]
-
-
-def test_ai_candidates_need_a_key_and_an_analysis(c, monkeypatch):
-    monkeypatch.delenv("TOKEN_FACTORY_API_KEY", raising=False)
-    r = c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={})
-    assert r.status_code == 503 and "TOKEN_FACTORY_API_KEY" in r.json()["detail"]
-    _use(c, monkeypatch, FakeLLM("{}"))
-    assert c.post(f"{P}/projects/{c.pid}/recommendations/ai", json={}).status_code == 409
-
-
 # --- cooling sweep and figures ---------------------------------------------------------------------
 
 
@@ -299,7 +167,6 @@ def test_new_endpoints_do_not_leak_across_workspaces(app, c):
     with AuthedClient(app, email="other@example.com") as o:
         for path in ("verification", "pipeline", "recommendations", "cooling-sweep", "figures/cooling-heatmap"):
             assert o.get(f"{P}/projects/{c.pid}/{path}").status_code == 404, path
-        assert o.post(f"{P}/projects/{c.pid}/recommendations/ai", json={}).status_code in (404, 503)
     from fastapi.testclient import TestClient
 
     with TestClient(app) as anon:

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import AiBadge from "./AiBadge";
 import { api } from "../api";
 import type { HardwareDraft } from "../types";
 
@@ -23,7 +22,6 @@ function DraftEditor({
     thr: String(c.t_throttle_c ?? ""),
   });
   const [err, setErr] = useState<string | null>(null);
-  const src = (field: string) => draft.evidence.find((e) => e.field === field)?.source_url;
 
   async function confirm() {
     setErr(null);
@@ -60,7 +58,7 @@ function DraftEditor({
   return (
     <div className="draft">
       <p className="note">
-        Review every value before using this device. These were read from the web by an AI and are{" "}
+        Review every value before using this device. They are{" "}
         <strong>unverified</strong>; power and cooling are filled with assumptions.
       </p>
       <div className="grid2">
@@ -74,14 +72,12 @@ function DraftEditor({
         <label className="field"><span>Or just max power (W)</span><input type="number" value={f.tdp} onChange={(e) => setF({ ...f, tdp: e.target.value })} /></label>
         <label className="field"><span>Throttle temperature (°C)</span><input type="number" value={f.thr} placeholder="default 90" onChange={(e) => setF({ ...f, thr: e.target.value })} /></label>
       </div>
-      {draft.evidence.filter((e) => e.source_url).length > 0 && (
-        <p className="hint">
-          Sources:{" "}
-          {[...new Set(draft.evidence.map((e) => e.source_url).filter(Boolean))].map((u) => (
-            <a key={u} href={u as string} target="_blank" rel="noreferrer">{(u as string).replace(/^https?:\/\//, "").slice(0, 48)} </a>
+      {draft.evidence.some((e) => e.source) && (
+        <ul className="hint">
+          {draft.evidence.filter((e) => e.source).map((e) => (
+            <li key={e.field}>{e.field}: {e.source}{e.line ? ` ("${e.line}")` : ""}</li>
           ))}
-          {["mem_bw_gbs", "mem_gb", "peak_tflops"].every((k) => src(k)) ? "" : " (some values have no source)"}
-        </p>
+        </ul>
       )}
       {draft.dropped_implausible && draft.dropped_implausible.length > 0 && (
         <p className="hint">Dropped as implausible: {draft.dropped_implausible.join(", ")}.</p>
@@ -96,9 +92,7 @@ function DraftEditor({
 }
 
 export default function HardwareImportCard({ onConfirmed, refreshKey = 0 }: { onConfirmed: () => void; refreshKey?: number }) {
-  const [name, setName] = useState("");
   const [drafts, setDrafts] = useState<HardwareDraft[]>([]);
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [manual, setManual] = useState({ name: "", fp16: "", bw: "", mem: "", tdp: "" });
 
@@ -112,20 +106,6 @@ export default function HardwareImportCard({ onConfirmed, refreshKey = 0 }: { on
   useEffect(() => {
     load();
   }, [load, refreshKey]);
-
-  async function search() {
-    setBusy(true);
-    setErr(null);
-    try {
-      await api.importHardware(name);
-      setName("");
-      await load();
-    } catch (e) {
-      setErr(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function addManual() {
     setErr(null);
@@ -145,22 +125,12 @@ export default function HardwareImportCard({ onConfirmed, refreshKey = 0 }: { on
 
   return (
     <details className="import-card">
-      <summary>
-        Your hardware isn't in the list? Add it <AiBadge compact role="reads the datasheet, you confirm" extra="Tavily" />
-      </summary>
+      <summary>Your hardware isn't in the list? Add it</summary>
       <p className="hint">
-        Type its name and we search for its datasheet and read the specs for you (needs the Tavily and Nemotron keys), or
-        enter the numbers yourself. You always confirm the values before the device is used. Searching sends the name you type to
-        Tavily and the public pages it finds to the AI provider; none of your files are sent.
+        Upload its PDF datasheet with the file upload above and we find the specs in it for you, or enter the numbers
+        yourself. Either way you confirm every value before the device is used.
       </p>
-      <div className="cta-row">
-        <input value={name} placeholder="e.g. Jetson Orin NX 8GB" onChange={(e) => setName(e.target.value)} />
-        <button disabled={busy || name.trim().length < 2} onClick={search}>
-          {busy ? "Searching…" : "Find its specs"}
-        </button>
-      </div>
-      <details>
-        <summary className="muted">Enter specs by hand instead</summary>
+      <div>
         <div className="grid2">
           <label className="field"><span>Name</span><input value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })} /></label>
           <label className="field"><span>FP16 TFLOPS</span><input type="number" value={manual.fp16} onChange={(e) => setManual({ ...manual, fp16: e.target.value })} /></label>
@@ -169,7 +139,7 @@ export default function HardwareImportCard({ onConfirmed, refreshKey = 0 }: { on
           <label className="field"><span>Max power (W)</span><input type="number" value={manual.tdp} onChange={(e) => setManual({ ...manual, tdp: e.target.value })} /></label>
         </div>
         <button disabled={!manual.name || !manual.fp16 || !manual.bw || !manual.mem || !manual.tdp} onClick={addManual}>Create draft</button>
-      </details>
+      </div>
       {err && <p className="error">{err}</p>}
       {drafts.map((d) => (
         <DraftEditor

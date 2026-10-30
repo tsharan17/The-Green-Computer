@@ -69,11 +69,8 @@ class HardwareProfile(BaseModel):
     sources: dict[str, Provenance] = {}
     notes: str = ""
     verified: bool = False
-    # Nebius Serverless Jobs GPU platform/preset for devices that exist there (CLI --platform / --preset).
     # Whether other projects should suggest this device as a hardware alternative.
     alternative_candidate: bool = True
-    nebius_platform: str | None = None
-    nebius_preset: str | None = None
 
     def mode(self, mode_id: str) -> PowerMode:
         for m in self.power_modes:

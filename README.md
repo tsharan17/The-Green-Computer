@@ -6,8 +6,8 @@ is built: latency, memory, power, energy, heat, throttling, cost and carbon, ope
 Then choose software and hardware changes, compare the result against today, run the model for
 real where you can, and export what you decided.
 
-It runs entirely on your own machine. NVIDIA GPUs, Nebius cloud jobs and an AI assistant are
-optional accelerators, never requirements.
+It runs entirely on your own machine: no API keys, no vendor accounts, no AI provider. Local NVIDIA
+GPUs and your own devices (through the device agent) are optional ways to measure, never requirements.
 
 ## Start it
 
@@ -57,26 +57,6 @@ data stays in `green_computer.db` and `gc_data/` in this folder. Options: `--por
 The app walks you through this in order: a numbered stepper at the top, the same six stages in the
 side navigation, and Back / Next buttons on every page.
 
-## NVIDIA Nemotron and Nebius in this project
-
-The engine computes every number. The language model only explains and suggests, through **NVIDIA
-Nemotron on Nebius Token Factory** (an OpenAI-compatible API, `TOKEN_FACTORY_API_KEY`):
-
-| Where | What the model does | Code |
-|---|---|---|
-| **Green Agent** (sidebar, "Ask the assistant") | Plans and answers by calling the engine as tools; a guardrail rejects any figure that is not in a tool result, and it cannot change your requirements | `backend/app/agent/` |
-| **AI candidates** (Recommendations, "Every recommendation, in full") | Proposes extra changes as schema-checked JSON; unknown change ids lose their link, unsupported figures are removed, and each is labelled "not evaluated" | `backend/app/agent/recommender.py` |
-| **Datasheet import** | Reads specs from datasheet text that **Tavily** found, for hardware not in the library; a person confirms them | `backend/app/agent/datasheet.py`, `backend/app/integrations/tavily.py` |
-
-Model ids default to Nemotron Ultra, Super and Nano and are matched against the provider's own
-model list at run time (`GC_MODEL_ULTRA`, `GC_MODEL_SUPER`, `GC_MODEL_NANO` override them).
-**Nebius Serverless Jobs** (real GPU benchmarks for calibration) and **Serverless Endpoints** (to
-host the app) are built and documented ([docs/connecting-nebius.md](docs/connecting-nebius.md),
-[deploy/endpoint.md](deploy/endpoint.md)); see the status table for what has actually been run.
-
-This repository was started on 13 October 2026, inside the hackathon submission period. For the
-hackathon track, setup, and a two-minute tour for judges, see [docs/for-judges.md](docs/for-judges.md).
-
 ## Honesty rules
 
 - Every number carries its range and its source: analytical, calibrated, measured, vendor
@@ -118,9 +98,8 @@ each part, is in [docs/architecture.md](docs/architecture.md).
    ├── engine/   pure, deterministic: roofline, power⇄temperature⇄throttling solver, uncertainty,
    │             search, advice, plans, cooling catalogue, intake validators, report/PDF writers
    ├── twin/     predicted and measured execution traces (schema green-computer.trace/1)
-   ├── providers/  ExecutionBackend (local CPU required; CUDA/TensorRT/Nebius optional; remote device
-   │               planned), AIProvider (optional), BlobStore (local disk), EmailSender (log or SMTP),
-   │               ArtifactGenerator labels
+   ├── providers/  ExecutionBackend (local CPU required; CUDA/TensorRT optional; your own device through
+   │               the device agent), BlobStore (local disk), EmailSender (log or SMTP), ArtifactGenerator labels
    └── execution/  isolated worker process: benchmark with profiler, INT8 quantisation, comparison
 ```
 
@@ -139,7 +118,7 @@ python scripts/acceptance.py http://localhost:8000     # against a running serve
 
 Details: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [docs/api.md](docs/api.md),
 [docs/security.md](docs/security.md), [docs/assumptions.md](docs/assumptions.md),
-[docs/connecting-nebius.md](docs/connecting-nebius.md).
+[docs/LAUNCH_PLAN.md](docs/LAUNCH_PLAN.md).
 
 ## What is and is not verified
 
@@ -150,14 +129,10 @@ Details: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [docs/api.md](doc
 | Local execution | Real ONNX Runtime CPU runs tested; measures latency and operator time, not power or temperature |
 | Predictions | Analytical with stated assumptions; the only measurements so far are CPU latencies on the development machine |
 | CUDA / TensorRT backends | Detected and gated; never run here (no NVIDIA GPU) |
-| Green Agent (Token Factory) | Tested with mocked providers. **Live** on 27 Oct 2026 with `nvidia/Nemotron-3-Ultra-550b-a55b`: the agent answered, and `scripts/check_nebius.py` passed chat and a tool-call round trip. `GET /api/v1/agent/status` shows the resolved ids. Off unless a key is set |
-| AI recommendation candidates | Tested with mocked providers. **Live** on 27 Oct 2026 with `nvidia/nemotron-3-super-120b-a12b`: the first two attempts failed (invalid JSON, then no answer because a reasoning model used up its token budget). After the fix (JSON repair, one retry, more room), 4 of 4 runs succeeded |
-| Datasheet web search (Tavily + Nemotron) | Tested with fakes. **Live** on 27 Oct 2026 with `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`: the first runs failed the same two ways and got the same fix. After that, four real devices were drafted with each value sourced, and one was confirmed and analysed. Takes 45 to 60 s |
-| Nebius Serverless Jobs and Endpoints | Job and endpoint scripts built from vendor documentation; **never run live** (`GC_ENABLE_NEBIUS=0` by default) |
 | Terms, privacy and acceptable-use pages | Written to match the implementation; **draft, needs professional legal review** |
+| Datasheet PDFs | Read offline by pattern; each value shows its page and line and must be confirmed. Tested with generated PDFs |
 | OCR for scanned PDFs | Implemented; untested here (no Tesseract installed) |
-| Docker image | Built by Cloud Build and running as the public demo. The compose stack is written but not run; the Quick start above is the way to run it locally |
-| Cloud Run + Neon demo deployment (`deploy/cloudrun/`) | Deployed 27 Oct 2026: readiness check passes, sign-up and sign-in work in a browser. Demo URL in docs/for-judges.md |
+| Docker image | Built and run before (as an earlier demo deployment); not yet built for the product hosting. The compose stack is written but not run |
 | Browser journeys | 15 Playwright tests (sign-up to export, accessibility checks in light and dark) pass against a local server |
 | Recipes and deployment configs | Templates; syntax-checked, not run on devices |
 | Chip/board what-ifs | Directional analytical what-ifs, not designs |

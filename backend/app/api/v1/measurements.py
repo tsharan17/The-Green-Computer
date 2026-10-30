@@ -1,8 +1,6 @@
-"""Measurements, calibration, verification and benchmark status."""
+"""Measurements, calibration and verification."""
 
 from __future__ import annotations
-
-import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -18,12 +16,8 @@ from app.engine.measure_parsers import (
     parse_nvidia_smi_csv,
     parse_tegrastats,
 )
-from app.integrations.jobs import JobsError, JobSpec
-from app.integrations.jobs import status as jobs_status
 from app.schemas.measurement import MeasurementIn, MeasurementOut, VerifyOut
-from app.security import block_in_demo
 from app.services import audit
-from app.services import benchmark_service as bench
 from app.services import measurement_service as ms
 
 router = APIRouter()
@@ -181,67 +175,3 @@ def verify(
     device_id: str | None = None, db: Session = Depends(get_db), ctx: Ctx = Depends(require_ctx)
 ) -> VerifyOut:
     return ms.verify(db, device_id, ctx.workspace_id)
-
-
-@router.get("/benchmarks/status")
-def benchmark_status(_ctx: Ctx = Depends(require_ctx)) -> dict:
-    j = jobs_status()
-    return {
-        "jobs_configured": j.configured,
-        "detail": j.reason,
-        "cli_found": j.cli_found,
-        "replay_available": True,
-        "import_formats": ["bench_json", "json", "csv", "nvidia_smi_csv", "tegrastats"],
-        "enabled": os.environ.get("GC_ENABLE_NEBIUS", "").lower() in ("1", "true", "yes", "on"),
-    }
-
-
-class BenchmarkIn(BaseModel):
-    device_id: str
-    model_id: str = "resnet-50"
-    precision: str = "fp32"
-    batches: list[int] = [1, 8, 32]
-    runs: int = 50
-
-
-@router.post("/benchmarks", status_code=202)
-def submit_benchmark(
-    body: BenchmarkIn, db: Session = Depends(get_db), ctx: Ctx = Depends(require_writer)
-) -> dict:
-    """Launch a Nebius Serverless Job on an NVIDIA GPU. 503 when jobs are not available."""
-    block_in_demo("Launching GPU benchmarks")
-    if os.environ.get("GC_ENABLE_NEBIUS", "").lower() not in ("1", "true", "yes", "on"):
-        raise HTTPException(503, "Remote GPU jobs are turned off (optional; set GC_ENABLE_NEBIUS=1, NEBIUS_PROJECT_ID and the "
-                                 "nebius CLI to use them). Local runs work without them, and you can run bench/ on any GPU host and import its JSON.")
-    spec = JobSpec(body.device_id, body.model_id, body.precision, tuple(body.batches), body.runs)
-    try:
-        out = bench.submit(db, spec, ws=ctx.workspace_id)
-        audit.audit(db, "benchmark.submitted", workspace_id=ctx.workspace_id, user_id=ctx.user_id,
-                    target_type="benchmark", target_id=out["id"], ip=ctx.ip)  # fmt: skip
-        return out
-    except JobsError as e:
-        code = 503 if "unavailable" in str(e) else 422
-        raise HTTPException(code, f"{e}. You can still run bench/ on a GPU host and import it.") from e
-
-
-@router.get("/benchmarks")
-def list_benchmarks(db: Session = Depends(get_db), ctx: Ctx = Depends(require_ctx)) -> list[dict]:
-    return bench.list_jobs(db, ctx.workspace_id)
-
-
-@router.get("/benchmarks/{row_id}")
-def get_benchmark(row_id: int, db: Session = Depends(get_db), ctx: Ctx = Depends(require_ctx)) -> dict:
-    try:
-        return bench.refresh(db, row_id, ws=ctx.workspace_id)
-    except JobsError as e:
-        raise HTTPException(404, str(e)) from e
-
-
-@router.post("/benchmarks/{row_id}/cancel")
-def cancel_benchmark(
-    row_id: int, db: Session = Depends(get_db), ctx: Ctx = Depends(require_writer)
-) -> dict:
-    try:
-        return bench.cancel(db, row_id, ws=ctx.workspace_id)
-    except JobsError as e:
-        raise HTTPException(422, str(e)) from e

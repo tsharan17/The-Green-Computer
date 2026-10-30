@@ -11,8 +11,8 @@ You must not:
 - try to read or change another workspace's projects, files or results, or probe the service for
   weaknesses without the operator's written permission;
 - try to get around rate limits, file-size limits, authentication or authorisation;
-- use the AI assistant or the recommendation features to produce unlawful or harmful content, or
-  try to make them ignore the platform's rules (for example by hiding instructions in uploaded
+- use the recommendation or export features to produce unlawful or harmful content, or try to
+  make them ignore the platform's rules (for example by hiding instructions in uploaded
   documents);
 - present predictions, directional what-ifs or AI text from the service as measured, simulated,
   certified or validated results to other people;

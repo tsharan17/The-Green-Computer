@@ -1,8 +1,7 @@
 """Safeguards for a public demo: rate limits, a switch for billed actions, security headers.
 
-A judge-facing URL spends real credits (Token Factory tokens, Tavily searches, GPU time) and is
-shared by strangers, so in demo mode (`GC_PUBLIC_DEMO=1`) billed or abusable actions are refused
-and the Green Agent and the analysis endpoint are rate limited per client IP. Locally nothing here
+A public server is shared by strangers, so in demo mode (`GC_PUBLIC_DEMO=1`) costly or abusable
+actions are refused and analysis and datasheet reading are rate limited per client IP. Locally nothing here
 restricts anything unless you set the limits yourself.
 """
 
@@ -160,18 +159,14 @@ def _limit(request: Request, bucket: str, max_calls: int, window_s: float, what:
     if wait is not None:
         raise HTTPException(
             429,
-            f"Too many {what} from your address. This public demo limits usage to protect its "
-            f"credits; try again in about {int(wait) + 1} seconds.",
+            f"Too many {what} from your address. This service limits usage to keep it fair for "
+            f"everyone; try again in about {int(wait) + 1} seconds.",
             headers={"Retry-After": str(int(wait) + 1)},
         )
 
 
-def limit_agent(request: Request) -> None:
-    _limit(request, "agent", _int_env("GC_AGENT_RATE_PER_HOUR", 40), 3600.0, "agent questions")
-
-
 def limit_datasheet(request: Request) -> None:
-    """Datasheet search and reading spend Tavily and Token Factory credits: a few per hour in the demo."""
+    """Reading a datasheet PDF is CPU heavy: a few per hour in the demo."""
     _limit(request, "datasheet", _int_env("GC_DATASHEET_RATE_PER_HOUR", 5), 3600.0, "datasheet imports")
 
 

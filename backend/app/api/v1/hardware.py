@@ -1,61 +1,26 @@
-"""Hardware import from datasheets (Tavily + Nemotron) with mandatory human confirmation."""
+"""Hardware drafts (from a datasheet or by hand) with mandatory human confirmation, and custom devices."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.agent.client import LLMError
-from app.agent.datasheet import DatasheetError, clean_extraction
-from app.api.v1.agent import _llm, _models
 from app.auth.deps import Ctx, get_db, require_ctx, require_writer
+from app.engine.datasheet_profile import DatasheetError, clean_extraction
 from app.engine.hwbuild import CustomHardwareSpec, build_custom
 from app.engine.vendor_reports import parse_power_csv, parse_report
-from app.integrations import tavily as tv
 from app.schemas.hardware import HardwareProfile
-from app.security import limit_datasheet, max_custom_items
+from app.security import max_custom_items
 from app.services import audit
 from app.services import hardware_service as hw
 
 router = APIRouter()
 
-TAVILY_OFF = (
-    "Datasheet import needs a Tavily key (TAVILY_API_KEY in .env, free via the Nebius Builder "
-    "Program) and the Green Agent (TOKEN_FACTORY_API_KEY). You can also enter a device by hand."
-)
-
-
-def default_tavily_factory() -> tv.TavilyClient:
-    return tv.TavilyClient()
-
-
-class ImportIn(BaseModel):
-    name: str = Field(min_length=2, max_length=120)
-
-
-@router.post("/hardware/import", status_code=201)
-def import_hardware(
-    body: ImportIn, request: Request, db: Session = Depends(get_db),
-    ctx: Ctx = Depends(require_writer),
-) -> dict[str, Any]:  # fmt: skip
-    limit_datasheet(request)
-    factory = getattr(request.app.state, "tavily_factory", default_tavily_factory)
-    try:
-        tavily = factory()
-        llm = _llm(request)
-        model_id = _models(request, llm).for_task("fast")
-        return hw.create_draft(db, body.name, tavily, llm, model_id, ctx.workspace_id)
-    except (tv.TavilyError, LLMError) as e:
-        raise HTTPException(503, f"{e}. {TAVILY_OFF}") from e
-    except DatasheetError as e:
-        raise HTTPException(422, str(e)) from e
-
-
 class ManualIn(BaseModel):
-    """Enter a device by hand (no LLM or search): goes through the same draft -> confirm gate."""
+    """Enter a device by hand: goes through the same draft -> confirm gate."""
 
     name: str = Field(min_length=2, max_length=120)
     vendor: str | None = None
@@ -150,7 +115,7 @@ def confirm_draft(
     draft_id: int, body: ConfirmIn, db: Session = Depends(get_db),
     ctx: Ctx = Depends(require_writer),
 ) -> HardwareProfile:  # fmt: skip
-    """Only a person can confirm: the agent has no tool for this."""
+    """Only a person can confirm a draft."""
     try:
         return hw.confirm(db, draft_id, body.overrides, ctx.workspace_id)
     except DatasheetError as e:

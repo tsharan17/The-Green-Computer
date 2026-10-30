@@ -759,10 +759,39 @@ Verification (2026-10-19)
 - `npx playwright test`: 16 passed.
 - `pip-audit` (backend pins): no known vulnerabilities. `npm audit --omit=dev`: 0.
 
+## Product launch, step 1: provider-free edition (done)
+
+Plan: [docs/LAUNCH_PLAN.md](docs/LAUNCH_PLAN.md). The NVIDIA/Nebius submission is a separate
+repository and was not touched.
+
+What changed
+- Removed: the Green Agent (`app/agent/`), Tavily and Nebius job integrations (`app/integrations/`),
+  the AI provider interface, the Nebius execution backend, `GET/POST /agent/*`, `/benchmarks*`,
+  `/hardware/import` (web search) and `/projects/{id}/recommendations/ai`; the UI's assistant drawer,
+  step cards, AI badges, AI candidates and Nebius jobs panel; the Cloud Run deploy folder, Nebius
+  scripts, hackathon docs and `BUILD_PLAN.md`; provider settings in `.env.example`.
+- Uploaded PDF datasheets are read offline: `engine/datasheet_profile.extraction_from_scan` turns the
+  pattern scan's candidates into a draft, each value with its page and line, confirmed by a person.
+  The deterministic validation (`clean_extraction`, `build_profile`) moved there from the agent.
+- `/health` reports status, version and demo mode only. Capabilities no longer list provider rows.
+- Device ids `nebius-l40s` / `nebius-h100` are now `nvidia-l40s` / `nvidia-h100-sxm`. Projects in an
+  old local database that used the old ids need their device picked again.
+- Terms and Privacy no longer list provider sub-processors; both moved to version 2026-10-30, so
+  existing local accounts are asked to accept again.
+- The `benchmark_jobs` table and its model stay (applied migrations are never edited).
+
+Verification (2026-10-30)
+- `pytest -q`: 280 passed, 2 skipped (PostgreSQL tests; no `GC_TEST_PG_URL` here).
+- `ruff` (backend, scripts, agent), `mypy app` (131 files), `tsc`, `eslint`, `vite build`: clean.
+- `npx playwright test`: 15 passed.
+- Not run: acceptance script against a live server, PostgreSQL suite.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no
-  NVIDIA GPU), Nebius jobs and the AI assistant live (no credentials), OCR (no Tesseract).
+  NVIDIA GPU), OCR (no Tesseract).
+- Datasheet PDFs are read by pattern only: values in tables or unusual phrasings can be missed and
+  must then be typed in.
 - Thermal model is lumped; per-component heat is an attribution. Predictions are analytical until
   measurements calibrate them; CPU runs measure latency only.
 - Members must already have an account (no invitation emails). Two-step sign-in is optional per
