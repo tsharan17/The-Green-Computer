@@ -1,8 +1,12 @@
-"""Safeguards for a public demo: rate limits, a switch for billed actions, security headers.
+"""Safeguards for a shared server: rate limits, caps, a switch for heavy actions, security headers.
 
-A public server is shared by strangers, so in demo mode (`GC_PUBLIC_DEMO=1`) costly or abusable
-actions are refused and analysis and datasheet reading are rate limited per client IP. Locally nothing here
-restricts anything unless you set the limits yourself.
+A public server is shared by strangers. Two modes turn the safeguards on:
+- `GC_HOSTED=1`, the hosted product: rate limits and caps, uploads capped (`GC_MAX_UPLOAD_MB`, default
+  50), and nothing is executed on the server (model runs and INT8 conversion belong on the user's own
+  machine or a paired device). It also requires `GC_SECRET_KEY` and `GC_AGENT_SIGNING_SECRET`, since
+  hosted disks are usually wiped on restart.
+- `GC_PUBLIC_DEMO=1`, a throwaway demo: the same limits, uploads capped at 10 MB, and a demo banner.
+Locally nothing here restricts anything unless you set the limits yourself.
 """
 
 from __future__ import annotations
@@ -25,6 +29,26 @@ def demo_mode() -> bool:
     return _truthy(os.environ.get("GC_PUBLIC_DEMO"))
 
 
+def hosted() -> bool:
+    return _truthy(os.environ.get("GC_HOSTED"))
+
+
+def shared_server() -> bool:
+    """Strangers share this server (hosted product or public demo): limits apply by default."""
+    return hosted() or demo_mode()
+
+
+HOSTED_SECRETS = ("GC_SECRET_KEY", "GC_AGENT_SIGNING_SECRET")
+
+
+def check_hosted_secrets() -> None:
+    """Hosted servers must not create keys on a disk that may be wiped: refuse to start without them."""
+    missing = [k for k in HOSTED_SECRETS if not os.environ.get(k)]
+    if hosted() and missing:
+        raise RuntimeError(f"GC_HOSTED=1 needs {', '.join(missing)} set (random values of 32+ characters). "
+                           "Without them, sign-in secrets and paired devices break on every restart.")  # fmt: skip
+
+
 def _int_env(name: str, demo_default: int, local_default: int = 0) -> int:
     raw = os.environ.get(name)
     if raw not in (None, ""):
@@ -32,7 +56,7 @@ def _int_env(name: str, demo_default: int, local_default: int = 0) -> int:
             return int(raw)
         except ValueError:
             pass
-    return demo_default if demo_mode() else local_default
+    return demo_default if shared_server() else local_default
 
 
 def client_ip(request: Request) -> str:
@@ -174,14 +198,14 @@ def limit_analyse(request: Request) -> None:
     _limit(request, "analyse", _int_env("GC_ANALYSE_RATE_PER_MIN", 30), 60.0, "analyses")
 
 
-def block_in_demo(feature: str) -> None:
-    """Refuse a billed or abusable action in the public demo."""
-    if demo_mode():
-        raise HTTPException(
-            403,
-            f"{feature} is turned off in the public demo because it spends real credits. "
-            "Run your own copy (see the README) to use it.",
-        )
+SERVER_RUNS_OFF = ("{feature} is off on this hosted service: it would run your model on the shared server. "
+                   "Pair your own device under Run on a device, or run The Green Computer on your own machine.")
+
+
+def block_on_shared_server(feature: str) -> None:
+    """Refuse an action that executes user models on a shared server."""
+    if shared_server():
+        raise HTTPException(403, SERVER_RUNS_OFF.format(feature=feature))
 
 
 def max_projects() -> int:
@@ -193,7 +217,9 @@ def max_custom_items() -> int:
 
 
 def max_upload_bytes(default: int) -> int:
-    return min(default, _int_env("GC_MAX_UPLOAD_MB", 10) * 1024 * 1024) if demo_mode() else default
+    if not shared_server():
+        return default
+    return min(default, _int_env("GC_MAX_UPLOAD_MB", 50 if hosted() else 10) * 1024 * 1024)
 
 
 CSP = (

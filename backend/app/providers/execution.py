@@ -2,7 +2,9 @@
 
 Provider-neutral interface. The local ONNX Runtime CPU backend is the required one; CUDA and
 TensorRT appear only when ONNX Runtime reports those providers AND the operator enables them;
-the customer-device backend runs on a paired device through the device agent. Nothing here is ever required for the analytical product to work.
+the customer-device backend runs on a paired device through the device agent. On a shared server
+(GC_HOSTED or GC_PUBLIC_DEMO) the local backends are off. Nothing here is ever required for the
+analytical product to work.
 """
 
 from __future__ import annotations
@@ -48,11 +50,21 @@ def _ort() -> tuple[Any | None, str]:
         return None, str(e)
 
 
+def _server_runs_off(backend_id: str, name: str) -> BackendInfo | None:
+    from app.security import SERVER_RUNS_OFF, shared_server
+
+    if not shared_server():
+        return None
+    return BackendInfo(backend_id, name, "local", "disabled", SERVER_RUNS_OFF.format(feature="Running models"))
+
+
 class LocalCpuBackend:
     id = "local-cpu"
     ort_providers = ["CPUExecutionProvider"]
 
     def info(self) -> BackendInfo:
+        if off := _server_runs_off(self.id, "This server's CPU (ONNX Runtime)"):
+            return off
         ort, ver = _ort()
         if ort is None:
             return BackendInfo(self.id, "This server's CPU (ONNX Runtime)", "local", "unavailable",
@@ -76,6 +88,8 @@ class LocalCudaBackend:
     _flag_name = "GC_ENABLE_CUDA"
 
     def info(self) -> BackendInfo:
+        if off := _server_runs_off(self.id, self._name):
+            return off
         ort, ver = _ort()
         have = ort.get_available_providers() if ort is not None else []
         if self._need not in have:

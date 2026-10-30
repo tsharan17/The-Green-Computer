@@ -9,7 +9,17 @@ class Base(DeclarativeBase):
     pass
 
 
+def normalise_url(url: str) -> str:
+    """Hosted databases (Neon, Render, Heroku) hand out postgres:// or postgresql:// URLs; the app's
+    driver is psycopg 3, so use it unless the URL already names a driver."""
+    for scheme in ("postgres://", "postgresql://"):
+        if url.startswith(scheme):
+            return "postgresql+psycopg://" + url[len(scheme):]
+    return url
+
+
 def make_engine(url: str):
+    url = normalise_url(url)
     kwargs: dict = {}
     if url.startswith("sqlite"):
         kwargs["connect_args"] = {"check_same_thread": False}

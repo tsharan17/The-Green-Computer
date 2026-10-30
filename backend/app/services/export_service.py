@@ -384,6 +384,9 @@ def generate(db: Session, project: ProjectOut, ws: int, kind: str, plan: DesignP
         return GeneratedArtifact(f"{c.base}-package.zip", _zip(content), "application/zip", "generated",
                                  "Everything for this plan; MANIFEST.json labels each file.")  # fmt: skip
     if kind == "int8_model":
+        from app.security import block_on_shared_server
+
+        block_on_shared_server("INT8 conversion")
         return _int8(c, blobs)
     return _release2(db, project, ws, kind, plan, blobs, c, title)
 

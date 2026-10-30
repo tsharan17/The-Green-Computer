@@ -31,7 +31,7 @@ from app.db import models  # noqa: F401  (register tables)
 from app.db.migrate import current_revision, head_revision, upgrade
 from app.db.session import make_engine, make_session_factory
 from app.providers.email import make_email_sender
-from app.providers.storage import LocalBlobStore, default_data_dir
+from app.providers.storage import default_data_dir, make_blob_store
 from app.security import OriginCheck, SecurityHeaders
 from app.services import execution_service, hardware_service, measurement_service
 
@@ -41,6 +41,9 @@ log = logging.getLogger("green_computer")
 
 def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAPI:
     settings = get_settings()
+    from app.security import check_hosted_secrets
+
+    check_hosted_secrets()
     url = db_url or settings.db_url
     engine = make_engine(url)
     session_factory = make_session_factory(engine)
@@ -93,7 +96,7 @@ def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAP
 
     app.state.rate_limit_backend = configure_limiter(engine)
     app.state.data_dir = default_data_dir(url, data_dir or settings.data_dir)
-    app.state.blobs = LocalBlobStore(app.state.data_dir / "blobs")
+    app.state.blobs = make_blob_store(app.state.data_dir)
     app.state.email_sender = make_email_sender()
     for r in (auth_router, workspace_router, router, measurement_router,
               export_router, hardware_router, files_router, intake_router, twin_router, plans_router,

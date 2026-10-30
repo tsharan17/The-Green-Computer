@@ -2,8 +2,8 @@
 
 ``LocalBlobStore`` keeps files on disk under ``<data_dir>/blobs/<workspace>/<sha256>``: one copy per
 workspace (so deleting one tenant's data never touches another's) and content-addressed within it
-(re-uploading the same file stores it once). An S3-compatible store can implement the same three
-methods.
+(re-uploading the same file stores it once). ``S3BlobStore`` (providers/s3.py) keeps the same keys in an
+S3-compatible bucket; ``make_blob_store`` picks one from GC_BLOB_BACKEND.
 """
 
 from __future__ import annotations
@@ -78,6 +78,20 @@ class LocalBlobStore:
             raise ValueError("invalid namespace")
         d = self.root / namespace
         return d.exists() and any(d.rglob("*"))
+
+
+def make_blob_store(data_dir: Path) -> BlobStore:
+    """Local disk by default; an S3-compatible bucket (Cloudflare R2, S3, MinIO) with GC_BLOB_BACKEND=s3."""
+    kind = (os.environ.get("GC_BLOB_BACKEND") or "local").strip().lower()
+    if kind == "s3":
+        from app.providers.s3 import S3BlobStore
+
+        store = S3BlobStore.from_env()
+        store.cache = data_dir / "blob_cache"
+        return store
+    if kind != "local":
+        raise RuntimeError(f"GC_BLOB_BACKEND must be local or s3, not {kind!r}")
+    return LocalBlobStore(data_dir / "blobs")
 
 
 def default_data_dir(db_url: str, configured: str | None) -> Path:

@@ -85,7 +85,7 @@ Delete, not hide, so the product has nothing that asks for a key:
 - Database: leave applied migrations alone. Unused columns stay; a new revision drops nothing yet.
 - Tests that cover removed code go with it; the suite, ruff, mypy, lint and build must stay clean.
 
-### 2. Fit free hosting (day 1, midday)
+### 2. Fit free hosting (day 1, midday) (done 2026-10-30, not yet deployed)
 
 - `R2BlobStore` (S3-compatible, `boto3` or plain signed `httpx`) implementing `BlobStore`;
   `path()` downloads to a temporary file for callers that need a file on disk. Chosen by

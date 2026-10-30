@@ -30,7 +30,7 @@ from app.engine.hwbuild import CustomHardwareSpec, build_custom
 from app.engine.vendor_reports import detect, parse_power_csv, parse_report
 from app.schemas.hardware import HardwareProfile
 from app.sdk import ProjectFileError, load_project
-from app.security import limit_datasheet, max_custom_items
+from app.security import limit_datasheet, max_custom_items, max_upload_bytes
 from app.services import hardware_service as hw
 
 router = APIRouter()
@@ -95,8 +95,9 @@ async def inspect_file(
 ) -> dict[str, Any]:
     ws = ctx.workspace_id
     data = await request.body()
-    if len(data) > MAX_FILE_BYTES:
-        raise HTTPException(413, f"file too large (limit {MAX_FILE_BYTES // 1024 // 1024} MB)")
+    limit = max_upload_bytes(MAX_FILE_BYTES)
+    if len(data) > limit:
+        raise HTTPException(413, f"file too large (limit {limit // 1024 // 1024} MB)")
     if not data:
         raise HTTPException(422, "the file is empty")
     name = filename.lower()

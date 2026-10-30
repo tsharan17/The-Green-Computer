@@ -8,6 +8,7 @@ the data carries the colour.
 
 from __future__ import annotations
 
+from functools import cache
 from typing import Any
 
 import numpy as np
@@ -54,19 +55,22 @@ def _on_heat(dark_text: str, light_text: str, cmap_ramp: list[str]) -> Any:
     return pick
 
 
-_HEAT = _sample("turbo")
-_SEQ = _sample("viridis")
 _DEEP = ["#4c72b0", "#dd8452", "#55a868", "#c44e52", "#8172b3", "#937860", "#da8bc3", "#8c8c8c"]
 
-PALETTES: dict[str, dict[str, Any]] = {
-    "light": {
-        "bg": "#ffffff", "ink": "#1a1a1a", "muted": "#555555", "line": "#c8c8c8", "grid": "#e6e6e6", "contour": "#ffffff",
-        "series": _DEEP, "on_series": _on(_DEEP), "accent": "#c44e52",
-        "heat_ramp": _HEAT, "seq_ramp": _SEQ, "bar_ramp": _bars, "on_heat": _on_heat("#111111", "#ffffff", _HEAT),
-    },
-    "dark": {
-        "bg": "#121417", "ink": "#eeeeee", "muted": "#b0b0b0", "line": "#3a3d42", "grid": "#2a2d31", "contour": "#ffffff",
-        "series": _DEEP, "on_series": _on(_DEEP), "accent": "#ff7f6e",
-        "heat_ramp": _HEAT, "seq_ramp": _SEQ, "bar_ramp": _bars, "on_heat": _on_heat("#111111", "#ffffff", _HEAT),
-    },
-}  # fmt: skip
+
+@cache
+def palettes() -> dict[str, dict[str, Any]]:
+    """Built on first use, so matplotlib is not imported until a figure is drawn."""
+    heat, seq = _sample("turbo"), _sample("viridis")
+    return {
+        "light": {
+            "bg": "#ffffff", "ink": "#1a1a1a", "muted": "#555555", "line": "#c8c8c8", "grid": "#e6e6e6", "contour": "#ffffff",
+            "series": _DEEP, "on_series": _on(_DEEP), "accent": "#c44e52",
+            "heat_ramp": heat, "seq_ramp": seq, "bar_ramp": _bars, "on_heat": _on_heat("#111111", "#ffffff", heat),
+        },
+        "dark": {
+            "bg": "#121417", "ink": "#eeeeee", "muted": "#b0b0b0", "line": "#3a3d42", "grid": "#2a2d31", "contour": "#ffffff",
+            "series": _DEEP, "on_series": _on(_DEEP), "accent": "#ff7f6e",
+            "heat_ramp": heat, "seq_ramp": seq, "bar_ramp": _bars, "on_heat": _on_heat("#111111", "#ffffff", heat),
+        },
+    }  # fmt: skip

@@ -786,6 +786,32 @@ Verification (2026-10-30)
 - `npx playwright test`: 15 passed.
 - Not run: acceptance script against a live server, PostgreSQL suite.
 
+## Product launch, step 2: fit free hosting (done, not yet deployed)
+
+Target: Render free web service + Neon free PostgreSQL + Cloudflare R2. Guide: `docs/deploy.md`,
+"Hosted on free tiers"; blueprint: `render.yaml`.
+
+What changed
+- `providers/s3.py`: an S3-compatible blob store (R2, S3, MinIO) with AWS Signature V4 written on
+  the standard library and httpx (no boto3). Same per-workspace keys as the local store; downloads
+  are cached locally for model loading. `GC_BLOB_BACKEND=s3` selects it (`make_blob_store`).
+- `GC_HOSTED=1`: the shared-server safeguards of the public demo (rate limits, caps) without the
+  demo banner; uploads capped at `GC_MAX_UPLOAD_MB` (default 50); the server's CPU/CUDA/TensorRT
+  backends report disabled and INT8 conversion is refused with a message pointing to a paired
+  device. The server refuses to start without `GC_SECRET_KEY` and `GC_AGENT_SIGNING_SECRET`.
+- Database URLs pasted as `postgres://` or `postgresql://` (Neon, Render) use the psycopg driver.
+- The container listens on `$PORT` when set. matplotlib palettes load on first use.
+- Memory on this machine (Windows working set): about 125 MB after start-up, 145 MB after
+  analyses, 225 MB peak after figures and a PDF export, within a 512 MB free instance.
+
+Verification (2026-10-30)
+- `pytest -q`: 290 passed, 2 skipped (PostgreSQL). New `tests/test_hosting.py` checks signing
+  against AWS's worked examples, the store against an in-memory bucket, and hosted mode.
+- `ruff` (backend, scripts, agent), `mypy app` (132 files), `tsc`, `eslint`, `vite build`: clean.
+- `npx playwright test`: 15 passed.
+- Not run: the Docker image (no Docker here), a real R2 bucket, a Render deploy, the PostgreSQL
+  suite against Neon.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no
@@ -796,7 +822,7 @@ Verification (2026-10-30)
   measurements calibrate them; CPU runs measure latency only.
 - Members must already have an account (no invitation emails). Two-step sign-in is optional per
   account. On SQLite the rate limiter is per process; PostgreSQL shares it.
-- No object-store backend for files; a Vite 6 upgrade is pending for two development-server-only
+- The S3 blob store is tested against a fake bucket only; a Vite 6 upgrade is pending for two development-server-only
   advisories.
 - Only ResNet-50 and MobileNetV2 can be executed without an upload; other library models need their
   ONNX file.

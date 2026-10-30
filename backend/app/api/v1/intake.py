@@ -45,6 +45,7 @@ from app.engine.measure_parsers import (
 )
 from app.engine.vendor_reports import detect, parse_power_csv, parse_report
 from app.engine.workload.onnx_parser import ModelParseError
+from app.security import max_upload_bytes
 from app.services import intake
 from app.services.capabilities import capabilities
 
@@ -131,7 +132,7 @@ async def upload(
     blobs = request.app.state.blobs
     name = filename.lower()
     is_model = name.endswith(".onnx") or category == "model"
-    limit = MAX_BYTES["model" if is_model else "hardware"]
+    limit = max_upload_bytes(MAX_BYTES["model" if is_model else "hardware"])
     declared = request.headers.get("content-length")
     if declared and declared.isdigit() and int(declared) > limit:
         raise HTTPException(413, f"file too large (limit {limit // (1024 * 1024)} MB)")

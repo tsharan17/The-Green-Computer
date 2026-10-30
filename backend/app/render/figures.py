@@ -18,7 +18,7 @@ from typing import Any
 
 import numpy as np
 
-from app.render.theme import PALETTES
+from app.render.theme import palettes
 
 _LOCK = threading.Lock()  # matplotlib's global style state is not thread-safe
 ENERGY_KEYS = ("compute", "memory", "idle", "leakage", "cooling")
@@ -659,7 +659,7 @@ def render_sweep(name: str, sweep: dict[str, Any], theme: str = "light") -> byte
     matplotlib.use("Agg")
     import seaborn as sns
 
-    pal = PALETTES["dark" if theme == "dark" else "light"]
+    pal = palettes()["dark" if theme == "dark" else "light"]
     with _LOCK, matplotlib.rc_context(_style(pal)):  # type: ignore[arg-type]
         sns.set_theme(rc=_style(pal))
         if not sweep.get("options"):
@@ -690,7 +690,7 @@ def render(name: str, trace: dict[str, Any], theme: str = "light") -> bytes:
     matplotlib.use("Agg")
     import seaborn as sns
 
-    pal = PALETTES["dark" if theme == "dark" else "light"]
+    pal = palettes()["dark" if theme == "dark" else "light"]
     with _LOCK, matplotlib.rc_context(_style(pal)):  # type: ignore[arg-type]
         sns.set_theme(rc=_style(pal))
         try:
