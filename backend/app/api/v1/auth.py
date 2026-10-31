@@ -297,6 +297,9 @@ class ForgotIn(BaseModel):
 def forgot(body: ForgotIn, request: Request, db: Session = Depends(get_db)) -> dict[str, Any]:
     _csrf(request)
     _limit(request, "forgot", client_ip(request), 10, 3600.0)
+    # Per address too, so rotating IPs cannot flood someone's inbox. Applied whether or not the
+    # account exists, so it reveals nothing.
+    _limit(request, "forgot-email", body.email.strip().lower()[:320], 5, 3600.0)
     s = get_settings()
     token = auth.request_reset(db, body.email, request.app.state.email_sender, s.public_url)
     out: dict[str, Any] = {

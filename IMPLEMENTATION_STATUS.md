@@ -812,6 +812,27 @@ Verification (2026-10-30)
 - Not run: the Docker image (no Docker here), a real R2 bucket, a Render deploy, the PostgreSQL
   suite against Neon.
 
+## Product launch, step 3: security pass (done; live checks at go-live)
+
+- `tests/api/test_tenant_sweep.py` reads every id-taking route from the OpenAPI schema (about 55)
+  and has a second account try each: with the first account's ids, and inside its own project with
+  the first account's child ids in the path and the body. None succeeds or echoes the other's data;
+  a future route with a new kind of id fails the test until it is added. No leak was found.
+- Confirming another workspace's hardware draft now answers 404 like every other route (was 422,
+  with no data exposed).
+- Password-reset mail is also limited per address (5 an hour), so rotating IPs cannot flood an inbox.
+- Secrets: the image copies only `backend/app`, `frontend/` and `bench/`; no key, `.env` or database
+  file is in them, and a scan of the full git history found no key-like strings.
+- Audits: `npm audit` clean after Vite 6.4.4 to 6.4.5 (a development-server advisory). `pip-audit`
+  clean after raising pypdf to 6.21.2 or later (uploaded PDFs are parsed on the server); the image
+  upgrades pip before installing.
+- Cookies are Secure, HttpOnly and SameSite=Lax in production; `/metrics` is off without a token.
+- Left for go-live (docs/deploy.md step 7): the two-account check on the live URL and Cloudflare
+  bot and rate rules on `/api/v1/auth/*`, which need the live host and a domain.
+
+Verification (2026-10-30): `pytest -q` 292 passed, 2 skipped; `ruff`, `mypy app`, `tsc`, `eslint`,
+`vite build` clean; `npx playwright test` 15 passed.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no
@@ -822,8 +843,7 @@ Verification (2026-10-30)
   measurements calibrate them; CPU runs measure latency only.
 - Members must already have an account (no invitation emails). Two-step sign-in is optional per
   account. On SQLite the rate limiter is per process; PostgreSQL shares it.
-- The S3 blob store is tested against a fake bucket only; a Vite 6 upgrade is pending for two development-server-only
-  advisories.
+- The S3 blob store is tested against a fake bucket only.
 - Only ResNet-50 and MobileNetV2 can be executed without an upload; other library models need their
   ONNX file.
 

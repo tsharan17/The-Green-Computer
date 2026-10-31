@@ -149,3 +149,15 @@ def test_account_deletion_removes_verification_rows(app):
         assert c.post(f"{P}/auth/account/delete", headers=H, json={"password": TEST_PASSWORD, "confirm": "DELETE"}).status_code == 200
     with app.state.engine.connect() as conn:
         assert conn.execute(sa.text("SELECT COUNT(*) FROM email_verifications")).scalar() == 0
+
+
+def test_password_reset_mail_is_limited_per_address_whatever_the_ip(app):
+    with TestClient(app) as c:
+        for i in range(5):  # each from a different address, as an attacker rotating IPs would
+            r = c.post("/api/v1/auth/password/forgot", json={"email": "victim@x.io"},
+                       headers={"X-GC-CSRF": "1", "X-Forwarded-For": f"203.0.113.{i}"})  # fmt: skip
+            assert r.status_code == 202
+        r = c.post("/api/v1/auth/password/forgot", json={"email": " Victim@X.io"}, headers={"X-GC-CSRF": "1"})
+        assert r.status_code == 429  # same address, any case or spacing
+        assert c.post("/api/v1/auth/password/forgot", json={"email": "other@x.io"},
+                      headers={"X-GC-CSRF": "1"}).status_code == 202  # fmt: skip

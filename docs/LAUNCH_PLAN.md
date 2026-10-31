@@ -101,7 +101,7 @@ Delete, not hide, so the product has nothing that asks for a key:
   `GC_ENV=production`, `GC_REQUIRE_EMAIL_VERIFICATION=1`, the Neon URL in `postgresql+psycopg://` form.
 - Build the Docker image once locally or in CI and run it against a throwaway Neon branch.
 
-### 3. Security pass (day 1, afternoon)
+### 3. Security pass (day 1, afternoon) (done 2026-10-30; live checks at go-live)
 
 - Re-run the cross-tenant tests and add any endpoint added since; spot-check by hand on the live URL
   with two accounts.

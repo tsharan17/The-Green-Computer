@@ -116,6 +116,8 @@ def confirm_draft(
     ctx: Ctx = Depends(require_writer),
 ) -> HardwareProfile:  # fmt: skip
     """Only a person can confirm a draft."""
+    if hw.get_draft(db, draft_id, ctx.workspace_id) is None:
+        raise HTTPException(404, "draft not found")
     try:
         return hw.confirm(db, draft_id, body.overrides, ctx.workspace_id)
     except DatasheetError as e:

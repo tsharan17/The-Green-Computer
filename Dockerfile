@@ -29,7 +29,7 @@ COPY backend/pyproject.toml ./backend/pyproject.toml
 COPY backend/alembic.ini ./backend/alembic.ini
 COPY backend/app ./backend/app
 # Editable install keeps the source tree in place, so the UI can be dropped into app/static.
-RUN pip install -e "./backend[postgres]"
+RUN pip install --upgrade "pip>=26.2" && pip install -e "./backend[postgres]"
 COPY --from=ui /ui-dist ./backend/app/static
 # bench/ holds the reference model builder used by local runs, and scripts for GPU jobs.
 COPY bench ./bench

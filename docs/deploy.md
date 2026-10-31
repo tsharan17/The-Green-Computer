@@ -121,6 +121,15 @@ Steps:
 5. Check `https://<host>/api/v1/ready`, then run `python scripts/acceptance.py https://<host>`.
 6. UptimeRobot (or similar): poll `/api/v1/ready` every 5 minutes to avoid cold starts and get
    alerts. This uses most of Render's free monthly hours for one always-on service.
+7. Security checks on the live URL, before announcing it:
+   - sign up two accounts in two browsers; with the second, open the first one's project, export
+     and artifact links (copy them from the first browser): each must say "not found";
+   - with a domain on Cloudflare: proxy the host (orange cloud), turn on Bot Fight Mode, and add a
+     rate-limiting rule on `/api/v1/auth/*` (for example 20 requests a minute per IP, then block
+     for 10 minutes). The app's own limits stay on behind it;
+   - confirm `GC_TRUST_PROXY=1` is set, so the app limits by the visitor's address and not the
+     proxy's;
+   - leave `GC_METRICS_TOKEN` unset unless something scrapes `/metrics`.
 
 Memory, measured on the development machine (Windows working set, one user): about 125 MB after
 start-up, about 145 MB after analyses, about 225 MB after drawing figures and exporting a PDF
