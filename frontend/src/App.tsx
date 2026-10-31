@@ -23,7 +23,11 @@ import StartGuide from "./pages/StartGuide";
 import SummaryPage from "./pages/SummaryPage";
 import VerifyPage from "./pages/VerifyPage";
 import WorkspacePage from "./pages/WorkspacePage";
+import { SkipLink } from "./components/PublicChrome";
+import HowPage from "./pages/HowPage";
+import LandingPage from "./pages/LandingPage";
 import LegalPage, { LegalLinks } from "./pages/LegalPage";
+import TryPage from "./pages/TryPage";
 import CoolingFigures from "./workflow/CoolingFigures";
 import PipelineStrip from "./workflow/PipelineStrip";
 import RecommendationCatalogue from "./workflow/RecommendationCatalogue";
@@ -80,6 +84,9 @@ export default function App() {
   if (page === "reset") return <AuthPage mode="reset" token={route.query.get("token") ?? ""} onSignedIn={() => loadMe()} />;
   if (page === "verify-email") return <VerifyEmail token={route.query.get("token") ?? ""} onDone={loadMe} />;
   if (page === "legal") return <LegalPage doc={route.parts[1] ?? "terms"} />;
+  // Public pages: open to anyone, with or without an account.
+  if (page === "try") return <TryPage caseId={route.parts[1] ?? null} signedIn={!!me} />;
+  if (page === "how") return <HowPage signedIn={!!me} />;
   if (me === undefined) {
     return (
       <div className="boot" aria-busy="true" aria-live="polite">
@@ -88,6 +95,7 @@ export default function App() {
     );
   }
   if (me === null) {
+    if (page === "") return <LandingPage />;
     const mode = page === "signup" || page === "forgot" ? page : "signin";
     return (
       <AuthPage
@@ -210,7 +218,7 @@ function Shell({
 
   return (
     <div className="shell">
-      <a className="skip" href="#main">Skip to content</a>
+      <SkipLink target="main" />
       <aside className="sidebar" aria-label="Main navigation">
         <a className="brand" href="#/" aria-label="The Green Computer, workspace">
           <Logo />

@@ -110,7 +110,7 @@ Delete, not hide, so the product has nothing that asks for a key:
   `/api/v1/auth/*`.
 - `pip-audit` and `npm audit` clean.
 
-### 4. Launch experience (day 2, morning)
+### 4. Launch experience (day 2, morning) (done 2026-10-31)
 
 - Landing page at `/` (static, fast, no sign-in): what it does in one line, screenshots, how the
   numbers are made, "Try it" and "Sign up". The app moves to `/app`.
@@ -146,7 +146,9 @@ pip-installable CLI, GitHub Action for CI comments, Vite 6 upgrade, store apps i
 ## Decisions needed
 
 1. Product domain and the name on it (needed for legal pages, email sender and the manifest).
-2. The operator named in the terms: you personally, or a company.
+   Name decided: The Green Computer. Domain still open (launch on `*.onrender.com` without one).
+2. The operator named in the terms: you personally, or a company. Decided: T Sharan.
+   The contact address is set at deploy time with `GC_CONTACT_EMAIL`.
 3. Whether visitors may upload their own ONNX models on the free server (recommended: yes, capped at
    50 MB, analysis only, no execution).
 

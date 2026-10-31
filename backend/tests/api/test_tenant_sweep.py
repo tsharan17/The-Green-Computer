@@ -19,7 +19,7 @@ from tests.helpers import AuthedClient, tiny_cnn_bytes
 P = "/api/v1"
 OCTET = {"Content-Type": "application/octet-stream"}
 SECRET = "Alice-secret-7f3a"
-PUBLIC = {"/auth/legal/{doc}"}
+PUBLIC = {"/auth/legal/{doc}", "/try/examples/{case_id}"}
 DEVICE_TOKEN_ONLY = ("/device-agent/",)  # signed with a device token: a session gets 401
 
 

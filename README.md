@@ -9,7 +9,18 @@ real where you can, and export what you decided.
 It runs entirely on your own machine: no API keys, no vendor accounts, no AI provider. Local NVIDIA
 GPUs and your own devices (through the device agent) are optional ways to measure, never requirements.
 
-## Start it
+## Use it online
+
+The hosted service is free in early access. Its home page shows what it does. Under **Try an example**
+there are six worked analyses that need no account, and **How we estimate** explains the method and
+what it leaves out. A free account lets you analyse your own models and hardware. On the hosted
+service, models are analysed and never executed: timed runs happen on a device you pair yourself.
+It is operated by T Sharan; the Terms and Privacy Policy are linked from every page.
+
+To host your own copy (free tiers on Render, Neon and Cloudflare R2, or one machine with Docker),
+see [docs/deploy.md](docs/deploy.md).
+
+## Run it on your own machine
 
 - **Windows:** double-click **`Start The Green Computer.bat`** in this folder.
 - **macOS / Linux:** run `./start.sh`.

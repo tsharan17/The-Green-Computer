@@ -1,55 +1,69 @@
 # Privacy Policy
 
-**Draft for professional legal review.** This policy describes what this software stores and sends
-as it is built. The operator of the server must review it, add their identity and contact details,
-and confirm it matches their configuration.
+**Draft, awaiting professional legal review.** This policy describes what The Green Computer stores
+and sends as it is built and hosted today.
 
-## 1. What is stored
+## 1. Who is responsible
+
+The Green Computer is operated by **T Sharan**, who decides how your data is used. Contact:
+{{contact}}.
+
+## 2. What we store
 
 | Data | Why | Where |
 |---|---|---|
-| Email address, optional display name | Your account and sign-in | The server's database |
+| Email address, optional display name | Your account and sign-in | Database |
 | Password | Sign-in. Stored only as a salted scrypt hash, never in plain text | Database |
 | Sessions | Keep you signed in. The cookie holds a random token; only its SHA-256 hash is stored, with the browser's user agent and IP address | Database |
-| Optional two-factor secret and recovery codes | Two-factor sign-in. The secret is encrypted with the server key; recovery codes are stored as hashes | Database |
-| Projects, requirements, analyses, plans, measurements and exports | The features you use | Database and the server's file store |
-| Uploaded files (models, datasheets, board files, RTL, logs) | Validation and analysis | The server's file store, inside your workspace |
+| Optional two-step sign-in secret and recovery codes | Two-step sign-in. The secret is encrypted; recovery codes are stored as hashes | Database |
+| Projects, requirements, analyses, plans, measurements and exports | The features you use | Database and file storage |
+| Uploaded files (models, datasheets, logs) | Validation and analysis | File storage, inside your workspace |
 | Terms acceptance (document, version, time, account id) | A record of what you agreed to | Database |
 | Audit log (security-relevant actions, with IP address) and usage counts | Security, abuse prevention and your usage page | Database |
 
-## 2. What is sent outside the server, and when
+We do not sell your data, show advertising, or use your content to train models.
 
-By default **nothing** leaves the server. Each service below is used only if the operator has
-configured it **and** you use the feature that needs it.
+## 3. Who processes it for us
 
-| Service | Feature | What is sent |
+| Provider | What it does for us | What it receives |
 |---|---|---|
-| Email provider (SMTP) | Verification and password-reset emails | Your email address and the message |
-| Error reporting (webhook or Sentry) | Server errors | Error type, route and request id; no request bodies, passwords or tokens |
-| Telemetry | Off by default; only after the operator enables it | Aggregate counts; no personal data or file contents |
+| Render | Runs the application | Everything the application handles while serving your requests |
+| Neon | Hosts the database | The database contents listed above |
+| Cloudflare | Stores uploaded files and exports (R2); may carry traffic to the site | Your files; for traffic, IP address and request details |
+| Resend | Sends confirmation and password-reset email | Your email address and the message |
+| Sentry (only if turned on) | Reports server errors | Error type, route and request id; no request bodies, passwords or tokens |
 
-Uploaded documents are treated as data. Instructions written inside a file are never followed.
+These providers may process data outside your country. Uploaded documents are treated as data:
+instructions written inside a file are never followed, and no AI service is sent your content.
 
-## 3. How long data is kept
+## 4. Cookies and browser storage
 
-Your data is kept until you delete it, unless the operator sets retention rules for your workspace.
-Backups made by the operator may keep deleted data until those backups expire.
+One cookie keeps you signed in; it is necessary for the service and is not used for tracking. The
+browser also remembers your chosen workspace and display mode locally. There are no analytics or
+advertising cookies.
 
-## 4. Your choices
+## 5. How long data is kept
 
-- **Delete a project's data:** archive the project, or delete data on the workspace data page.
-- **Delete your account:** Account → Delete account. Workspaces you own alone are deleted with all
-  their projects and files; in shared workspaces your name is removed from records.
-- **Export your data:** each project has exports with a hashed manifest.
+Your data is kept until you delete it or your workspace's retention rules remove it. Database and
+file backups may keep deleted data for up to 30 days. Security logs are kept while your account
+exists.
 
-## 5. Security
+## 6. Your rights
 
-Passwords are hashed, sessions are HTTP-only cookies with CSRF protection, sign-in is rate limited,
-two-factor authentication is available, and every project, file and export is checked against your
-workspace on the server. No system is perfectly secure; the operator's security notes list the
-known limits.
+- **Access and export:** each project has exports with a hashed manifest, and a workspace export.
+- **Correct:** edit your name and projects at any time.
+- **Delete:** Account → Delete account removes workspaces you own alone, with all their projects and
+  files; in shared workspaces your name is removed from records.
+- **Ask us:** for anything else, including a copy of your data or an objection, write to
+  {{contact}}. Depending on where you live you may also complain to a data-protection authority.
 
-## 6. Changes
+## 7. Security
+
+Passwords are hashed, sessions are HTTP-only cookies with CSRF protection, sign-in and password
+reset are rate limited, two-step sign-in is available, connections use TLS, and every project, file
+and export is checked against your workspace on the server. No system is perfectly secure.
+
+## 8. Changes
 
 When this policy changes materially, its version changes and you are asked to accept it at your
 next sign-in.

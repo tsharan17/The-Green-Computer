@@ -23,6 +23,8 @@ services:
       - { key: GC_AGENT_SIGNING_SECRET, generateValue: true }
       # https://<your domain> or https://green-computer.onrender.com; used in email links.
       - { key: GC_PUBLIC_URL, sync: false }
+      # Shown in the legal pages and footer, e.g. hello@<your domain>.
+      - { key: GC_CONTACT_EMAIL, sync: false }
       # Neon connection string as Neon shows it (postgresql://...?sslmode=require).
       - { key: GC_DB_URL, sync: false }
       # Cloudflare R2: endpoint https://<account id>.r2.cloudflarestorage.com, a bucket, an API token's keys.

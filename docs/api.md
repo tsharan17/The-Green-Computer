@@ -24,14 +24,14 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
 | `GET` | `/api/v1/auth/config` | public | Auth Config |
-| `GET` | `/api/v1/auth/legal/{doc}` | session | Legal Doc |
-| `GET` | `/api/v1/auth/legal` | session | The legal documents and their current versions (public: shown before sign-up). |
+| `GET` | `/api/v1/auth/legal/{doc}` | public | Legal Doc |
+| `GET` | `/api/v1/auth/legal` | public | The legal documents and their current versions (public: shown before sign-up). |
 | `GET` | `/api/v1/auth/me` | session | Me |
 | `GET` | `/api/v1/auth/preferences` | session | Get Preferences |
 | `GET` | `/api/v1/auth/sessions` | session | Sessions |
 | `POST` | `/api/v1/auth/account/delete` | session | Delete Account |
 | `POST` | `/api/v1/auth/email/resend` | session | Resend Verification |
-| `POST` | `/api/v1/auth/email/verify` | session | Verify Email |
+| `POST` | `/api/v1/auth/email/verify` | public | Verify Email |
 | `POST` | `/api/v1/auth/mfa/disable` | session | Mfa Disable |
 | `POST` | `/api/v1/auth/mfa/enable` | session | Mfa Enable |
 | `POST` | `/api/v1/auth/mfa/setup` | session | Start two-step sign-in: the secret to add to an authenticator app (shown once). |
@@ -39,7 +39,7 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `POST` | `/api/v1/auth/password/forgot` | public | Forgot |
 | `POST` | `/api/v1/auth/password/reset` | public | Reset |
 | `POST` | `/api/v1/auth/sessions/{session_id}/revoke` | session | Revoke |
-| `POST` | `/api/v1/auth/signin/mfa` | session | Second step of sign-in: a code from the authenticator app, or a one-time recovery code. |
+| `POST` | `/api/v1/auth/signin/mfa` | public | Second step of sign-in: a code from the authenticator app, or a one-time recovery code. |
 | `POST` | `/api/v1/auth/signin` | public | Signin |
 | `POST` | `/api/v1/auth/signout` | session | Signout |
 | `POST` | `/api/v1/auth/signup` | public | Signup |
@@ -134,7 +134,7 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
-| `GET` | `/api/v1/ready` | session | 200 when this instance can serve: database reachable, schema at the latest migration, file |
+| `GET` | `/api/v1/ready` | public | 200 when this instance can serve: database reachable, schema at the latest migration, file |
 | `GET` | `/api/v1/telemetry/preview` | session | Exactly what would be sent, and whether sending is on (off unless the operator enabled it). |
 
 ## Physics And Evidence
@@ -190,6 +190,13 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `GET` | `/api/v1/projects/{project_id}/system-graph` | session | The latest saved graph, or version 0 built from the device profile (not saved). |
 | `POST` | `/api/v1/projects/{project_id}/system-graph/from-files` | session | Add what uploaded design files state (KiCad, Verilog, Vivado, HLS) as a new graph version. |
 | `POST` | `/api/v1/projects/{project_id}/system-graph` | session | Save an edited graph as a new version (validated: unique ids, existing parents and ends). |
+
+## Try
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | `/api/v1/try/examples/{case_id}` | public | Example |
+| `GET` | `/api/v1/try/examples` | public | Examples |
 
 ## Workflow
 

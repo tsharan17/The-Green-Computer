@@ -6,16 +6,17 @@ their next sign-in. The text is a draft for professional legal review (it says s
 
 from __future__ import annotations
 
+import os
 from functools import cache
 from pathlib import Path
 
 HERE = Path(__file__).parent
 # id -> (title, version, file, needs acceptance)
 DOCS: dict[str, tuple[str, str, str, bool]] = {
-    "terms": ("Terms and Conditions", "2026-10-30", "terms.md", True),
-    "privacy": ("Privacy Policy", "2026-10-30", "privacy.md", True),
-    "acceptable-use": ("Acceptable Use Policy", "2026-10-26", "acceptable-use.md", False),
-    "data": ("Your account and data", "2026-10-26", "data.md", False),
+    "terms": ("Terms and Conditions", "2026-10-31", "terms.md", True),
+    "privacy": ("Privacy Policy", "2026-10-31", "privacy.md", True),
+    "acceptable-use": ("Acceptable Use Policy", "2026-10-31", "acceptable-use.md", False),
+    "data": ("Your account and data", "2026-10-31", "data.md", False),
 }  # fmt: skip
 REQUIRED = tuple(k for k, v in DOCS.items() if v[3])
 
@@ -23,6 +24,20 @@ REQUIRED = tuple(k for k, v in DOCS.items() if v[3])
 @cache
 def text(doc: str) -> str:
     return (HERE / DOCS[doc][2]).read_text(encoding="utf-8")
+
+
+OPERATOR = "T Sharan"
+NO_CONTACT = "the contact address published on this website (not yet set)"
+
+
+def contact_email() -> str:
+    """Where people reach the operator (GC_CONTACT_EMAIL); kept out of the source on purpose."""
+    return os.environ.get("GC_CONTACT_EMAIL", "").strip()
+
+
+def render(doc: str) -> str:
+    """The document with the operator's contact filled in."""
+    return text(doc).replace("{{contact}}", contact_email() or NO_CONTACT)
 
 
 def current_versions() -> dict[str, str]:

@@ -13,8 +13,11 @@ sys.path.insert(0, str(root / "backend"))
 from app.main import create_app  # noqa: E402
 
 spec = create_app("sqlite://").openapi()
-PUBLIC = {"/api/v1/health", "/api/v1/auth/config", "/api/v1/auth/signup", "/api/v1/auth/signin",
-          "/api/v1/auth/password/forgot", "/api/v1/auth/password/reset"}
+# Keep in step with PUBLIC in backend/tests/api/test_security.py, which checks the server.
+PUBLIC = {"/api/v1/health", "/api/v1/ready", "/api/v1/auth/config", "/api/v1/auth/signup", "/api/v1/auth/signin",
+          "/api/v1/auth/signin/mfa", "/api/v1/auth/email/verify", "/api/v1/auth/password/forgot",
+          "/api/v1/auth/password/reset", "/api/v1/auth/legal", "/api/v1/auth/legal/{doc}",
+          "/api/v1/try/examples", "/api/v1/try/examples/{case_id}"}
 groups: dict[str, list[str]] = defaultdict(list)
 for path, ops in spec["paths"].items():
     for method, op in ops.items():

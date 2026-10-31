@@ -12,13 +12,14 @@ from app.main import create_app
 from tests.helpers import AuthedClient
 
 P = "/api/v1"
-# The only routes that answer without a session: health, the sign-in/up/reset/verify flow itself, and the
-# legal documents (they must be readable before signing up).
+# The only routes that answer without a session: health, the sign-in/up/reset/verify flow itself, the
+# legal documents (they must be readable before signing up) and the read-only worked examples.
 PUBLIC = {
     ("GET", "/api/v1/health"), ("GET", "/api/v1/ready"), ("GET", "/api/v1/auth/config"), ("POST", "/api/v1/auth/signup"),
     ("POST", "/api/v1/auth/signin"), ("POST", "/api/v1/auth/password/forgot"),
     ("POST", "/api/v1/auth/password/reset"), ("POST", "/api/v1/auth/signin/mfa"), ("POST", "/api/v1/auth/email/verify"),
     ("GET", "/api/v1/auth/legal"), ("GET", "/api/v1/auth/legal/{doc}"),
+    ("GET", "/api/v1/try/examples"), ("GET", "/api/v1/try/examples/{case_id}"),
 }  # fmt: skip
 
 

@@ -99,6 +99,8 @@ def auth_config() -> dict[str, Any]:
         "password_min_length": 10,
         "email_verification_required": sec.verification_required(),
         "demo_mode": demo_mode(),
+        "operator": legal.OPERATOR,
+        "contact_email": legal.contact_email() or None,
     }
 
 
@@ -447,4 +449,4 @@ def legal_doc(doc: str) -> dict[str, Any]:
     if doc not in legal.DOCS:
         raise HTTPException(404, "unknown document")
     t, v, _f, req = legal.DOCS[doc]
-    return {"id": doc, "title": t, "version": v, "requires_acceptance": req, "markdown": legal.text(doc)}
+    return {"id": doc, "title": t, "version": v, "requires_acceptance": req, "markdown": legal.render(doc)}

@@ -23,6 +23,7 @@ from app.api.v1.plans import router as plans_router
 from app.api.v1.remote import router as remote_router
 from app.api.v1.routes import router
 from app.api.v1.system_graph import router as system_graph_router
+from app.api.v1.try_example import router as try_router
 from app.api.v1.twin import router as twin_router
 from app.api.v1.workflow import router as workflow_router
 from app.api.v1.workspace import router as workspace_router
@@ -101,7 +102,7 @@ def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAP
     for r in (auth_router, workspace_router, router, measurement_router,
               export_router, hardware_router, files_router, intake_router, twin_router, plans_router,
               executions_router, guide_router, system_graph_router, physics_router, remote_router, ops_router,
-              workflow_router):  # fmt: skip
+              workflow_router, try_router):  # fmt: skip
         app.include_router(r, prefix=settings.api_prefix)
 
     if STATIC_DIR.is_dir():

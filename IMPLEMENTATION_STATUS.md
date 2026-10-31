@@ -833,6 +833,36 @@ Verification (2026-10-30)
 Verification (2026-10-30): `pytest -q` 292 passed, 2 skipped; `ruff`, `mypy app`, `tsc`, `eslint`,
 `vite build` clean; `npx playwright test` 15 passed.
 
+## Product launch, step 4: launch experience (done)
+
+- Landing page at `#/` for visitors who are not signed in: what it does, how it works, what you
+  find out, how numbers are labelled, hardware covered. Signed-in users still land in their
+  workspace; every other link without a session still goes to sign-in.
+- Try without an account (`#/try`, `#/try/<example>`): the six example setups analysed by the same
+  engine, read only. `GET /api/v1/try/examples[/{id}]` is public and rate limited (shared analysis
+  limit), uses built-in models and devices only, reads and writes no database rows (tested), and is
+  cached in memory after the first request (0.5 to 3 s each on this machine).
+  `services/advisor_service.enrich_builtin` is the database-free twin of `enrich`.
+- How we estimate (`#/how`): provenance labels, how speed, memory, power, heat, throttling, cost and
+  carbon are predicted, where the range comes from, calibration, and what is not modelled. Written
+  from the engine's own module descriptions; the measurement formats named are the ones the
+  importers read.
+- Legal: terms, privacy, acceptable use and data summary rewritten for the hosted product, operated
+  by T Sharan, naming Render, Neon, Cloudflare, Resend and Sentry. All four at version 2026-10-31,
+  so existing accounts accept again. Still marked as drafts for legal review. The contact address
+  comes from `GC_CONTACT_EMAIL` (shown in the legal pages, the footer and a "Send feedback" link);
+  until it is set, the pages say it is not yet set.
+- The skip link no longer changes the route (it moved focus via `href="#main"`, which the hash router
+  read as a page). README has a "Use it online" section; `docs/api.md` regenerated, and its list of
+  public routes now matches the server's.
+- Guided first run: sign-up already opens the guided start (`#/start`); unchanged.
+
+Verification (2026-10-31): `pytest -q` 296 passed, 2 skipped (new `test_public_site.py`); `ruff`,
+`mypy app` (133 files), `tsc`, `eslint`, `vite build` clean; `npx playwright test` 15 passed, with
+axe now also scanning the landing, try and how pages in light and dark. Checked by hand in the
+browser at desktop and 375 px width: no horizontal scrolling.
+Not done: screenshots on the landing page (an illustration is shown instead), the domain.
+
 ## Remaining limitations (honest list)
 
 - Not built or run here: the Docker image and compose stack (no Docker), CUDA/TensorRT backends (no

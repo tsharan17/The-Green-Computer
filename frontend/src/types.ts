@@ -325,6 +325,24 @@ export interface AuthConfig {
   email_delivery: string;
   password_min_length: number;
   demo_mode: boolean;
+  operator: string;
+  contact_email: string | null;
+}
+
+export interface TryExample {
+  id: string;
+  title: string;
+  blurb: string;
+  category: string;
+}
+
+export interface TryAnalysis {
+  case: TryExample;
+  spec: ProjectSpec;
+  model: { id: string; name: string };
+  device: { id: string; name: string };
+  result: Omit<OptimisationResult, "points" | "top">;
+  note: string;
 }
 
 export interface VersionItem {

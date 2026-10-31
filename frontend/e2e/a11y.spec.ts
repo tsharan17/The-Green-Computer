@@ -15,6 +15,15 @@ for (const scheme of ["light", "dark"] as const) {
       expect(found, found.join("\n")).toEqual([]);
     };
     await scan("sign-in");
+    await page.goto("/#/");
+    await expect(page.getByRole("heading", { name: /Will your AI model run well/ })).toBeVisible();
+    await scan("landing page");
+    await page.goto("/#/try/robot-vision");
+    await expect(page.getByRole("heading", { name: "The answer" })).toBeVisible({ timeout: 30_000 });
+    await scan("try an example");
+    await page.goto("/#/how");
+    await expect(page.getByRole("heading", { name: "How we estimate", level: 1 })).toBeVisible();
+    await scan("how we estimate");
     await page.goto("/#/legal/privacy");
     await expect(page.getByRole("heading", { name: "Privacy Policy", level: 1 })).toBeVisible();
     await scan("privacy policy");

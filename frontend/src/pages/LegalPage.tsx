@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode, useEffect, useState } from "react";
 import { auth } from "../api";
 import { ErrorNote } from "../components/Help";
+import { feedbackHref, useSiteInfo } from "../components/PublicChrome";
 import type { LegalDocInfo } from "../workflow/types";
 
 /** Inline markdown: **bold** and [text](href) only (the documents use nothing else). */
@@ -51,8 +52,11 @@ export function Markdown({ text }: { text: string }) {
 }
 
 export function LegalLinks() {
+  const feedback = feedbackHref(useSiteInfo());
   return (
     <nav className="legal-links" aria-label="Legal">
+      <a href="#/how">How we estimate</a>
+      {feedback && <a href={feedback}>Send feedback</a>}
       <a href="#/legal/terms">Terms</a>
       <a href="#/legal/privacy">Privacy</a>
       <a href="#/legal/acceptable-use">Acceptable use</a>

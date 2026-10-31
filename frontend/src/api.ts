@@ -25,6 +25,8 @@ import type {
   Capability,
   FormatCatalogue,
   IntakeResult,
+  TryAnalysis,
+  TryExample,
 } from "./types";
 import type { LegalDocInfo, Pipeline, RecommendationSet, TermsStatus, VerificationReport } from "./workflow/types";
 
@@ -63,8 +65,8 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     // fetch only throws when the server cannot be reached at all.
     throw new Error(
-      "Cannot reach the Green Computer server. It is probably not running (or was stopped). " +
-        "Start it with scripts/dev.ps1, or run: cd backend && .venv/Scripts/python -m uvicorn app.main:app --port 8000, then reload this page.",
+      "Cannot reach The Green Computer. Check your connection and reload the page. " +
+        "(Running your own copy? Start the server with scripts/dev.ps1.)",
     );
   }
   if (!res.ok) {
@@ -114,6 +116,12 @@ export function saveText(name: string, text: string, type = "text/plain") {
 }
 
 const post = (body?: unknown): RequestInit => ({ method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+
+/** Public, read-only example analyses: no account needed. */
+export const tryApi = {
+  examples: () => req<TryExample[]>("/try/examples"),
+  example: (id: string) => req<TryAnalysis>(`/try/examples/${encodeURIComponent(id)}`),
+};
 
 export const auth = {
   config: () => req<AuthConfig>("/auth/config"),
