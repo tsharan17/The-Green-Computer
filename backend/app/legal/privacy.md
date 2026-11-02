@@ -28,9 +28,8 @@ We do not sell your data, show advertising, or use your content to train models.
 | Provider | What it does for us | What it receives |
 |---|---|---|
 | Render | Runs the application | Everything the application handles while serving your requests |
-| Neon | Hosts the database | The database contents listed above |
-| Cloudflare | Stores uploaded files and exports (R2); may carry traffic to the site | Your files; for traffic, IP address and request details |
-| Resend | Sends confirmation and password-reset email | Your email address and the message |
+| Neon | Hosts the database, including your uploaded files and exports | The database contents listed above |
+| Google (Gmail) | Sends confirmation and password-reset email from {{contact}} | Your email address and the message |
 | Sentry (only if turned on) | Reports server errors | Error type, route and request id; no request bodies, passwords or tokens |
 
 These providers may process data outside your country. Uploaded documents are treated as data:
@@ -44,8 +43,8 @@ advertising cookies.
 
 ## 5. How long data is kept
 
-Your data is kept until you delete it or your workspace's retention rules remove it. Database and
-file backups may keep deleted data for up to 30 days. Security logs are kept while your account
+Your data is kept until you delete it or your workspace's retention rules remove it. The database
+provider's restore history may keep deleted data for up to 30 days. Security logs are kept while your account
 exists.
 
 ## 6. Your rights

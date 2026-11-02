@@ -14,7 +14,7 @@ HERE = Path(__file__).parent
 # id -> (title, version, file, needs acceptance)
 DOCS: dict[str, tuple[str, str, str, bool]] = {
     "terms": ("Terms and Conditions", "2026-10-31", "terms.md", True),
-    "privacy": ("Privacy Policy", "2026-10-31", "privacy.md", True),
+    "privacy": ("Privacy Policy", "2026-11-02", "privacy.md", True),
     "acceptable-use": ("Acceptable Use Policy", "2026-10-31", "acceptable-use.md", False),
     "data": ("Your account and data", "2026-10-31", "data.md", False),
 }  # fmt: skip

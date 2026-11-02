@@ -1,4 +1,4 @@
-"""Free-hosting fit: the S3-compatible blob store, hosted mode and its required secrets."""
+"""Free-hosting fit: the S3-compatible and database blob stores, hosted mode and its required secrets."""
 
 from __future__ import annotations
 
@@ -9,12 +9,13 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
 
 from app.data_loader import clear_custom_devices
 from app.db.session import normalise_url
 from app.main import create_app
 from app.providers.s3 import EMPTY_SHA256, S3BlobStore, sign_v4
-from app.providers.storage import LocalBlobStore, make_blob_store
+from app.providers.storage import DatabaseBlobStore, LocalBlobStore, make_blob_store
 from tests.helpers import AuthedClient, tiny_cnn_bytes
 
 P = "/api/v1"
@@ -121,9 +122,53 @@ def test_blob_backend_is_chosen_from_the_environment(tmp_path, monkeypatch):
         monkeypatch.setenv(k, v)
     store = make_blob_store(tmp_path)
     assert isinstance(store, S3BlobStore) and store.cache == tmp_path / "blob_cache"
-    monkeypatch.setenv("GC_BLOB_BACKEND", "ftp")
-    with pytest.raises(RuntimeError, match="local or s3"):
+    monkeypatch.setenv("GC_BLOB_BACKEND", "database")
+    with pytest.raises(RuntimeError, match="database engine"):
         make_blob_store(tmp_path)
+    monkeypatch.setenv("GC_BLOB_BACKEND", "ftp")
+    with pytest.raises(RuntimeError, match="local, s3 or database"):
+        make_blob_store(tmp_path)
+
+
+# --- database blob store ------------------------------------------------------------------------
+
+
+def test_database_store_round_trip_and_one_workspace_at_a_time(tmp_path):
+    app = create_app(f"sqlite:///{tmp_path / 'b.db'}", data_dir=str(tmp_path / "d"))
+    with TestClient(app):  # start-up runs the migrations
+        pass
+    store = DatabaseBlobStore(app.state.engine, tmp_path / "cache")
+    key, digest = store.put("ws1", b"model bytes")
+    assert key == f"ws1/{digest}" and store.put("ws1", b"model bytes")[0] == key  # stored once
+    assert store.get(key) == b"model bytes"
+    p = store.path(key)
+    assert p is not None and p.read_bytes() == b"model bytes"
+    other, _ = store.put("ws12", b"other")  # a prefix of ws1 must not be swept up
+    store.put("ws1", b"second")
+    assert store.has_namespace("ws1") and not store.has_namespace("ws2")
+    store.delete_namespace("ws1")
+    assert not store.has_namespace("ws1") and not p.exists() and store.get(other) == b"other"
+    with pytest.raises(FileNotFoundError):
+        store.get(key)
+    assert store.path(key) is None
+    with pytest.raises(ValueError):
+        store.get("../etc/passwd")
+    with pytest.raises(ValueError):
+        store.put("ws1/../ws2", b"x")
+
+
+def test_uploads_survive_a_restart_with_files_in_the_database(tmp_path, monkeypatch):
+    """Render's free plan has no disk: with GC_BLOB_BACKEND=database a fresh container, with an empty
+    data folder, still serves the files uploaded before it started."""
+    monkeypatch.setenv("GC_BLOB_BACKEND", "database")
+    url = f"sqlite:///{tmp_path / 'r.db'}"
+    with AuthedClient(create_app(url, data_dir=str(tmp_path / "first"))) as c:
+        up = c.post(f"{P}/models/upload?filename=tiny.onnx", content=tiny_cnn_bytes(), headers=OCTET).json()
+        email = c.get(f"{P}/auth/me").json()["user"]["email"]
+    assert not any((tmp_path / "first").rglob("*.onnx"))
+    with AuthedClient(create_app(url, data_dir=str(tmp_path / "second")), email=email) as c:
+        r = c.get(f"{P}/artifacts/{up['artifact_id']}/download")
+    assert r.status_code == 200 and r.content == tiny_cnn_bytes()
 
 
 # --- hosted mode --------------------------------------------------------------------------------

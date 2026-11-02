@@ -146,9 +146,9 @@ pip-installable CLI, GitHub Action for CI comments, Vite 6 upgrade, store apps i
 ## Decisions needed
 
 1. Product domain and the name on it (needed for legal pages, email sender and the manifest).
-   Name decided: The Green Computer. Domain still open (launch on `*.onrender.com` without one).
+   Name decided: The Green Computer. No domain bought: launching on `the-green-computer.onrender.com`.
 2. The operator named in the terms: you personally, or a company. Decided: T Sharan.
-   The contact address is set at deploy time with `GC_CONTACT_EMAIL`.
+   Contact and email sender: shwethasharan.office@gmail.com (set in `render.yaml`).
 3. Whether visitors may upload their own ONNX models on the free server (recommended: yes, capped at
    50 MB, analysis only, no execution).
 

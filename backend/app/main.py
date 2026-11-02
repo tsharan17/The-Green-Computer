@@ -97,7 +97,7 @@ def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAP
 
     app.state.rate_limit_backend = configure_limiter(engine)
     app.state.data_dir = default_data_dir(url, data_dir or settings.data_dir)
-    app.state.blobs = make_blob_store(app.state.data_dir)
+    app.state.blobs = make_blob_store(app.state.data_dir, engine)
     app.state.email_sender = make_email_sender()
     for r in (auth_router, workspace_router, router, measurement_router,
               export_router, hardware_router, files_router, intake_router, twin_router, plans_router,

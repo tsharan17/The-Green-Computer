@@ -833,6 +833,20 @@ Verification (2026-10-30)
 Verification (2026-10-30): `pytest -q` 292 passed, 2 skipped; `ruff`, `mypy app`, `tsc`, `eslint`,
 `vite build` clean; `npx playwright test` 15 passed.
 
+## Product launch, step 6: go live (in progress)
+
+- Fewer services to sign up for: `GC_BLOB_BACKEND=database` keeps uploaded files and exports in a
+  new `blobs` table (migration `0011_database_blobs`), so the free deploy is Render + Neon only, with
+  email through Gmail SMTP. Tested: round trip, one workspace deleted at a time, and files still
+  served by a fresh app with an empty data folder (a Render restart).
+- `render.yaml`: service `the-green-computer`, contact and sender `shwethasharan.office@gmail.com`,
+  public URL `https://the-green-computer.onrender.com`; only `GC_DB_URL` and `GC_SMTP_PASSWORD`
+  are pasted in the dashboard.
+- Privacy policy 2026-11-02: Cloudflare and Resend replaced by Google (Gmail); backups described
+  as the database provider's restore history (up to 30 days). Accounts accept it again.
+- No custom domain: launching on Render's free `onrender.com` address.
+- Not done yet: the deploy itself, the live security checks, uptime monitoring.
+
 ## Product launch, step 5: installable app and phone layout (done)
 
 - Installable: `frontend/public/manifest.webmanifest` (standalone, start `#/`), icons drawn from the

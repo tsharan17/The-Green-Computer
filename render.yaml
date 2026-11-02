@@ -1,12 +1,13 @@
-# Render Blueprint for the hosted product on free tiers: one Docker web service (Render free plan),
-# PostgreSQL on Neon (free), uploaded files in Cloudflare R2 (free). See docs/deploy.md, "Free hosting".
+# Render Blueprint for the hosted product on free tiers: one Docker web service (Render free plan)
+# and PostgreSQL on Neon (free), which also holds uploaded files (GC_BLOB_BACKEND=database), so no
+# disk or object store is needed. Email goes out through Gmail SMTP. See docs/deploy.md.
 #
-# STATUS: written, not yet deployed. Render's free plan sleeps after 15 idle minutes and has no
-# persistent disk, which is why files go to R2 and the two server secrets are generated here.
-# Values marked `sync: false` are entered once in the Render dashboard; never commit them.
+# Render's free plan sleeps after 15 idle minutes and has no persistent disk, which is why files go to
+# the database and the two server secrets are generated here. Only two values are secret and marked
+# `sync: false`: they are pasted once in the Render dashboard; never commit them.
 services:
   - type: web
-    name: green-computer
+    name: the-green-computer
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
@@ -21,20 +22,18 @@ services:
       - { key: GC_REQUIRE_EMAIL_VERIFICATION, value: "1" }
       - { key: GC_SECRET_KEY, generateValue: true }
       - { key: GC_AGENT_SIGNING_SECRET, generateValue: true }
-      # https://<your domain> or https://green-computer.onrender.com; used in email links.
-      - { key: GC_PUBLIC_URL, sync: false }
-      # Shown in the legal pages and footer, e.g. hello@<your domain>.
-      - { key: GC_CONTACT_EMAIL, sync: false }
-      # Neon connection string as Neon shows it (postgresql://...?sslmode=require).
+      # Used in email links. Render names the address after the service; change it if Render gave a
+      # different one, or when a custom domain is added.
+      - { key: GC_PUBLIC_URL, value: "https://the-green-computer.onrender.com" }
+      - { key: GC_CONTACT_EMAIL, value: shwethasharan.office@gmail.com }
+      # Uploaded files and exports live in the database (Neon), not on the container's wiped disk.
+      - { key: GC_BLOB_BACKEND, value: database }
+      # Secret 1: the Neon connection string as Neon shows it (postgresql://...?sslmode=require).
       - { key: GC_DB_URL, sync: false }
-      # Cloudflare R2: endpoint https://<account id>.r2.cloudflarestorage.com, a bucket, an API token's keys.
-      - { key: GC_BLOB_BACKEND, value: s3 }
-      - { key: GC_S3_ENDPOINT, sync: false }
-      - { key: GC_S3_BUCKET, sync: false }
-      - { key: GC_S3_ACCESS_KEY_ID, sync: false }
-      - { key: GC_S3_SECRET_ACCESS_KEY, sync: false }
-      # Email over SMTP (for example Resend: smtp.resend.com, user "resend", password = API key).
-      - { key: GC_SMTP_HOST, sync: false }
-      - { key: GC_SMTP_USER, sync: false }
+      # Email through Gmail: a Google "app password" for the account below (needs 2-Step Verification).
+      - { key: GC_SMTP_HOST, value: smtp.gmail.com }
+      - { key: GC_SMTP_PORT, value: "587" }
+      - { key: GC_SMTP_USER, value: shwethasharan.office@gmail.com }
+      - { key: GC_SMTP_FROM, value: "The Green Computer <shwethasharan.office@gmail.com>" }
+      # Secret 2: the 16-letter Gmail app password.
       - { key: GC_SMTP_PASSWORD, sync: false }
-      - { key: GC_SMTP_FROM, sync: false }

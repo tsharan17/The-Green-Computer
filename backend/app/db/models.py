@@ -10,6 +10,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     UniqueConstraint,
 )
@@ -488,3 +489,17 @@ class TermsAcceptanceRow(Base):
     document: Mapped[str] = mapped_column(String(40))
     version: Mapped[str] = mapped_column(String(40))
     accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class BlobRow(Base):
+    """An uploaded file or generated artifact when GC_BLOB_BACKEND=database. ``key`` is
+    ``<namespace>/<sha256>`` as in the other blob stores; ``namespace`` is ``ws<id>`` or ``library``.
+    Reached only through a key held by an access-checked artifact or export row."""
+
+    __tablename__ = "blobs"
+
+    key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    namespace: Mapped[str] = mapped_column(String(32), index=True)
+    size: Mapped[int] = mapped_column(BigInteger)
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
