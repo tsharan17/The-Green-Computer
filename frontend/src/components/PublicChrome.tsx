@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { auth } from "../api";
 import { LegalLinks } from "../pages/LegalPage";
 import type { AuthConfig } from "../types";
+import InstallButton from "./Install";
 import Logo from "./Logo";
 
 let cached: Promise<AuthConfig | null> | null = null;
@@ -51,6 +52,7 @@ export default function PublicChrome({ children, signedIn = false }: { children:
         <nav className="pub-nav" aria-label="Site">
           <a href="#/try">Try an example</a>
           <a href="#/how">How we estimate</a>
+          <InstallButton />
           {signedIn ? (
             <a className="btn-link primary" href="#/">Open your workspace</a>
           ) : (

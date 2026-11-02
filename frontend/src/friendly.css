@@ -203,8 +203,9 @@ h1, h2, h3, h4, .rec p, .side-head h3 { overflow-wrap: anywhere; }
 }
 
 /* Hardware picker, wizard and layer view */
-.picker { display: grid; gap: 8px; }
-.picker input[type="search"] { width: 100%; }
+.picker { display: grid; gap: 8px; min-width: 0; }
+/* a select is as wide as its longest option unless told otherwise */
+.picker input[type="search"], .picker select { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
 .wizard textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }
 .wizard .seg { margin: 8px 0; }
 .wizard .checks-inline { display: grid; gap: 4px; margin: 8px 0; }

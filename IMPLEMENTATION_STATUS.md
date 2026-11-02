@@ -833,6 +833,32 @@ Verification (2026-10-30)
 Verification (2026-10-30): `pytest -q` 292 passed, 2 skipped; `ruff`, `mypy app`, `tsc`, `eslint`,
 `vite build` clean; `npx playwright test` 15 passed.
 
+## Product launch, step 5: installable app and phone layout (done)
+
+- Installable: `frontend/public/manifest.webmanifest` (standalone, start `#/`), icons drawn from the
+  logo mark by `scripts/make_icons.py` (192, 512, maskable 512, Apple touch 180; favicon updated to
+  the same mark), light and dark `theme-color`. An **Install the app** button appears in the public
+  header and the app sidebar only when the browser offers installation (`components/Install.tsx`).
+- `frontend/public/sw.js`, registered in production builds only, caches the app shell and the
+  hashed `/assets/` files. Pages are network first (a new release shows at once; the cached shell
+  only when offline). It never touches `/api/`: no result or account data is stored on the device,
+  and offline the app says it cannot reach the server.
+- Phone pass at 375 px over landing, try, how, sign-in, guided start, workspace, every project
+  screen after an analysis, and account. Fixed: the hardware picker's select sized to its longest
+  option (Inputs page, which zoomed the whole page out and made the Analyse button miss taps);
+  long status labels (`.outcome`) now wrap; the operator scrubber's range input can shrink; the
+  Energy page's grid no longer widens to its metrics table.
+- Boxes that scroll sideways (tables on a phone) get `tabindex=0` while they overflow, so the
+  keyboard can scroll them (`lib/scrollers.ts`, WCAG 2.1.1).
+- New `e2e/mobile.spec.ts`: the phone journey checks that nothing sticks out past the screen edge
+  and runs axe on every screen in light and dark; a second test checks the manifest, its icons, the
+  service worker, and that no `/api/` response is cached.
+
+Verification (2026-11-02): `pytest -q` 296 passed, 2 skipped; `ruff`, `mypy app` (133 files), `tsc`,
+`eslint`, `vite build` clean; `npx playwright test` 18 passed (3 new in `mobile.spec.ts`).
+Not checked on real devices: installing on Android, iPhone and desktop Chrome/Edge (needs the HTTPS
+deploy in step 6; installation is not offered on plain http other than localhost).
+
 ## Product launch, step 4: launch experience (done)
 
 - Landing page at `#/` for visitors who are not signed in: what it does, how it works, what you

@@ -26,6 +26,7 @@ import WorkspacePage from "./pages/WorkspacePage";
 import { SkipLink } from "./components/PublicChrome";
 import HowPage from "./pages/HowPage";
 import LandingPage from "./pages/LandingPage";
+import InstallButton from "./components/Install";
 import LegalPage, { LegalLinks } from "./pages/LegalPage";
 import TryPage from "./pages/TryPage";
 import CoolingFigures from "./workflow/CoolingFigures";
@@ -236,6 +237,7 @@ function Shell({
         </nav>
         <a className={`cap-link ${p0 === "capabilities" ? "on" : ""}`} href="#/capabilities">What this installation can do</a>
         <StatusBar />
+        <InstallButton className="side-install" />
         <LegalLinks />
       </aside>
 

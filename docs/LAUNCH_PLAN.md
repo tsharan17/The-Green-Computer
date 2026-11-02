@@ -121,7 +121,7 @@ Delete, not hide, so the product has nothing that asks for a key:
   Render, Neon, Cloudflare, Resend, Sentry). Have them reviewed after launch.
 - Product README, `docs/deploy.md` updated for this stack, contact and feedback link in the app.
 
-### 5. Installable app (day 2, midday)
+### 5. Installable app (day 2, midday) (done 2026-11-02)
 
 - `manifest.webmanifest`, icons (192, 512, maskable), theme colours, a service worker for the shell
   only, an "Install" button where the browser supports it.

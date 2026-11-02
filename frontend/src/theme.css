@@ -319,6 +319,7 @@ main:focus { outline: none; }
 
 /* Charts */
 .twin-page { display: grid; gap: 0; }
+.twin-page > * { min-width: 0; } /* a wide table scrolls in its box instead of widening the page */
 .tracebar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
 .tracebar .grow { flex: 1; }
 .tracebar .full { flex-basis: 100%; margin: 0; }
@@ -370,7 +371,7 @@ figure.viz { margin: 0 0 16px; }
 .map-cursor { fill: var(--ink); }
 .map-exec { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 2 4; opacity: 0.6; }
 .scrub { display: flex; gap: 10px; align-items: center; margin: 10px 0; }
-.scrub input[type="range"] { flex: 1; padding: 0; border: none !important; background: transparent !important; box-shadow: none; }
+.scrub input[type="range"] { flex: 1; min-width: 0; padding: 0; border: none !important; background: transparent !important; box-shadow: none; }
 .event-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0; }
 .event-card div { background: var(--sunk); border-radius: var(--radius-sm); padding: 8px 10px; }
 .event-card dt { font-size: 12px; color: var(--muted); }

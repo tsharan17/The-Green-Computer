@@ -17,6 +17,11 @@ what it leaves out. A free account lets you analyse your own models and hardware
 service, models are analysed and never executed: timed runs happen on a device you pair yourself.
 It is operated by T Sharan; the Terms and Privacy Policy are linked from every page.
 
+It works on phones too, and you can install it as an app: use **Install the app** where your browser
+offers it (Chrome, Edge, Android), or **Share → Add to Home Screen** in Safari on iPhone and iPad.
+The installed app opens like any other, but it still needs a connection: results are always worked
+out on the server and nothing about your account is stored on the device.
+
 To host your own copy (free tiers on Render, Neon and Cloudflare R2, or one machine with Docker),
 see [docs/deploy.md](docs/deploy.md).
 

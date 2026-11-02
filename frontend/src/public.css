@@ -57,3 +57,17 @@
   .pub-hero h1 { font-size: 28px; }
   .pub-head, .pub-main, .pub-foot { padding-left: 16px; padding-right: 16px; }
 }
+
+/* Install the app: shown only where the browser offers it. */
+.install-btn {
+  font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: transparent; color: var(--ink);
+}
+.install-btn:hover { border-color: var(--ink); }
+.side-install { align-self: flex-start; margin: 4px 6px; font-size: 13px; }
+
+/* Phones (last, so it wins over the base rules):  long status labels wrap instead of pushing the page wider */
+@media (max-width: 700px) {
+  .outcome { white-space: normal; max-width: 100%; }
+  .scrub > span { flex: none; }
+}
