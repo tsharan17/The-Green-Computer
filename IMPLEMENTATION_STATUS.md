@@ -866,8 +866,10 @@ Verification (2026-10-30): `pytest -q` 292 passed, 2 skipped; `ruff`, `mypy app`
   Analyses are still slow on the free plan.
 - Render is linked to the repository by its public address, so a push does not deploy by itself:
   use Manual Deploy, Deploy latest commit (or connect the GitHub app for auto-deploy).
-- Not done: uptime monitoring (keeps the free instance awake), a custom domain, removing the
-  throwaway accounts made while testing, real-device install test.
+- UptimeRobot (free) checks `/api/v1/ready` every 5 minutes and emails on an outage; this also
+  keeps the free instance from sleeping.
+- Not done: a custom domain, removing the throwaway accounts made while testing, real-device
+  install test, faster analyses on the free CPU share.
 
 ## Product launch, step 5: installable app and phone layout (done)
 
