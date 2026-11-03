@@ -10,6 +10,7 @@ services:
     name: the-green-computer
     runtime: docker
     plan: free
+    region: ohio  # next to the Neon database (AWS us-east-2)
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/v1/ready
     autoDeploy: true
