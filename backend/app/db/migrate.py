@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import cache
 from pathlib import Path
 
 from alembic import command
@@ -31,5 +32,7 @@ def current_revision(engine: Engine) -> str | None:
         return MigrationContext.configure(conn).get_current_revision()
 
 
+@cache
 def head_revision() -> str | None:
+    """The newest migration shipped with this build (read once: it cannot change while running)."""
     return ScriptDirectory.from_config(alembic_config()).get_current_head()

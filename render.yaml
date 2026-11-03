@@ -13,7 +13,9 @@ services:
     plan: free
     region: ohio  # next to the Neon database (AWS us-east-2)
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /api/v1/ready
+    # The light check: Render gives it 5 s, and on the free plan's small CPU share an analysis can
+    # slow the full /ready (database, schema, storage) past that. Uptime monitoring uses /ready.
+    healthCheckPath: /api/v1/health
     autoDeploy: true
     envVars:
       - { key: GC_ENV, value: production }

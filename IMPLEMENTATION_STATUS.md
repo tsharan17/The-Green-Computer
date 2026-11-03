@@ -859,6 +859,11 @@ Verification (2026-10-30): `pytest -q` 292 passed, 2 skipped; `ruff`, `mypy app`
   missing-CSRF writes 403; wrong sign-ins blocked after 10 (429), so the visitor's own address is
   limited; `/metrics` 404; public examples and install files served; two accounts cannot reach each
   other's project, runs, plans, exports or system graph (404). Added HSTS on HTTPS behind the proxy.
+- Found live: one analysis takes about 29 s on Render's free CPU share (1 to 3 s on the dev
+  machine), and during it the full `/ready` slowed past Render's 5 s health-check limit, so Render
+  restarted the instance mid-request ("Something went wrong" in the app). Render's health check now
+  uses the light `/api/v1/health`, and `/ready` reads the migration head once instead of per call.
+  Analyses are still slow on the free plan.
 - Render is linked to the repository by its public address, so a push does not deploy by itself:
   use Manual Deploy, Deploy latest commit (or connect the GitHub app for auto-deploy).
 - Not done: uptime monitoring (keeps the free instance awake), a custom domain, removing the
