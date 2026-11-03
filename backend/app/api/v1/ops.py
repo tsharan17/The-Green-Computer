@@ -35,7 +35,10 @@ def ready(request: Request) -> JSONResponse:
     except Exception:  # noqa: BLE001
         checks.append({"check": "schema", "ok": False})
     try:
-        root = request.app.state.blobs.root
+        blobs = request.app.state.blobs
+        # Local disk: the store itself. S3 and database stores keep their read cache on disk.
+        root = getattr(blobs, "root", None) or blobs.cache
+        root.mkdir(parents=True, exist_ok=True)
         probe = root / f".ready-{secrets.token_hex(4)}"
         probe.write_bytes(b"ok")
         probe.unlink()

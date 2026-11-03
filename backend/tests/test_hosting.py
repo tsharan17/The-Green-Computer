@@ -171,6 +171,14 @@ def test_uploads_survive_a_restart_with_files_in_the_database(tmp_path, monkeypa
     assert r.status_code == 200 and r.content == tiny_cnn_bytes()
 
 
+def test_ready_with_files_in_the_database(tmp_path, monkeypatch):
+    monkeypatch.setenv("GC_BLOB_BACKEND", "database")
+    with TestClient(create_app(f"sqlite:///{tmp_path / 'q.db'}", data_dir=str(tmp_path / "d"))) as c:
+        r = c.get(f"{P}/ready")
+    assert r.status_code == 200, r.text
+    assert {x["check"] for x in r.json()["checks"]} == {"database", "schema", "file_storage"}
+
+
 # --- hosted mode --------------------------------------------------------------------------------
 
 
