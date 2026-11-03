@@ -1,6 +1,7 @@
 # Render Blueprint for the hosted product on free tiers: one Docker web service (Render free plan)
 # and PostgreSQL on Neon (free), which also holds uploaded files (GC_BLOB_BACKEND=database), so no
-# disk or object store is needed. Email goes out through Gmail SMTP. See docs/deploy.md.
+# disk or object store is needed. Email goes out through Brevo's HTTPS API (Render's free plan blocks
+# outgoing SMTP). See docs/deploy.md.
 #
 # Render's free plan sleeps after 15 idle minutes and has no persistent disk, which is why files go to
 # the database and the two server secrets are generated here. Only two values are secret and marked
@@ -31,10 +32,7 @@ services:
       - { key: GC_BLOB_BACKEND, value: database }
       # Secret 1: the Neon connection string as Neon shows it (postgresql://...?sslmode=require).
       - { key: GC_DB_URL, sync: false }
-      # Email through Gmail: a Google "app password" for the account below (needs 2-Step Verification).
-      - { key: GC_SMTP_HOST, value: smtp.gmail.com }
-      - { key: GC_SMTP_PORT, value: "587" }
-      - { key: GC_SMTP_USER, value: shwethasharan.office@gmail.com }
-      - { key: GC_SMTP_FROM, value: "The Green Computer <shwethasharan.office@gmail.com>" }
-      # Secret 2: the 16-letter Gmail app password.
-      - { key: GC_SMTP_PASSWORD, sync: false }
+      # Email through Brevo's API. The sender address must be verified in Brevo (Senders).
+      - { key: GC_EMAIL_FROM, value: "The Green Computer <shwethasharan.office@gmail.com>" }
+      # Secret 2: a Brevo API key (SMTP & API, API keys).
+      - { key: GC_BREVO_API_KEY, sync: false }

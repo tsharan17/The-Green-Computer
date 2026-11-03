@@ -3,6 +3,11 @@
 - ``ConsoleEmailSender`` (default): writes the message to the server log and keeps the last messages
   in memory, so a self-hosted install without mail works and a developer can read reset links.
 - ``SmtpEmailSender``: used when GC_SMTP_HOST is set (any SMTP relay).
+- ``BrevoEmailSender``: used when GC_BREVO_API_KEY is set. Sends over HTTPS, for hosts that block
+  outgoing SMTP (Render's free plan does).
+
+Every sender is wrapped so a failed delivery is logged and never fails the request that sent it: the
+account or reset link is already saved, and the person can ask for the email again.
 """
 
 from __future__ import annotations
@@ -16,7 +21,10 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.message import EmailMessage
+from email.utils import parseaddr
 from typing import Protocol
+
+import httpx
 
 log = logging.getLogger("green_computer.email")
 
@@ -68,13 +76,50 @@ class SmtpEmailSender:
             s.send_message(msg)
 
 
+class BrevoEmailSender:
+    """Brevo's transactional email API. The sender address must be verified in Brevo."""
+
+    name = "brevo"
+    URL = "https://api.brevo.com/v3/smtp/email"
+
+    def __init__(self, api_key: str, sender: str, transport: httpx.BaseTransport | None = None) -> None:
+        self.api_key = api_key
+        self.sender_name, self.sender_email = parseaddr(sender)
+        self.http = httpx.Client(timeout=15.0, transport=transport)
+
+    def send(self, to: str, subject: str, body: str) -> None:
+        r = self.http.post(self.URL, headers={"api-key": self.api_key, "accept": "application/json"}, json={
+            "sender": {"name": self.sender_name or "The Green Computer", "email": self.sender_email},
+            "to": [{"email": to}], "subject": subject, "textContent": body,
+        })  # fmt: skip
+        if r.status_code >= 300:
+            raise RuntimeError(f"Brevo refused the message: HTTP {r.status_code}")
+
+
+class GuardedEmailSender:
+    """Logs a failed delivery instead of raising (see the module note)."""
+
+    def __init__(self, inner: EmailSender) -> None:
+        self.inner = inner
+        self.name = inner.name
+
+    def send(self, to: str, subject: str, body: str) -> None:
+        try:
+            self.inner.send(to, subject, body)
+        except Exception as e:  # noqa: BLE001 - any delivery failure is reported the same way
+            log.error("email not delivered via %s to a %s address: %s: %s", self.name,
+                      to.rpartition("@")[2] or "?", type(e).__name__, e)  # fmt: skip
+
+
 def make_email_sender() -> EmailSender:
     env = os.environ.get
+    sender_addr = env("GC_EMAIL_FROM") or env("GC_SMTP_FROM") or "The Green Computer <no-reply@localhost>"
+    if env("GC_BREVO_API_KEY"):
+        return GuardedEmailSender(BrevoEmailSender(env("GC_BREVO_API_KEY") or "", sender_addr))
     host = env("GC_SMTP_HOST")
     if host:
-        return SmtpEmailSender(
-            host, int(env("GC_SMTP_PORT") or 587), env("GC_SMTP_USER"), env("GC_SMTP_PASSWORD"),
-            env("GC_SMTP_FROM") or "The Green Computer <no-reply@localhost>",
+        return GuardedEmailSender(SmtpEmailSender(
+            host, int(env("GC_SMTP_PORT") or 587), env("GC_SMTP_USER"), env("GC_SMTP_PASSWORD"), sender_addr,
             (env("GC_SMTP_STARTTLS") or "1") not in ("0", "false", "no"),
-        )  # fmt: skip
+        ))  # fmt: skip
     return ConsoleEmailSender()

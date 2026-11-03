@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from datetime import UTC, datetime
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -14,6 +15,7 @@ from fastapi.testclient import TestClient
 from app.data_loader import clear_custom_devices
 from app.db.session import normalise_url
 from app.main import create_app
+from app.providers.email import BrevoEmailSender, GuardedEmailSender, make_email_sender
 from app.providers.s3 import EMPTY_SHA256, S3BlobStore, sign_v4
 from app.providers.storage import DatabaseBlobStore, LocalBlobStore, make_blob_store
 from tests.helpers import AuthedClient, tiny_cnn_bytes
@@ -232,3 +234,47 @@ def test_hosted_database_urls_use_the_installed_driver():
     assert normalise_url("postgres://u@h/db") == "postgresql+psycopg://u@h/db"
     for kept in ("postgresql+psycopg://u@h/db", "sqlite:///x.db"):
         assert normalise_url(kept) == kept
+
+
+# --- email on a host that blocks SMTP -----------------------------------------------------------
+
+
+def test_brevo_sender_posts_the_message_over_https():
+    seen: list[httpx.Request] = []
+
+    def fake(req: httpx.Request) -> httpx.Response:
+        seen.append(req)
+        return httpx.Response(201, json={"messageId": "x"})
+
+    s = BrevoEmailSender("key-1", "The Green Computer <hello@example.org>", transport=httpx.MockTransport(fake))
+    s.send("ann@example.com", "Hi", "Body text")
+    (req,) = seen
+    assert str(req.url) == BrevoEmailSender.URL and req.headers["api-key"] == "key-1"
+    assert json.loads(req.content) == {"sender": {"name": "The Green Computer", "email": "hello@example.org"},
+                                       "to": [{"email": "ann@example.com"}], "subject": "Hi",
+                                       "textContent": "Body text"}  # fmt: skip
+    refused = BrevoEmailSender("k", "a@b.c", transport=httpx.MockTransport(lambda r: httpx.Response(401)))
+    with pytest.raises(RuntimeError, match="401"):
+        refused.send("ann@example.com", "Hi", "x")
+
+
+def test_email_sender_is_chosen_from_the_environment(monkeypatch):
+    assert make_email_sender().name == "console"
+    monkeypatch.setenv("GC_SMTP_HOST", "smtp.example.org")
+    assert make_email_sender().name == "smtp"
+    monkeypatch.setenv("GC_BREVO_API_KEY", "k")
+    monkeypatch.setenv("GC_EMAIL_FROM", "The Green Computer <hello@example.org>")
+    s = make_email_sender()
+    assert isinstance(s, GuardedEmailSender) and isinstance(s.inner, BrevoEmailSender)
+    assert s.inner.sender_email == "hello@example.org"
+
+
+def test_sign_up_and_reset_still_work_when_mail_cannot_be_sent(tmp_path, monkeypatch):
+    """Render's free plan blocks outgoing SMTP: the account is still created, nothing crashes."""
+    monkeypatch.setenv("GC_SMTP_HOST", "127.0.0.1")
+    monkeypatch.setenv("GC_SMTP_PORT", "1")  # nothing listens there: the connection is refused
+    with TestClient(create_app(f"sqlite:///{tmp_path / 'm.db'}", data_dir=str(tmp_path / "d"))) as c:
+        c.headers["X-GC-CSRF"] = "1"
+        body = {"email": "mailless@example.com", "password": "a long enough passphrase", "accept_terms": True}
+        assert c.post(f"{P}/auth/signup", json=body).status_code == 201
+        assert c.post(f"{P}/auth/password/forgot", json={"email": "mailless@example.com"}).status_code == 202

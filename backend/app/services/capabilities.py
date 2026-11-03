@@ -68,8 +68,8 @@ def capabilities(engine: Engine, email_sender: str, blob_store: str) -> list[dic
                     + (" SQLite is for local use; use PostgreSQL for a shared server." if dialect == "sqlite" else "")))  # fmt: skip
     out.append(_row("Storage", "files", "File storage", "available", f"{blob_store} blob store, separate per workspace."))
     out.append(_row("Accounts", "email", "Email delivery",
-                    "available" if email_sender == "smtp" else "unavailable",
-                    "SMTP configured." if email_sender == "smtp" else
+                    "available" if email_sender != "console" else "unavailable",
+                    f"Sent through {'Brevo' if email_sender == 'brevo' else 'SMTP'}." if email_sender != "console" else
                     "No mail server configured: password-reset messages go to the server log.",
-                    "" if email_sender == "smtp" else "Set GC_SMTP_HOST (and user/password)."))  # fmt: skip
+                    "" if email_sender != "console" else "Set GC_BREVO_API_KEY, or GC_SMTP_HOST (and user/password)."))  # fmt: skip
     return out

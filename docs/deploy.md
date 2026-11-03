@@ -83,7 +83,7 @@ Retention on a timer (daily):
 ExecStart=/opt/gc/venv/bin/python /opt/gc/src/scripts/retention.py --apply
 ```
 
-## Hosted on free tiers: Render + Neon (+ Gmail for email)
+## Hosted on free tiers: Render + Neon (+ Brevo for email)
 
 `render.yaml` at the repository root describes the service. **Status: written and tested piece by
 piece (database and S3 blob stores, hosted mode, URL handling); first deploy in progress.**
@@ -92,7 +92,7 @@ piece (database and S3 blob stores, hosted mode, URL handling); first deploy in 
 |---|---|---|
 | App (API + web UI, one container) | Render, free web service, Docker | About 512 MB RAM and a fraction of a CPU; sleeps after 15 idle minutes; no persistent disk |
 | Database, uploaded files and exports | Neon, free project | 0.5 GB storage; suspends when idle (the app tests each pooled connection before use) |
-| Email | Gmail SMTP with an app password | About 500 messages a day; the sender is the Gmail address |
+| Email | Brevo, free plan, over HTTPS | 300 messages a day; the sender address is verified in Brevo, no domain needed. Render's free plan blocks outgoing SMTP, so Gmail or any SMTP relay cannot be used there |
 
 Files are kept in the database (`GC_BLOB_BACKEND=database`) so no object store is needed. With
 more users, or a domain of your own, switch to Cloudflare R2 (`GC_BLOB_BACKEND=s3`, below) and a
@@ -117,10 +117,10 @@ What the configuration does, and why:
 Steps:
 1. Neon (sign in with GitHub): create a project on an account separate from any other deployment
    (Postgres 16 or later, a region near your users); copy its connection string.
-2. Gmail: turn on 2-Step Verification for the sending account, then create an app password
-   (Google Account, Security, App passwords). It is shown once: 16 letters.
+2. Brevo: create a free account, add and verify the sender address (Senders, Domains & Dedicated
+   IPs, Senders), then create an API key (SMTP & API, API keys).
 3. Render (sign in with GitHub): New, Blueprint, pick this repository. Paste the two secrets,
-   `GC_DB_URL` and `GC_SMTP_PASSWORD`. If Render's address differs from `GC_PUBLIC_URL` in
+   `GC_DB_URL` and `GC_BREVO_API_KEY`. If Render's address differs from `GC_PUBLIC_URL` in
    `render.yaml`, set the real one in the dashboard.
 4. With R2 instead of the database for files: create a bucket and an API token with object read and
    write on that bucket, and set `GC_BLOB_BACKEND=s3` and the four `GC_S3_*` values.

@@ -29,7 +29,7 @@ We do not sell your data, show advertising, or use your content to train models.
 |---|---|---|
 | Render | Runs the application | Everything the application handles while serving your requests |
 | Neon | Hosts the database, including your uploaded files and exports | The database contents listed above |
-| Google (Gmail) | Sends confirmation and password-reset email from {{contact}} | Your email address and the message |
+| Brevo | Sends confirmation and password-reset email from {{contact}} | Your email address and the message |
 | Sentry (only if turned on) | Reports server errors | Error type, route and request id; no request bodies, passwords or tokens |
 
 These providers may process data outside your country. Uploaded documents are treated as data:

@@ -845,6 +845,12 @@ Verification (2026-10-30): `pytest -q` 292 passed, 2 skipped; `ruff`, `mypy app`
 - Privacy policy 2026-11-02: Cloudflare and Resend replaced by Google (Gmail); backups described
   as the database provider's restore history (up to 30 days). Accounts accept it again.
 - No custom domain: launching on Render's free `onrender.com` address.
+- First deploy (2026-11-03): built and started on Render (Ohio) with Neon (Ohio). Found live:
+  `/ready` always 503 with files in the database (the probe needed a local folder; fixed), and
+  Render's free plan blocks outgoing SMTP, which made sign-up return 500. Now a failed email is
+  logged and never fails the request (`GuardedEmailSender`), and email can go out over HTTPS
+  through Brevo (`GC_BREVO_API_KEY`, `GC_EMAIL_FROM`). Privacy policy 2026-11-03 names Brevo.
+  `scripts/acceptance.py` accepts the terms when it signs up.
 - Not done yet: the deploy itself, the live security checks, uptime monitoring.
 
 ## Product launch, step 5: installable app and phone layout (done)
