@@ -73,6 +73,15 @@ def test_security_headers_and_cookie_flags(app):
         h = c.get(f"{P}/health").headers
         assert h["x-frame-options"] == "DENY" and h["x-content-type-options"] == "nosniff"
         assert "object-src 'none'" in h["content-security-policy"]
+        assert "strict-transport-security" not in h  # plain http: never sent
+
+
+def test_https_behind_a_trusted_proxy_gets_hsts(app, monkeypatch):
+    monkeypatch.setenv("GC_TRUST_PROXY", "1")
+    with TestClient(app) as c:
+        h = c.get(f"{P}/health", headers={"X-Forwarded-Proto": "https"}).headers
+        assert h["strict-transport-security"] == "max-age=31536000"
+        assert "strict-transport-security" not in c.get(f"{P}/health").headers
 
 
 def test_hostile_names_are_escaped_and_download_names_are_safe(app):

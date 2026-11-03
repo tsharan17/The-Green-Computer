@@ -833,7 +833,7 @@ Verification (2026-10-30)
 Verification (2026-10-30): `pytest -q` 292 passed, 2 skipped; `ruff`, `mypy app`, `tsc`, `eslint`,
 `vite build` clean; `npx playwright test` 15 passed.
 
-## Product launch, step 6: go live (in progress)
+## Product launch, step 6: go live (live 2026-11-03)
 
 - Fewer services to sign up for: `GC_BLOB_BACKEND=database` keeps uploaded files and exports in a
   new `blobs` table (migration `0011_database_blobs`), so the free deploy is Render + Neon only, with
@@ -851,7 +851,18 @@ Verification (2026-10-30): `pytest -q` 292 passed, 2 skipped; `ruff`, `mypy app`
   logged and never fails the request (`GuardedEmailSender`), and email can go out over HTTPS
   through Brevo (`GC_BREVO_API_KEY`, `GC_EMAIL_FROM`). Privacy policy 2026-11-03 names Brevo.
   `scripts/acceptance.py` accepts the terms when it signs up.
-- Not done yet: the deploy itself, the live security checks, uptime monitoring.
+- Live at https://the-green-computer.onrender.com (Render free web service, Ohio; Neon free
+  project `the-green-computer`, Ohio, Postgres 18; Brevo free plan, sender verified). No card on
+  file anywhere. Email confirmation delivered end to end (landed in the inbox).
+- Checked on the live site: `/ready` 200 (database, schema, file storage); CSP, nosniff,
+  frame-deny and no-referrer headers; private routes 401 without a session; cross-origin and
+  missing-CSRF writes 403; wrong sign-ins blocked after 10 (429), so the visitor's own address is
+  limited; `/metrics` 404; public examples and install files served; two accounts cannot reach each
+  other's project, runs, plans, exports or system graph (404). Added HSTS on HTTPS behind the proxy.
+- Render is linked to the repository by its public address, so a push does not deploy by itself:
+  use Manual Deploy, Deploy latest commit (or connect the GitHub app for auto-deploy).
+- Not done: uptime monitoring (keeps the free instance awake), a custom domain, removing the
+  throwaway accounts made while testing, real-device install test.
 
 ## Product launch, step 5: installable app and phone layout (done)
 

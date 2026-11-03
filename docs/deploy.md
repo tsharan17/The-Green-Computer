@@ -86,7 +86,7 @@ ExecStart=/opt/gc/venv/bin/python /opt/gc/src/scripts/retention.py --apply
 ## Hosted on free tiers: Render + Neon (+ Brevo for email)
 
 `render.yaml` at the repository root describes the service. **Status: written and tested piece by
-piece (database and S3 blob stores, hosted mode, URL handling); first deploy in progress.**
+piece (database and S3 blob stores, hosted mode, URL handling); live since 2026-11-03.**
 
 | Piece | Service | Free-tier limits that shape the setup |
 |---|---|---|
@@ -124,6 +124,9 @@ Steps:
    `render.yaml`, set the real one in the dashboard.
 4. With R2 instead of the database for files: create a bucket and an API token with object read and
    write on that bucket, and set `GC_BLOB_BACKEND=s3` and the four `GC_S3_*` values.
+   Render's free plan blocks outgoing SMTP: email must go through an HTTPS API (Brevo here).
+   Linked by the repository's public address, Render does not deploy on push: use Manual Deploy,
+   Deploy latest commit, or connect Render's GitHub app.
 5. Check `https://<host>/api/v1/ready`, then run `python scripts/acceptance.py https://<host>`.
 6. UptimeRobot (or similar): poll `/api/v1/ready` every 5 minutes to avoid cold starts and get
    alerts. This uses most of Render's free monthly hours for one always-on service.

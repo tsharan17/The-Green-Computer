@@ -129,7 +129,7 @@ Delete, not hide, so the product has nothing that asks for a key:
   card, never the page.
 - Playwright: a mobile-viewport journey and axe in both colour schemes.
 
-### 6. Go live (day 2, afternoon)
+### 6. Go live (day 2, afternoon) (live 2026-11-03 at https://the-green-computer.onrender.com)
 
 - Accounts: Render, new Neon, Cloudflare (domain, R2), Resend, Sentry, UptimeRobot.
   These are yours to create; the app needs only their environment variables.

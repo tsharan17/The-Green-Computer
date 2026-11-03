@@ -265,4 +265,9 @@ class SecurityHeaders(BaseHTTPMiddleware):
         resp.headers.setdefault("X-Frame-Options", "DENY")
         if not request.url.path.startswith(("/docs", "/redoc", "/openapi")):
             resp.headers.setdefault("Content-Security-Policy", CSP)
+        scheme = request.url.scheme
+        if _truthy(os.environ.get("GC_TRUST_PROXY")):  # TLS ends at the host's proxy (Render)
+            scheme = request.headers.get("x-forwarded-proto", scheme).split(",")[0].strip()
+        if scheme == "https":  # browsers keep to HTTPS for a year; never sent over plain http
+            resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         return resp
