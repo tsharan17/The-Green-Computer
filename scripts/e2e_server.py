@@ -16,6 +16,7 @@ os.environ.update({
     "GC_DATA_DIR": str(root / "data"),
     "GC_ENV": "development",
     "GC_SCRYPT_LOG2_N": "12",
+    "GC_SCRYPT_P": "1",
     "GC_SIGNUP_RATE_PER_HOUR": "1000",
     "GC_ANALYSE_RATE_PER_MIN": "0",
 })

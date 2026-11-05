@@ -245,6 +245,10 @@ def test_team_workspace_roles(app):
         assert owner.post(f"{P}/workspaces/current/members", headers=personal,
                           json={"email": "viewer@x.io"}).status_code == 422  # fmt: skip
     with AuthedClient(app, email="viewer@x.io") as viewer:
+        assert viewer.get(f"{P}/projects/{pid}", headers=hdr).status_code == 403  # invited, not yet joined
+        inv = viewer.get(f"{P}/invitations").json()
+        assert [i["workspace"] for i in inv] == ["Robotics team"]
+        assert viewer.post(f"{P}/invitations/{inv[0]['id']}/accept").json()["role"] == "viewer"
         assert viewer.get(f"{P}/projects/{pid}", headers=hdr).status_code == 200
         assert viewer.post(f"{P}/projects/{pid}/optimise", headers=hdr).status_code == 403
         assert viewer.get(f"{P}/projects/{pid}").status_code == 404  # not in their own workspace
@@ -283,6 +287,9 @@ def test_deleting_an_owner_hands_a_shared_workspace_over(app):
         team = f.post(f"{P}/workspaces", json={"name": "Team"}).json()
         hdr = {"X-GC-Workspace": str(team["id"])}
         f.post(f"{P}/workspaces/current/members", headers=hdr, json={"email": "member@x.io"})
+    with AuthedClient(app, email="member@x.io") as m:
+        m.post(f"{P}/invitations/{m.get(f'{P}/invitations').json()[0]['id']}/accept")
+    with AuthedClient(app, email="founder@x.io") as f:
         pid = f.post(f"{P}/projects", headers=hdr, json={
             "name": "kept", "model_id": "yolov8n", "device_id": "jetson-orin-nano"}).json()["id"]  # fmt: skip
         f.post(f"{P}/auth/account/delete", json={"password": TEST_PASSWORD, "confirm": "DELETE"})

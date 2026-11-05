@@ -48,7 +48,8 @@ gc.example.com {
 ```
 
 and set `GC_TRUST_PROXY=1` so client addresses (for rate limits and the audit log) come from
-`X-Forwarded-For`.
+`X-Forwarded-For`, read from the right: `GC_TRUSTED_PROXY_HOPS` says how many proxies append to it. If
+your proxy overwrites a header of its own, set `GC_CLIENT_IP_HEADER` to that name instead.
 
 ### More workers
 
@@ -128,7 +129,7 @@ Steps:
    Linked by the repository's public address, Render does not deploy on push: use Manual Deploy,
    Deploy latest commit, or connect Render's GitHub app.
 5. Check `https://<host>/api/v1/ready`, then run `python scripts/acceptance.py https://<host>`.
-6. UptimeRobot (or similar): poll `/api/v1/ready` every 5 minutes to avoid cold starts and get
+6. UptimeRobot (or similar): poll `/api/v1/health` every 5 minutes (it does not touch the database) to avoid cold starts and get
    alerts. This uses most of Render's free monthly hours for one always-on service.
 7. Security checks on the live URL, before announcing it:
    - sign up two accounts in two browsers; with the second, open the first one's project, export

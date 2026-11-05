@@ -154,8 +154,25 @@ export default function RecommendationEngine({ projectId, version, runKey, canWr
   const all = [...set.software, ...set.hardware];
   const runnable = all.filter((r) => r.plan_change_id).sort((x, y) => (x.rank ?? 999) - (y.rank ?? 999));
   const advisory = all.filter((r) => !r.plan_change_id);
-  const recommended = runnable.filter((r) => r.in_recommended || r.status === "recommended");
+  const recommended = runnable.filter((r) => r.in_recommended);
   const choose = (r: Rec) => setPick({ key: r.id, title: r.title, ids: [r.plan_change_id!], recs: [r] });
+  const ideas = runnable.filter((r) => r.status === "directional");
+  const direct = runnable.filter((r) => r.status !== "directional");
+  const top = direct.slice(0, 3);
+  const rest = direct.slice(3);
+  const item = (r: Rec) => (
+    <button key={r.id} className={`rec-item ${pick?.key === r.id ? "on" : ""}`} aria-pressed={pick?.key === r.id} onClick={() => choose(r)}>
+      <strong>{r.rank ? `${r.rank}. ` : ""}{r.title}</strong>
+      {r.benefit && <small className="rec-gain">{r.benefit}</small>}
+      <small>{r.area_label}{r.category === "hardware" ? " (hardware)" : ""}{r.fixes?.length ? `, fixes ${r.fixes.join(", ")}` : ""}</small>
+      {(r.in_recommended || r.status === "directional") && (
+        <span className="rec-tags">
+          {r.in_recommended && <span className="badge">recommended</span>}
+          {r.status === "directional" && <span className="badge badge-assumed">directional</span>}
+        </span>
+      )}
+    </button>
+  );
 
   return (
     <>
@@ -173,26 +190,20 @@ export default function RecommendationEngine({ projectId, version, runKey, canWr
               <small>{recommended.length} changes together</small>
             </button>
           )}
-          {(["software", "hardware"] as const).map((cat) => {
-            const items = runnable.filter((r) => r.category === cat);
-            return items.length ? (
-              <div key={cat} className="rec-list-group">
-                <h3>{cat === "software" ? "Software" : "Hardware"}</h3>
-                {items.map((r) => (
-                  <button key={r.id} className={`rec-item ${pick?.key === r.id ? "on" : ""}`} aria-pressed={pick?.key === r.id} onClick={() => choose(r)}>
-                    <strong>{r.rank ? `${r.rank}. ` : ""}{r.title}</strong>
-                    <small>{r.area_label}{r.fixes?.length ? `, fixes ${r.fixes.join(", ")}` : ""}</small>
-                    {(r.in_recommended || r.status === "recommended" || r.status === "directional") && (
-                      <span className="rec-tags">
-                        {(r.in_recommended || r.status === "recommended") && <span className="badge">recommended</span>}
-                        {r.status === "directional" && <span className="badge badge-assumed">directional</span>}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            ) : null;
-          })}
+          {top.length > 0 && <div className="rec-list-group"><h3>Start with these</h3>{top.map(item)}</div>}
+          {rest.length > 0 && (
+            <details className="rec-list-group" open={rest.some((r) => r.id === pick?.key) || undefined}>
+              <summary>More changes ({rest.length})</summary>
+              {rest.map(item)}
+            </details>
+          )}
+          {ideas.length > 0 && (
+            <details className="rec-list-group" open={ideas.some((r) => r.id === pick?.key) || undefined}>
+              <summary>Chip and circuit what-ifs ({ideas.length})</summary>
+              <p className="hint">Directional only: these change a design parameter you may not control, and are not backed by real tool data.</p>
+              {ideas.map(item)}
+            </details>
+          )}
           {advisory.length > 0 && (
             <details className="rec-list-group">
               <summary>Guidance the engine cannot simulate ({advisory.length})</summary>

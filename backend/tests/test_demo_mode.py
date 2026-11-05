@@ -72,7 +72,29 @@ def test_proxy_header_is_trusted_only_when_configured(monkeypatch):
 
     assert sec.client_ip(Req()) == "10.0.0.1"  # spoofable header ignored by default
     monkeypatch.setenv("GC_TRUST_PROXY", "1")
+    assert sec.client_ip(Req()) == "10.0.0.1"  # the caller wrote everything left of our one proxy
+    monkeypatch.setenv("GC_TRUSTED_PROXY_HOPS", "2")
     assert sec.client_ip(Req()) == "203.0.113.9"
+    monkeypatch.setenv("GC_CLIENT_IP_HEADER", "CF-Connecting-IP")
+    Req.headers = {**Req.headers, "cf-connecting-ip": "198.51.100.7"}
+    assert sec.client_ip(Req()) == "198.51.100.7"
+
+
+def test_oversized_bodies_are_refused_while_they_arrive(demo):
+    big = b"x" * (3 * 1024 * 1024)
+    h = {"Content-Type": "application/json", "X-GC-CSRF": "1"}
+    assert demo.post(f"{P}/auth/signin", content=big, headers=h).status_code == 413
+
+    def chunks():
+        for _ in range(4):
+            yield b"x" * (1024 * 1024)
+
+    assert demo.post(f"{P}/auth/signin", content=chunks(), headers=h).status_code == 413
+
+
+def test_huge_yaml_is_refused_before_parsing(demo):
+    r = demo.post(f"{P}/files/inspect?filename=a.yaml", content=b"a: 1\n" * 300_000, headers={"Content-Type": "text/plain"})
+    assert r.status_code == 422 and "1 MB" in r.json()["detail"]
 
 
 def test_caps_on_projects_uploads_and_custom_items(demo, monkeypatch):
@@ -99,3 +121,26 @@ def test_security_headers(local):
         assert "default-src 'self'" in r.headers["content-security-policy"]
         assert "script-src 'self'" in r.headers["content-security-policy"]
     assert "content-security-policy" not in local.get("/docs").headers  # Swagger needs its CDN
+
+
+def test_daily_run_allowance_follows_the_account_not_the_address(demo, monkeypatch):
+    monkeypatch.setenv("GC_ANALYSE_RATE_PER_MIN", "0")
+    monkeypatch.setenv("GC_MAX_RUNS_PER_DAY", "1")
+    pid = demo.get(f"{P}/projects").json()[0]["id"]
+    assert demo.post(f"{P}/projects/{pid}/optimise").status_code == 200
+    assert demo.post(f"{P}/projects/{pid}/optimise").status_code == 429
+
+
+def test_workspace_cap(demo, monkeypatch):
+    monkeypatch.setenv("GC_MAX_WORKSPACES_PER_USER", "2")
+    assert demo.post(f"{P}/workspaces", json={"name": "second"}).status_code == 201
+    assert demo.post(f"{P}/workspaces", json={"name": "third"}).status_code == 503
+
+
+def test_workspace_storage_quota(demo, monkeypatch):
+    monkeypatch.setenv("GC_MAX_WORKSPACE_STORAGE_MB", "1")
+    h = {"Content-Type": "application/octet-stream"}
+    csv = b"time_s,power_w\n" + b"0,1\n" * 200_000
+    assert demo.post(f"{P}/intake/upload?filename=a.csv", content=csv, headers=h).status_code == 200
+    r = demo.post(f"{P}/intake/upload?filename=b.csv", content=csv, headers=h)
+    assert r.status_code == 503 and "storage limit" in r.json()["detail"]

@@ -20,7 +20,7 @@ from app.api.v1.routes import project_for
 from app.auth.deps import Ctx, get_db, require_ctx, require_writer
 from app.db.models import RemoteDeviceRow
 from app.remote import service as svc
-from app.security import _limit
+from app.security import _limit, attachment
 
 router = APIRouter(tags=["remote devices"])
 
@@ -148,7 +148,7 @@ def agent_artifact(job_id: int, request: Request, db: Session = Depends(get_db),
     except svc.RemoteError as e:
         raise _fail(e) from e
     return Response(data, media_type="application/octet-stream",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})  # fmt: skip
+                    headers={"Content-Disposition": attachment(name)})  # fmt: skip
 
 
 @router.post("/device-agent/jobs/{job_id}/result")

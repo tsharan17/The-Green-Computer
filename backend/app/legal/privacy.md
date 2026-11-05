@@ -43,8 +43,8 @@ advertising cookies.
 
 ## 5. How long data is kept
 
-Your data is kept until you delete it or your workspace's retention rules remove it. The database
-provider's restore history may keep deleted data for up to 30 days. Security logs are kept while your account
+Your data is kept until you delete it or your workspace's retention rules remove it. An email address invited to a team workspace is kept until the invitation is answered or cancelled, or the workspace is deleted, and is sent one invitation email. The database
+provider's restore history and encrypted backups may keep deleted data for up to 14 days. Security logs are kept while your account
 exists.
 
 ## 6. Your rights

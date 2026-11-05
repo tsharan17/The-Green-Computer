@@ -27,10 +27,11 @@ from app.db import repository as repo
 from app.engine.datasheet_profile import extraction_from_scan
 from app.engine.datasheet_scan import scan_datasheet
 from app.engine.hwbuild import CustomHardwareSpec, build_custom
+from app.engine.intake_formats import parse_yaml
 from app.engine.vendor_reports import detect, parse_power_csv, parse_report
 from app.schemas.hardware import HardwareProfile
 from app.sdk import ProjectFileError, load_project
-from app.security import limit_datasheet, max_custom_items, max_upload_bytes
+from app.security import limit_datasheet, max_custom_items, max_upload_bytes, raw_body
 from app.services import hardware_service as hw
 
 router = APIRouter()
@@ -38,7 +39,7 @@ router = APIRouter()
 MAX_FILE_BYTES = 20 * 1024 * 1024
 def _structured(text: str, name: str) -> dict[str, Any]:
     try:
-        doc = json.loads(text) if name.endswith(".json") else yaml.safe_load(text)
+        doc = json.loads(text) if name.endswith(".json") else parse_yaml(text)
     except (json.JSONDecodeError, yaml.YAMLError) as e:
         raise HTTPException(422, f"{name}: not valid {'JSON' if name.endswith('.json') else 'YAML'} ({e})") from e
     if not isinstance(doc, dict):
@@ -86,15 +87,15 @@ def _import_project(db: Session, doc: dict[str, Any], ws: int) -> dict[str, Any]
 
 
 @router.post("/files/inspect")
-async def inspect_file(
+def inspect_file(
     request: Request,
     filename: str = Query(min_length=1, max_length=200),
     supply_v: float | None = Query(None, gt=0),
     db: Session = Depends(get_db),
     ctx: Ctx = Depends(require_writer),
+    data: bytes = Depends(raw_body),
 ) -> dict[str, Any]:
     ws = ctx.workspace_id
-    data = await request.body()
     limit = max_upload_bytes(MAX_FILE_BYTES)
     if len(data) > limit:
         raise HTTPException(413, f"file too large (limit {limit // 1024 // 1024} MB)")

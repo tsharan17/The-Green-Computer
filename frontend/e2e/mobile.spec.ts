@@ -43,7 +43,7 @@ for (const scheme of ["light", "dark"] as const) {
     };
 
     await page.goto("/#/");
-    await expect(page.getByRole("heading", { name: /Will your AI model run well/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Will your AI model run on your hardware/ })).toBeVisible();
     await check("landing");
     await page.goto("/#/try/robot-vision");
     await expect(page.getByRole("heading", { name: "The answer" })).toBeVisible({ timeout: 30_000 });

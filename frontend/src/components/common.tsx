@@ -60,8 +60,8 @@ export function configLabel(c: Config): string {
   return [
     c.precision.toUpperCase(),
     `batch ${c.batch}`,
-    c.power_mode_id,
-    c.cooling_id,
+    c.power_mode_id.replace(/_/g, " "),
+    c.cooling_id.replace(/_/g, " "),
     ...extra,
   ].join(" · ");
 }

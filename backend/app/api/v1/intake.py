@@ -36,7 +36,7 @@ from app.engine.design_parsers import (
 from app.engine.elf_report import ElfError, check_against, elf_footprint
 from app.engine.hw_validate import template, validate_profile
 from app.engine.hwbuild import CustomHardwareSpec, build_custom
-from app.engine.intake_formats import MAX_BYTES, catalogue, unsupported_for
+from app.engine.intake_formats import MAX_BYTES, catalogue, parse_yaml, unsupported_for
 from app.engine.measure_parsers import (
     MeasurementParseError,
     parse_bench_json,
@@ -45,7 +45,7 @@ from app.engine.measure_parsers import (
 )
 from app.engine.vendor_reports import detect, parse_power_csv, parse_report
 from app.engine.workload.onnx_parser import ModelParseError
-from app.security import max_upload_bytes
+from app.security import max_upload_bytes, raw_body
 from app.services import intake
 from app.services.capabilities import capabilities
 
@@ -119,7 +119,7 @@ def _design_summary(rep: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/intake/upload")
-async def upload(
+def upload(
     request: Request,
     filename: str = Query(min_length=1, max_length=255),
     category: str | None = Query(None, pattern="^(model|board_soc|mcu|fpga|accelerator|custom_system)$"),
@@ -128,15 +128,12 @@ async def upload(
     dynamic_dim_default: int | None = Query(None, ge=1),
     db: Session = Depends(get_db),
     ctx: Ctx = Depends(require_writer),
+    data: bytes = Depends(raw_body),
 ) -> dict[str, Any]:
     blobs = request.app.state.blobs
     name = filename.lower()
     is_model = name.endswith(".onnx") or category == "model"
     limit = max_upload_bytes(MAX_BYTES["model" if is_model else "hardware"])
-    declared = request.headers.get("content-length")
-    if declared and declared.isdigit() and int(declared) > limit:
-        raise HTTPException(413, f"file too large (limit {limit // (1024 * 1024)} MB)")
-    data = await request.body()
     if len(data) > limit:
         raise HTTPException(413, f"file too large (limit {limit // (1024 * 1024)} MB)")
     if not data:
@@ -210,7 +207,7 @@ async def upload(
     text = data.decode("utf-8", errors="replace")
     if name.endswith((".yaml", ".yml", ".json")):
         try:
-            doc = json.loads(text) if name.endswith(".json") else yaml.safe_load(text)
+            doc = json.loads(text) if name.endswith(".json") else parse_yaml(text)
         except (json.JSONDecodeError, yaml.YAMLError) as e:
             art = store("structured", "invalid", {"errors": [f"not valid {'JSON' if name.endswith('.json') else 'YAML'}: {e}"]}, keep=False)
             return _answer(art, "structured", "invalid", f"The file is not valid {'JSON' if name.endswith('.json') else 'YAML'}: {e}")

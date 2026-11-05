@@ -46,6 +46,8 @@ export default function InputPage({
   onDevicesChanged: () => void;
 }) {
   const model = models.find((m) => m.id === spec.model_id);
+  const [filter, setFilter] = useState("");
+  const shown = models.filter((m) => m.id === spec.model_id || `${m.name} ${m.task}`.toLowerCase().includes(filter.trim().toLowerCase()));
   const device = devices.find((d) => d.id === spec.device_id);
   const [prefill, setPrefill] = useState<{ nonce: number; fields: Record<string, string>; source: string } | null>(null);
   const [draftKey, setDraftKey] = useState(0);
@@ -69,19 +71,39 @@ export default function InputPage({
       <div className="ws-grid">
         <section className="panel" aria-labelledby="sw-h">
           <div className="card-head"><span className="tag-sw">Software</span><h2 id="sw-h">AI model</h2></div>
+          {canWrite && <ModelPanel onAdded={onModelAdded} />}
+          <label className="field">
+            Filter the list
+            <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="yolo, whisper, resnet…" />
+          </label>
           <label className="field">
             Model
             <select value={spec.model_id} onChange={(e) => setSpec({ ...spec, model_id: e.target.value })} disabled={!canWrite}>
               <optgroup label="Library">
-                {models.filter((m) => m.fidelity === "library").map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {shown.filter((m) => m.fidelity === "library").map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </optgroup>
               <optgroup label="Yours">
-                {models.filter((m) => m.fidelity !== "library").map((m) => (
+                {shown.filter((m) => m.fidelity !== "library").map((m) => (
                   <option key={m.id} value={m.id}>{m.name} ({m.fidelity === "graph" ? "ONNX" : "entered by hand"})</option>
                 ))}
               </optgroup>
             </select>
           </label>
+          <label className="field">
+            Runtime (optional)
+            <select value={spec.runtime ?? ""} onChange={(e) => setSpec({ ...spec, runtime: (e.target.value || null) as ProjectSpec["runtime"] })} disabled={!canWrite}>
+              <option value="">Not decided</option>
+              <option value="onnxruntime">ONNX Runtime</option>
+              <option value="tflite">TensorFlow Lite</option>
+              <option value="openvino">OpenVINO</option>
+              <option value="tensorrt">TensorRT</option>
+              <option value="pytorch">PyTorch</option>
+              <option value="coreml">Core ML</option>
+              <option value="qnn">Qualcomm QNN</option>
+              <option value="other">Something else</option>
+            </select>
+          </label>
+          <p className="hint">Kept with the project. Runtime overhead is not modelled yet, so this changes no number.</p>
           {model && (
             <dl className="facts-grid">
               <div><dt>Task</dt><dd>{model.task}</dd></div>
@@ -92,7 +114,6 @@ export default function InputPage({
               <div><dt>Source</dt><dd>{model.fidelity === "graph" ? "parsed from your ONNX graph" : model.fidelity === "manual" ? "entered by hand (wider bands)" : "published figures"}</dd></div>
             </dl>
           )}
-          {canWrite && <ModelPanel onAdded={onModelAdded} />}
         </section>
 
         <section className="panel" aria-labelledby="hw-h">

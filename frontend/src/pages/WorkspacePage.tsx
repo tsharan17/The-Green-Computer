@@ -117,7 +117,7 @@ export default function WorkspacePage({ me, models, devices }: { me: Me; models:
             {projects?.[0] && <a className="btn-link" href={`#/p/${projects[0].id}/input`}>Open the example project</a>}
             {canWrite && <button onClick={addDemo} disabled={demoBusy}>{demoBusy ? "Adding examples…" : "Add five example projects"}</button>}
           </div>
-          <p className="hint">Takes about two minutes. Works entirely on this server; no outside service is used.</p>
+          <p className="hint">Takes about two minutes. No outside service is used.</p>
         </section>
       ) : (
         <header className="ws-head">

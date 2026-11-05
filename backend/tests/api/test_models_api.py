@@ -58,6 +58,8 @@ def test_optimise_payload_has_codesign_points_and_trace(client):
     pid = client.get(f"{P}/projects").json()[0]["id"]
     body = client.post(f"{P}/projects/{pid}/optimise").json()
     assert body["codesign"]["baseline"]["config"]
-    assert len(body["points"]) == body["evaluated"] >= 1000
+    assert body["evaluated"] >= 1000
+    assert body["points_thinned"] and 100 < len(body["points"]) <= 800
+    assert any(p["best"] for p in body["points"])
     assert body["baseline"]["thermal_trace"]
     assert body["baseline"]["solver"]["throttled"] is True

@@ -8,7 +8,9 @@ schematics, PCBs, RTL, netlists, assembly or firmware beyond what the parsers be
 
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
+
+import yaml
 
 Status = Literal["supported", "planned", "unsupported"]
 
@@ -176,6 +178,14 @@ CATEGORIES: list[dict] = [
 ]
 
 MAX_BYTES = {"model": 100 * 1024 * 1024, "hardware": 20 * 1024 * 1024}
+MAX_YAML_CHARS = 1024 * 1024  # a project or device file is a few KB; parsing YAML is slow
+
+
+def parse_yaml(text: str) -> Any:
+    """Parse an uploaded YAML document as data; yaml.YAMLError for bad or oversized input."""
+    if len(text) > MAX_YAML_CHARS:
+        raise yaml.YAMLError("YAML files are limited to 1 MB; project and device files are far smaller")
+    return yaml.load(text, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))  # noqa: S506
 
 
 def all_hardware_formats() -> list[FileFormat]:

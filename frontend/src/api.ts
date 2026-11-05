@@ -30,7 +30,7 @@ import type {
 } from "./types";
 import type { LegalDocInfo, Pipeline, RecommendationSet, TermsStatus, VerificationReport } from "./workflow/types";
 
-const BASE = "/api/v1";
+export const BASE = "/api/v1";
 
 /** The workspace every request acts in (sent as X-GC-Workspace). */
 let workspaceId: number | null = null;
@@ -146,8 +146,8 @@ export const auth = {
     req<{ changed: boolean; other_sessions_signed_out: number }>("/auth/password/change", post({ current_password, new_password })),
   sessions: () => req<SessionItem[]>("/auth/sessions"),
   revoke: (id: number) => req<{ revoked: boolean }>(`/auth/sessions/${id}/revoke`, post()),
-  token: (label: string, days: number) =>
-    req<{ id: number; token: string; expires_at: string; note: string }>("/auth/tokens", post({ label, days })),
+  token: (label: string, days: number, scope: "full" | "read" = "full") =>
+    req<{ id: number; token: string; expires_at: string; note: string }>("/auth/tokens", post({ label, days, scope })),
   deleteAccount: (password: string, confirm: string) =>
     req<{ deleted: boolean; workspaces_deleted: number; projects_deleted: number; files_deleted: number }>(
       "/auth/account/delete",
@@ -225,6 +225,11 @@ export const workspace = {
   create: (name: string) => req<Workspace>("/workspaces", post({ name })),
   members: () => req<{ user_id: number; email: string; display_name: string; role: string }[]>("/workspaces/current/members"),
   addMember: (email: string, role: string) => req<unknown>("/workspaces/current/members", post({ email, role })),
+  pendingInvites: () => req<{ id: number; email: string; role: string; expires_at: string }[]>("/workspaces/current/invitations"),
+  cancelInvite: (id: number) => req<unknown>(`/workspaces/current/invitations/${id}`, { method: "DELETE" }),
+  myInvites: () => req<{ id: number; workspace: string; role: string; expires_at: string }[]>("/invitations"),
+  acceptInvite: (id: number) => req<unknown>(`/invitations/${id}/accept`, post({})),
+  declineInvite: (id: number) => req<unknown>(`/invitations/${id}/decline`, post({})),
   removeMember: (userId: number) => req<unknown>(`/workspaces/current/members/${userId}`, { method: "DELETE" }),
   usage: () => req<UsageSummary>("/usage"),
   audit: (projectId?: number) => req<AuditItem[]>(`/audit${projectId ? `?project_id=${projectId}` : ""}`),

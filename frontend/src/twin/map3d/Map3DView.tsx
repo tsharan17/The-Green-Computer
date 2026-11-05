@@ -4,7 +4,7 @@ import * as THREE from "three";
 import type { Overlay, Scene, SceneNode } from "./model";
 import type { Camera, Palette } from "./palette";
 
-function CameraRig({ cam, extent, center }: { cam: Camera; extent: number; center: [number, number, number] }) {
+export function CameraRig({ cam, extent, center }: { cam: Camera; extent: number; center: [number, number, number] }) {
   const { camera, invalidate, size } = useThree();
   useEffect(() => {
     const aspect = (camera as THREE.PerspectiveCamera).aspect || 1.5;
@@ -38,7 +38,7 @@ function labelTexture(text: string, ink: string, bg: string) {
   return { tex, aspect: w / 60 };
 }
 
-function Label({ text, pos, pal, scale }: { text: string; pos: [number, number, number]; pal: Palette; scale: number }) {
+export function Label({ text, pos, pal, scale }: { text: string; pos: [number, number, number]; pal: Palette; scale: number }) {
   const { tex, aspect } = useMemo(() => labelTexture(text, pal.ink, pal.panel), [text, pal.ink, pal.panel]);
   useEffect(() => () => tex.dispose(), [tex]);
   return (

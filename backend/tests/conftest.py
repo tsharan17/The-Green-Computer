@@ -2,8 +2,9 @@ import os
 
 import pytest
 
-# Cheaper password hashing in tests (production default is 2**14).
+# Cheaper password hashing in tests (production default is 2**15 with p=3).
 os.environ.setdefault("GC_SCRYPT_LOG2_N", "10")
+os.environ.setdefault("GC_SCRYPT_P", "1")
 
 SECRET_VARS = (
     "GC_SMTP_PASSWORD",

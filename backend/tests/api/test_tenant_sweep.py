@@ -62,8 +62,11 @@ def _alice(c) -> dict:
                                              "precision": "fp16", "latency_ms_mean": 12.0,
                                              "external_id": SECRET}).json()["measurements"][0]  # fmt: skip
     remote = c.post(f"{P}/remote-devices", json={"name": SECRET, "device_id": "jetson-orin-nano"}).json()
+    team = c.post(f"{P}/workspaces", json={"name": "Alice team"}).json()["id"]
+    invite = c.post(f"{P}/workspaces/current/members", headers={"X-GC-Workspace": str(team)},
+                    json={"email": "friend@x.io"}).json()["id"]  # fmt: skip
     return {
-        "project_id": pid, "artifact_id": up["artifact_id"], "plan_id": plan["id"], "trace_id": trace["id"],
+        "invitation_id": invite, "project_id": pid, "artifact_id": up["artifact_id"], "plan_id": plan["id"], "trace_id": trace["id"],
         "export_id": export["id"], "job_id": job["id"], "run_id": c.get(f"{P}/projects/{pid}/runs").json()[0]["id"],
         "draft_id": draft["draft_id"] if "draft_id" in draft else draft["id"], "measurement_id": meas["id"],
         "device_id": custom["id"], "remote_device_id": remote["id"],

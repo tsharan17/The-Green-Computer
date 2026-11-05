@@ -44,7 +44,7 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `POST` | `/api/v1/auth/signout` | session | Signout |
 | `POST` | `/api/v1/auth/signup` | public | Signup |
 | `POST` | `/api/v1/auth/terms/accept` | session | Accept the current versions of the Terms and Privacy Policy (after they changed). |
-| `POST` | `/api/v1/auth/tokens` | session | An API token for the CLI or scripts (Authorization: Bearer ...). Shown once. |
+| `POST` | `/api/v1/auth/tokens` | session | An API token for the CLI or scripts (Authorization: Bearer ...). Shown once. Tokens are made |
 | `PUT` | `/api/v1/auth/preferences` | session | Presentation only: display density and whether the first-run guide was completed. |
 
 ## Core
@@ -100,6 +100,16 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | `GET` | `/api/v1/projects/{project_id}/traces/{trace_id}` | session | Get Trace |
 | `GET` | `/api/v1/projects/{project_id}/traces` | session | List Traces |
 | `POST` | `/api/v1/projects/{project_id}/traces` | session | Predict the operator-level execution of one batch for the current setup (`baseline`), the |
+
+## Estimates
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| `GET` | `/api/v1/accuracy` | session | Predictions against the real runs that ship with the product. Nothing from any user's workspace. |
+| `GET` | `/api/v1/estimate/llm/devices` | session | Llm Devices |
+| `GET` | `/api/v1/operators` | session | The ONNX operators the parser counts. Any other operator is named as a gap in the results. |
+| `POST` | `/api/v1/estimate/llm` | session | Tokens per second and memory for a language model. Labelled predicted, and not yet validated. |
+| `POST` | `/api/v1/projects/{project_id}/fleet` | session | Running cost and carbon for many units over years, today and with the best setup, from the |
 
 ## Execution
 
@@ -213,18 +223,23 @@ Generated from the OpenAPI schema by `scripts/api_docs.py`; the live schema and 
 | Method | Path | Auth | What it does |
 |---|---|---|---|
 | `DELETE` | `/api/v1/artifacts/{artifact_id}` | session | Remove the stored bytes; the metadata stays (marked deleted) for the audit trail. |
+| `DELETE` | `/api/v1/workspaces/current/invitations/{invitation_id}` | session | Cancel Invitation |
 | `DELETE` | `/api/v1/workspaces/current/members/{user_id}` | session | Remove Member |
 | `GET` | `/api/v1/artifacts/{artifact_id}/download` | session | Download Artifact |
 | `GET` | `/api/v1/artifacts/{artifact_id}` | session | Artifact |
 | `GET` | `/api/v1/artifacts` | session | Artifacts |
 | `GET` | `/api/v1/audit` | session | Audit Log |
+| `GET` | `/api/v1/invitations` | session | Invitations sent to the signed-in address. A confirmed address is what proves they are yours. |
 | `GET` | `/api/v1/usage` | session | Usage |
 | `GET` | `/api/v1/workspaces/current/export` | session | Owner only. Everything the workspace holds, as one zip with a hashed manifest. |
+| `GET` | `/api/v1/workspaces/current/invitations` | session | Workspace Invitations |
 | `GET` | `/api/v1/workspaces/current/members` | session | Members |
 | `GET` | `/api/v1/workspaces/current/retention` | session | Retention Rules |
 | `GET` | `/api/v1/workspaces` | session | List Workspaces |
 | `PATCH` | `/api/v1/workspaces/current` | session | Rename Workspace |
-| `POST` | `/api/v1/workspaces/current/members` | session | Add an existing account to this workspace (it must already have signed up). |
+| `POST` | `/api/v1/invitations/{invitation_id}/accept` | session | Accept Invitation |
+| `POST` | `/api/v1/invitations/{invitation_id}/decline` | session | Decline Invitation |
+| `POST` | `/api/v1/workspaces/current/members` | session | Invite someone to this workspace. They join only when they accept from their own account, and |
 | `POST` | `/api/v1/workspaces/current/retention/apply` | session | Owner only. With dry_run (the default) nothing is deleted; the counts say what would go. |
 | `POST` | `/api/v1/workspaces` | session | Create Workspace |
 | `PUT` | `/api/v1/workspaces/current/retention` | session | Owner only. Days to keep each category; empty keeps it for ever. |

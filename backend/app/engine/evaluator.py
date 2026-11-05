@@ -12,6 +12,7 @@ from collections.abc import Callable
 from app.engine import assumptions as A
 from app.engine.accuracy import accuracy_metric
 from app.engine.constraints import certify, check
+from app.engine.coverage import coverage, coverage_note
 from app.engine.solver import Sim, corners, simulate
 from app.engine.thermal import time_to_limit, warmup_trace
 from app.schemas.hardware import HardwareProfile
@@ -222,6 +223,11 @@ def evaluate(
             f"{what} is an unmeasured prior; measure it on your validation set before relying "
             "on this configuration."
         )
+    gap = coverage_note(model)
+    if gap is not None:
+        notes.insert(0, gap)
+        if state == Feasibility.PREDICTED_FEASIBLE:
+            state = Feasibility.UNCERTAIN
     if mem.value > nom.rf.mem_usable_gb:
         notes.append("Model does not fit in usable device memory.")
     if nom.throttled and not nom.overheated:
@@ -285,4 +291,5 @@ def evaluate(
         time_to_throttle_s=t_throttle,
         thermal_trace=trace,
         engine_version=A.ENGINE_VERSION,
+        model_coverage=coverage(model),
     )

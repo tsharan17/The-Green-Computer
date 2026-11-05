@@ -149,8 +149,7 @@ def usage_summary(db: Session, workspace_id: int, since: datetime | None = None)
             "note": (
                 "Platform charges at the operator's configured rates."
                 if configured
-                else "No platform rates are configured (self-hosted): platform cost is zero. "
-                "Remote GPU jobs are billed by your cloud provider directly."
+                else "This service does not charge for analyses, so platform cost is zero."
             ),
         },
         "device_energy_note": (

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -30,6 +31,7 @@ from app.db.models import (
     ExecutionTraceRow,
     ExportRow,
     HardwareDraftRow,
+    InvitationRow,
     MeasurementRow,
     MembershipRow,
     PasswordResetRow,
@@ -141,10 +143,21 @@ def signup(db: Session, email: str, password: str, display_name: str = "") -> tu
                    password_hash=hash_password(password), is_active=True)  # fmt: skip
     db.add(user)
     db.flush()
-    ws = create_workspace(db, user, f"{user.display_name or e.split('@')[0]}'s workspace", True)
+    ws = create_workspace(db, user, f"{user.display_name}'s workspace" if user.display_name else "Personal workspace", True)
     legacy = _claim_legacy(db, user)
     db.commit()
     return user, {"workspace_id": ws.id, "claimed_legacy_workspace": legacy.id if legacy else None}
+
+
+_DUMMY_HASH: str | None = None
+
+
+def _dummy_hash() -> str:
+    """Checked for unknown addresses, so they cost one hash, the same as a real account."""
+    global _DUMMY_HASH
+    if _DUMMY_HASH is None:
+        _DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
+    return _DUMMY_HASH
 
 
 def authenticate(db: Session, email: str, password: str) -> UserRow:
@@ -155,7 +168,7 @@ def authenticate(db: Session, email: str, password: str) -> UserRow:
         e = ""
     user = db.scalars(select(UserRow).where(UserRow.email == e)).first() if e else None
     if user is None:
-        verify_password(password, hash_password("timing-equaliser-x"))
+        verify_password(password, _dummy_hash())
         raise AuthError(401, "Email or password is incorrect.")
     if not verify_password(password, user.password_hash) or not user.is_active:
         raise AuthError(401, "Email or password is incorrect.")
@@ -221,7 +234,7 @@ def list_sessions(db: Session, user_id: int) -> list[dict[str, Any]]:
     )
     now = _now()
     return [
-        {"id": r.id, "kind": r.kind, "label": r.label, "user_agent": r.user_agent, "ip": r.ip,
+        {"id": r.id, "kind": r.kind, "scope": r.scope, "label": r.label, "user_agent": r.user_agent, "ip": r.ip,
          "created_at": r.created_at.isoformat(), "last_seen_at": r.last_seen_at.isoformat(),
          "expires_at": r.expires_at.isoformat()}
         for r in rows if _aware(r.expires_at) > now
@@ -229,6 +242,11 @@ def list_sessions(db: Session, user_id: int) -> list[dict[str, Any]]:
 
 
 # --- passwords ----------------------------------------------------------------------------
+
+
+def _revoke_resets(db: Session, user_id: int) -> None:
+    db.execute(update(PasswordResetRow).where(
+        PasswordResetRow.user_id == user_id, PasswordResetRow.used_at.is_(None)).values(used_at=_now()))  # fmt: skip
 
 
 def change_password(db: Session, user: UserRow, current: str, new: str) -> None:
@@ -239,14 +257,18 @@ def change_password(db: Session, user: UserRow, current: str, new: str) -> None:
         raise AuthError(422, problem)
     user.password_hash = hash_password(new)
     user.password_changed_at = _now()
+    _revoke_resets(db, user.id)
     db.commit()
 
 
 def request_reset(
-    db: Session, email: str, sender: EmailSender, public_url: str
-) -> str | None:
-    """Create and send a reset link. Returns the token (for development display) or None when no
-    such account exists. The HTTP response is identical either way."""
+    db: Session, email: str, sender: EmailSender, public_url: str,
+    defer: Callable[..., Any] | None = None,
+) -> str | None:  # fmt: skip
+    """Create a reset link and send it (through `defer` when given, so the time the request takes
+    does not show whether the account exists). Returns the token (for development display) or None
+    when no such account exists. The HTTP response is identical either way. A new link replaces any
+    earlier one."""
     try:
         e = normalise_email(email)
     except AuthError:
@@ -255,11 +277,13 @@ def request_reset(
     if user is None or not user.is_active:
         return None
     token = secrets.token_urlsafe(32)
+    _revoke_resets(db, user.id)
     db.add(PasswordResetRow(user_id=user.id, token_hash=token_hash(token),
                             expires_at=_now() + RESET_TTL))  # fmt: skip
     db.commit()
     link = f"{public_url}/#/reset?token={token}"
-    sender.send(
+    (defer or (lambda f, *a: f(*a)))(
+        sender.send,
         user.email,
         "Reset your Green Computer password",
         "Someone (hopefully you) asked to reset the password for this account.\n\n"
@@ -283,7 +307,7 @@ def reset_password(db: Session, token: str, new: str) -> UserRow:
         raise AuthError(422, problem)
     user.password_hash = hash_password(new)
     user.password_changed_at = _now()
-    row.used_at = _now()
+    _revoke_resets(db, user.id)
     db.commit()
     revoke_all(db, user.id)  # every existing sign-in must re-authenticate
     return user
@@ -329,7 +353,7 @@ def delete_workspace_data(db: Session, workspace_id: int, blobs: BlobStore | Non
         db.execute(delete(AgentRunRow).where(AgentRunRow.project_id.in_(project_ids)))
         db.execute(delete(UsageEventRow).where(UsageEventRow.project_id.in_(project_ids)))
     for model in (UsageEventRow, AuditLogRow, CustomModelRow, MeasurementRow, CalibrationRow,
-                  BenchmarkJobRow, HardwareDraftRow):  # fmt: skip
+                  BenchmarkJobRow, HardwareDraftRow, InvitationRow):  # fmt: skip
         db.execute(delete(model).where(model.workspace_id == workspace_id))
     db.execute(delete(ArtifactRow).where(ArtifactRow.workspace_id == workspace_id))
     if project_ids:

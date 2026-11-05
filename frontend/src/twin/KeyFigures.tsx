@@ -19,11 +19,12 @@ export const KEY_FIGS = [
 const cache = new Map<string, StoredTrace>();
 
 /** The predicted trace of the current setup, computed once per inputs version and analysis run. */
-export function useBaselineTrace(projectId: number, version: number, runKey: number | null) {
+export function useBaselineTrace(projectId: number, version: number, runKey: number | null, enabled = true) {
   const key = `${projectId}:${version}:${runKey ?? 0}`;
   const [data, setData] = useState<StoredTrace | null>(cache.get(key) ?? null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
+    if (!enabled) return;
     const hit = cache.get(key);
     if (hit) {
       setData(hit);
@@ -42,7 +43,7 @@ export function useBaselineTrace(projectId: number, version: number, runKey: num
     return () => {
       live = false;
     };
-  }, [projectId, key]);
+  }, [projectId, key, enabled]);
   return { data, error };
 }
 

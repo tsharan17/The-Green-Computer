@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app import legal
 from app.auth import account_security as sec
 from app.auth import service as auth
-from app.auth.deps import COOKIE, CSRF_HEADER, Ctx, get_db, require_ctx
+from app.auth.deps import COOKIE, CSRF_HEADER, Ctx, get_db, require_ctx, require_verified
 from app.config import get_settings
 from app.db import repository as repo
 from app.db.models import TermsAcceptanceRow, UserRow
@@ -155,7 +155,11 @@ def signin(body: SigninIn, request: Request, response: Response,
     _csrf(request)
     ip = client_ip(request)
     _limit(request, "signin-ip", ip, _int_env("GC_SIGNIN_RATE_PER_15MIN", 30, 60), 900.0)
-    _limit(request, "signin-email", body.email.strip().lower()[:320], 10, 900.0)
+    # Tight per address and source, so a stranger cannot lock someone out; a wider cap per address
+    # still stops guessing from many sources.
+    email_key = body.email.strip().lower()[:320]
+    _limit(request, "signin-email-ip", f"{email_key}|{ip}", 10, 900.0)
+    _limit(request, "signin-email", email_key, 100, 900.0)
     try:
         user = auth.authenticate(db, body.email, body.password)
     except auth.AuthError as e:
@@ -296,14 +300,16 @@ class ForgotIn(BaseModel):
 
 
 @router.post("/password/forgot", status_code=202)
-def forgot(body: ForgotIn, request: Request, db: Session = Depends(get_db)) -> dict[str, Any]:
+def forgot(body: ForgotIn, request: Request, background: BackgroundTasks,
+           db: Session = Depends(get_db)) -> dict[str, Any]:  # fmt: skip
     _csrf(request)
     _limit(request, "forgot", client_ip(request), 10, 3600.0)
     # Per address too, so rotating IPs cannot flood someone's inbox. Applied whether or not the
     # account exists, so it reveals nothing.
     _limit(request, "forgot-email", body.email.strip().lower()[:320], 5, 3600.0)
     s = get_settings()
-    token = auth.request_reset(db, body.email, request.app.state.email_sender, s.public_url)
+    token = auth.request_reset(db, body.email, request.app.state.email_sender, s.public_url,
+                               defer=background.add_task)  # fmt: skip
     out: dict[str, Any] = {
         "sent": True,
         "message": "If an account exists for that address, a reset link has been sent.",
@@ -393,18 +399,24 @@ def revoke(session_id: int, ctx: Ctx = Depends(require_ctx),
 class TokenIn(BaseModel):
     label: str = Field(min_length=1, max_length=120)
     days: int = Field(90, ge=1, le=365)
+    scope: Literal["full", "read"] = "full"
 
 
 @router.post("/tokens", status_code=201)
-def create_token(body: TokenIn, ctx: Ctx = Depends(require_ctx),
+def create_token(body: TokenIn, ctx: Ctx = Depends(require_verified),
                  db: Session = Depends(get_db)) -> dict[str, Any]:  # fmt: skip
-    """An API token for the CLI or scripts (Authorization: Bearer ...). Shown once."""
+    """An API token for the CLI or scripts (Authorization: Bearer ...). Shown once. Tokens are made
+    from a browser sign-in only, so a leaked token cannot make more of itself."""
+    if ctx.via == "bearer":
+        raise HTTPException(403, "Create tokens from the account page, not with another token.")
     token, row = auth.create_session(db, ctx.user, days=body.days, kind="api", label=body.label,
                                      ip=ctx.ip)  # fmt: skip
+    row.scope = body.scope
+    db.commit()
     audit.audit(db, "account.api_token_created", workspace_id=ctx.workspace_id,
                 user_id=ctx.user_id, target_type="session", target_id=row.id, ip=ctx.ip,
-                detail={"label": body.label})  # fmt: skip
-    return {"id": row.id, "token": token, "expires_at": row.expires_at.isoformat(),
+                detail={"label": body.label, "scope": body.scope})  # fmt: skip
+    return {"id": row.id, "token": token, "scope": body.scope, "expires_at": row.expires_at.isoformat(),
             "note": "Copy it now: it is not shown again."}  # fmt: skip
 
 

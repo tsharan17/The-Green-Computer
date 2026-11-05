@@ -39,10 +39,10 @@ export function SkipLink({ target }: { target: string }) {
 }
 
 /** Header, main and footer for the pages anyone can open without an account. */
-export default function PublicChrome({ children, signedIn = false }: { children: ReactNode; signedIn?: boolean }) {
+export default function PublicChrome({ children, signedIn = false, className = "" }: { children: ReactNode; signedIn?: boolean; className?: string }) {
   const cfg = useSiteInfo();
   return (
-    <div className="pub">
+    <div className={`pub ${className}`}>
       <SkipLink target="pub-main" />
       <header className="pub-head">
         <a className="pub-brand" href="#/">
@@ -52,6 +52,7 @@ export default function PublicChrome({ children, signedIn = false }: { children:
         <nav className="pub-nav" aria-label="Site">
           <a href="#/try">Try an example</a>
           <a href="#/how">How we estimate</a>
+          <a href="#/llm">Language models</a>
           <InstallButton />
           {signedIn ? (
             <a className="btn-link primary" href="#/">Open your workspace</a>

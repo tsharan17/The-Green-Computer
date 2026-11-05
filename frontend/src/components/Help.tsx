@@ -81,7 +81,7 @@ export function ErrorNote({ error, onRetry }: { error: unknown; onRetry?: () => 
     413: { title: "The file is too large." },
     422: { title: "Something in the input needs changing." },
     429: { title: "Too many requests in a short time. Wait a moment, then try again." },
-    503: { title: "An optional service is not available on this installation." },
+    503: { title: "An optional feature is not available here." },
   };
   const m = status ? map[status] : undefined;
   const network = /reach the Green Computer server/.test(msg);

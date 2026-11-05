@@ -16,8 +16,10 @@ export default function AccountPage({ me, onChanged, onDeleted }: { me: Me; onCh
   const [next, setNext] = useState("");
   const [tokLabel, setTokLabel] = useState("");
   const [newToken, setNewToken] = useState<string | null>(null);
+  const [tokScope, setTokScope] = useState<"full" | "read">("full");
   const [teamName, setTeamName] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
+  const [inviteTick, setInviteTick] = useState(0);
   const [memberRole, setMemberRole] = useState("editor");
   const [delPw, setDelPw] = useState("");
   const [delConfirm, setDelConfirm] = useState("");
@@ -81,7 +83,7 @@ export default function AccountPage({ me, onChanged, onDeleted }: { me: Me; onCh
             onSubmit={(e) => {
               e.preventDefault();
               run(async () => {
-                const t = await auth.token(tokLabel || "script", 90);
+                const t = await auth.token(tokLabel || "script", 90, tokScope);
                 setNewToken(t.token);
                 setTokLabel("");
                 return "Token created. Copy it now: it is not shown again.";
@@ -89,6 +91,12 @@ export default function AccountPage({ me, onChanged, onDeleted }: { me: Me; onCh
             }}
           >
             <label className="field">Label<input value={tokLabel} onChange={(e) => setTokLabel(e.target.value)} placeholder="e.g. CI pipeline" maxLength={120} /></label>
+            <label className="field">Access
+              <select value={tokScope} onChange={(e) => setTokScope(e.target.value as "full" | "read")}>
+                <option value="full">Read and change</option>
+                <option value="read">Read only</option>
+              </select>
+            </label>
             <button>Create a 90-day token</button>
           </form>
           {newToken && (
@@ -120,10 +128,11 @@ export default function AccountPage({ me, onChanged, onDeleted }: { me: Me; onCh
         </div>
       </section>
 
+      <InvitesForYou run={run} onChanged={onChanged} />
       <div className="ws-grid">
         <section className="panel" aria-labelledby="team-h">
           <h2 id="team-h">Team workspaces</h2>
-          <p className="hint">Your personal workspace is private. To share projects, create a team workspace and add people who already have an account.</p>
+          <p className="hint">Your personal workspace is private. To share projects, create a team workspace and invite people by email. They join when they accept.</p>
           <form
             className="inline-form"
             onSubmit={(e) => {
@@ -153,6 +162,7 @@ export default function AccountPage({ me, onChanged, onDeleted }: { me: Me; onCh
               </li>
             ))}
           </ul>
+          {me.role === "owner" && ws && !ws.personal && <PendingInvites key={`${ws.id}-${inviteTick}`} run={run} />}
           {me.role === "owner" && ws && !ws.personal && (
             <form
               className="inline-form"
@@ -161,7 +171,8 @@ export default function AccountPage({ me, onChanged, onDeleted }: { me: Me; onCh
                 run(async () => {
                   await workspace.addMember(memberEmail, memberRole);
                   setMemberEmail("");
-                  return "Member added.";
+                  setInviteTick((n) => n + 1);
+                  return "Invitation sent. They join when they accept it.";
                 });
               }}
             >
@@ -229,5 +240,61 @@ export default function AccountPage({ me, onChanged, onDeleted }: { me: Me; onCh
         </form>
       </section>
     </div>
+  );
+}
+
+type Run = (f: () => Promise<string>) => void;
+
+/** Invitations sent to this account's address. Nobody joins a workspace without saying yes here. */
+function InvitesForYou({ run, onChanged }: { run: Run; onChanged: () => void }) {
+  const [items, setItems] = useState<Awaited<ReturnType<typeof workspace.myInvites>>>([]);
+  useEffect(() => {
+    workspace.myInvites().then(setItems).catch(() => setItems([]));
+  }, []);
+  if (!items.length) return null;
+  const answer = (id: number, f: (id: number) => Promise<unknown>, done: string) => run(async () => {
+    await f(id);
+    setItems((l) => l.filter((x) => x.id !== id));
+    onChanged();
+    return done;
+  });
+  return (
+    <section className="panel" aria-labelledby="inv-h">
+      <h2 id="inv-h">Invitations for you</h2>
+      <ul className="plain-list">
+        {items.map((i) => (
+          <li key={i.id}>
+            <span>{i.workspace}</span> <span className="badge">{i.role}</span>{" "}
+            <button className="link" onClick={() => answer(i.id, workspace.acceptInvite, `You joined ${i.workspace}. Switch to it from the workspace menu at the top.`)}>Accept</button>{" "}
+            <button className="link" onClick={() => answer(i.id, workspace.declineInvite, "Invitation declined.")}>Decline</button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function PendingInvites({ run }: { run: Run }) {
+  const [items, setItems] = useState<Awaited<ReturnType<typeof workspace.pendingInvites>>>([]);
+  useEffect(() => {
+    workspace.pendingInvites().then(setItems).catch(() => setItems([]));
+  }, []);
+  if (!items.length) return null;
+  return (
+    <>
+      <h3>Waiting for an answer</h3>
+      <ul className="plain-list">
+        {items.map((i) => (
+          <li key={i.id}>
+            <span>{i.email}</span> <span className="badge">{i.role}</span>{" "}
+            <button className="link" onClick={() => run(async () => {
+              await workspace.cancelInvite(i.id);
+              setItems((l) => l.filter((x) => x.id !== i.id));
+              return "Invitation cancelled.";
+            })}>Cancel</button>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

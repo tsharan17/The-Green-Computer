@@ -40,6 +40,8 @@ class EvaluationResult(BaseModel):
     # (seconds, deg C) steady-load warm-up curve at the nominal operating point.
     thermal_trace: list[tuple[float, float]] = []
     engine_version: str
+    # Share of the model's layers with a cost model; below 1.0 the verdict cannot be feasible.
+    model_coverage: float = 1.0
 
 
 class Recommendation(BaseModel):
@@ -84,6 +86,7 @@ class OptimisationResult(BaseModel):
     recommendation: Recommendation | None
     codesign: CoDesign
     points: list[Point]
+    points_thinned: bool = False  # true when `points` is a sample of what was evaluated, for the chart
     evaluated: int
     counts: dict[str, int]
     search_seconds: float

@@ -223,6 +223,21 @@ class MembershipRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class InvitationRow(Base):
+    """An offer to join a team workspace. Nobody joins until they accept it from their own account."""
+
+    __tablename__ = "workspace_invitations"
+    __table_args__ = (UniqueConstraint("workspace_id", "email", name="uq_invitation"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    email: Mapped[str] = mapped_column(String(320), index=True)
+    role: Mapped[str] = mapped_column(String(20), default="editor")
+    invited_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class SessionRow(Base):
     """A sign-in (browser cookie) or an API token. Only a hash of the token is stored."""
 
@@ -232,6 +247,7 @@ class SessionRow(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     kind: Mapped[str] = mapped_column(String(10), default="browser")  # browser | api
+    scope: Mapped[str] = mapped_column(String(10), default="full", server_default="full")  # full | read
     label: Mapped[str] = mapped_column(String(120), default="")
     user_agent: Mapped[str] = mapped_column(String(300), default="")
     ip: Mapped[str] = mapped_column(String(64), default="")

@@ -64,6 +64,7 @@ export interface EvaluationResult {
   time_to_throttle_s: number | null;
   thermal_trace: [number, number][];
   engine_version: string;
+  model_coverage: number;
 }
 
 export interface Recommendation {
@@ -195,6 +196,7 @@ export interface OptimisationResult {
   recommendation: Recommendation | null;
   codesign: CoDesign;
   points: Point[];
+  points_thinned?: boolean;
   evaluated: number;
   counts: Record<string, number>;
   search_seconds: number;
@@ -280,6 +282,7 @@ export interface Constraints {
 export type Priority = "balanced" | "faster" | "lower_power" | "lower_heat" | "lower_cost" | "fit_memory";
 
 export interface ProjectSpec {
+  runtime?: "onnxruntime" | "tflite" | "openvino" | "tensorrt" | "pytorch" | "coreml" | "qnn" | "other" | null;
   name: string;
   priority?: Priority;
   use_case?: string | null;

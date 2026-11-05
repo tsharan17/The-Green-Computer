@@ -9,11 +9,11 @@ from app.schemas.results import Config
 
 
 class Workload(BaseModel):
-    fps: float = Field(30.0, gt=0)
-    ambient_c: float = 40.0
+    fps: float = Field(30.0, gt=0, le=1e9, allow_inf_nan=False)
+    ambient_c: float = Field(40.0, ge=-60, le=125, allow_inf_nan=False)
     hours_per_day: float = Field(24.0, ge=0, le=24)
-    price_per_kwh: float = Field(0.15, ge=0)
-    grid_gco2_per_kwh: float = Field(400.0, ge=0)
+    price_per_kwh: float = Field(0.15, ge=0, le=100, allow_inf_nan=False)
+    grid_gco2_per_kwh: float = Field(400.0, ge=0, le=5000, allow_inf_nan=False)
     # Real-time stream: frames arrive one at a time at `fps`, so a batch of B must wait for
     # B-1 more frames and the worst-case frame latency includes that wait. Set False for
     # offline / queued workloads where all inputs are already available.
@@ -23,13 +23,13 @@ class Workload(BaseModel):
 class Constraints(BaseModel):
     """Hard constraints. Only the user (project form) may change these."""
 
-    max_power_w: float = 55.0
+    max_power_w: float = Field(55.0, gt=0, le=1e9, allow_inf_nan=False)
     min_accuracy: float = Field(0.90, gt=0, le=1.0)
     # relative: fraction of the model's baseline accuracy retained
     # absolute: value of the model's own accuracy metric (e.g. mAP)
     accuracy_mode: Literal["relative", "absolute"] = "relative"
-    max_latency_ms: float | None = None
-    max_memory_gb: float | None = None
+    max_latency_ms: float | None = Field(None, gt=0, allow_inf_nan=False)
+    max_memory_gb: float | None = Field(None, gt=0, allow_inf_nan=False)
     forbid_throttling: bool = True
 
 
@@ -50,6 +50,8 @@ Priority = Literal["balanced", "faster", "lower_power", "lower_heat", "lower_cos
 
 class ProjectSpec(BaseModel):
     name: str
+    # What the model will run on. Recorded with the project; no number depends on it yet.
+    runtime: Literal["onnxruntime", "tflite", "openvino", "tensorrt", "pytorch", "coreml", "qnn", "other"] | None = None
     # What matters most when several setups meet every requirement (ranking only; it never
     # relaxes a requirement). "balanced" = least energy per input.
     priority: Priority = "balanced"

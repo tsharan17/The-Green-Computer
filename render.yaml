@@ -14,13 +14,15 @@ services:
     region: ohio  # next to the Neon database (AWS us-east-2)
     dockerfilePath: ./Dockerfile
     # The light check: Render gives it 5 s, and on the free plan's small CPU share an analysis can
-    # slow the full /ready (database, schema, storage) past that. Uptime monitoring uses /ready.
+    # slow the full /ready (database, schema, storage) past that. Uptime monitoring should use /health too, so it does not keep the database awake.
     healthCheckPath: /api/v1/health
     autoDeploy: true
     envVars:
       - { key: GC_ENV, value: production }
       - { key: GC_HOSTED, value: "1" }
       - { key: GC_TRUST_PROXY, value: "1" }
+      # Render sits behind Cloudflare, which overwrites this header; X-Forwarded-For can be forged.
+      - { key: GC_CLIENT_IP_HEADER, value: CF-Connecting-IP }
       - { key: GC_LOG_FORMAT, value: json }
       - { key: GC_DATA_DIR, value: /data/files }
       - { key: GC_REQUIRE_EMAIL_VERIFICATION, value: "1" }

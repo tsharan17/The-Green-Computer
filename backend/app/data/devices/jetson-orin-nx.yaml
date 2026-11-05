@@ -30,4 +30,4 @@ sources:
   peak_tflops: assumed
   power_model: assumed
   thermal: assumed
-notes: Same derivation notes as Orin Nano. Constants are assumptions pending calibration.
+notes: Performance and power figures are estimates until they are checked against measurements.

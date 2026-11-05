@@ -9,7 +9,7 @@
 # Configuration comes from the environment (see .env.example). No secret is baked into the image.
 
 # ---- 1. build the web UI -----------------------------------------------------------------
-FROM node:20.18.0-alpine AS ui
+FROM node:24.13.1-alpine AS ui
 WORKDIR /ui
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
@@ -26,10 +26,11 @@ ENV PYTHONUNBUFFERED=1 \
     GC_DATA_DIR=/data/files
 WORKDIR /srv
 COPY backend/pyproject.toml ./backend/pyproject.toml
+COPY backend/requirements.lock ./backend/requirements.lock
 COPY backend/alembic.ini ./backend/alembic.ini
 COPY backend/app ./backend/app
 # Editable install keeps the source tree in place, so the UI can be dropped into app/static.
-RUN pip install --upgrade "pip>=26.2" && pip install -e "./backend[postgres]"
+RUN pip install --upgrade "pip>=26.2" && pip install -c ./backend/requirements.lock -e "./backend[postgres]"
 COPY --from=ui /ui-dist ./backend/app/static
 # bench/ holds the reference model builder used by local runs, and scripts for GPU jobs.
 COPY bench ./bench

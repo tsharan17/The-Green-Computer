@@ -54,7 +54,7 @@ export default function SummaryPage({ res, spec, projectId, runId, version }: { 
     { label: "Average power", unit: "W", today: b.metrics.power_avg.value, plan: null, limit: c.max_power_w, lower: true },
     { label: "Latency per input", unit: "ms", today: b.metrics.latency.value, plan: null, limit: c.max_latency_ms, lower: true },
     { label: "Throughput", unit: "/s", today: b.metrics.capacity_fps.value, plan: null, limit: spec.workload.fps, lower: false },
-    { label: "Temperature", unit: "°C", today: b.metrics.temperature_unthrottled.value, plan: null, limit: null, lower: true },
+    { label: "Temperature if it never slowed down", unit: "°C", today: b.metrics.temperature_unthrottled.value, plan: null, limit: null, lower: true },
   ];
   return (
     <div className="summary-page">
@@ -66,6 +66,7 @@ export default function SummaryPage({ res, spec, projectId, runId, version }: { 
         {v?.baseline.problems.length ? (
           <ul className="vb-problems">{v.baseline.problems.map((p) => <li key={p}>{p}</li>)}</ul>
         ) : null}
+        {b.model_coverage < 1 && <p className="note-warn" role="status">{b.notes[0]}</p>}
       </section>
 
       <section className="bottleneck" aria-labelledby="bn-h2">
@@ -78,7 +79,7 @@ export default function SummaryPage({ res, spec, projectId, runId, version }: { 
         <h2 id="lim-h">Against your limits</h2>
         <p className="muted">Each bar is today's predicted value; the tick is the limit you set. A cross marks a missed requirement.</p>
         <LimitBars rows={rows} />
-        <p className="hint">Temperature is shown without throttling: the level the chip would reach if it did not slow itself down. <Why id="throttling" /></p>
+        <p className="hint">This is the level the chip would reach if it did not slow itself down. The key figures below show the temperature it actually settles at, after any slowing. <Why id="throttling" /></p>
       </section>
 
       <h2 className="section-title">Key figures</h2>

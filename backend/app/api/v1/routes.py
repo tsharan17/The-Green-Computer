@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import __version__
-from app.auth.deps import Ctx, get_db, require_ctx, require_writer
+from app.auth.deps import Ctx, get_db, require_ctx, require_verified, require_writer
 from app.data_loader import load_devices
 from app.db import repository as repo
 from app.engine.workload.onnx_parser import ModelParseError, manual_profile
@@ -16,11 +16,14 @@ from app.schemas.model import ModelProfile
 from app.schemas.project import ProjectOut, ProjectSpec
 from app.schemas.results import Config, EvaluationResult, OptimisationResult
 from app.security import (
+    analysis_slot,
     demo_mode,
     limit_analyse,
+    limit_daily_runs,
     max_custom_items,
     max_projects,
     max_upload_bytes,
+    raw_body,
 )
 from app.services import audit
 from app.services import evaluation_service as svc
@@ -83,7 +86,7 @@ class UploadOut(BaseModel):
     response_model_exclude={"profile": {"layers", "tensors"}},
     status_code=201,
 )
-async def upload_model(
+def upload_model(
     request: Request,
     filename: str = "model.onnx",
     name: str | None = None,
@@ -93,6 +96,7 @@ async def upload_model(
     project_id: int | None = None,
     db: Session = Depends(get_db),
     ctx: Ctx = Depends(require_writer),
+    data: bytes = Depends(raw_body),
 ) -> UploadOut:
     """Raw ONNX bytes in the request body (Content-Type: application/octet-stream).
 
@@ -102,12 +106,8 @@ async def upload_model(
 
     if filename.lower().endswith(REFUSED_EXTENSIONS):
         raise HTTPException(415, "pickle-based and torch checkpoint files are refused; use ONNX")
-    declared = request.headers.get("content-length")
     limit = max_upload_bytes(MAX_UPLOAD_BYTES)
     _check_custom_model_cap(db, ctx.workspace_id)
-    if declared and declared.isdigit() and int(declared) > limit:
-        raise HTTPException(413, f"file too large (limit {limit // (1024 * 1024)} MB)")
-    data = await request.body()
     if len(data) > limit:
         raise HTTPException(413, f"file too large (limit {limit // (1024 * 1024)} MB)")
     if not 0 < baseline_accuracy <= 1:
@@ -279,7 +279,7 @@ def project_run(
 @router.post("/projects/{project_id}/evaluate", response_model=EvaluationResult)
 def evaluate_project(
     project_id: int, config: Config | None = None, db: Session = Depends(get_db),
-    ctx: Ctx = Depends(require_writer),
+    ctx: Ctx = Depends(require_writer), _rl: None = Depends(limit_analyse),
 ) -> EvaluationResult:  # fmt: skip
     p = project_for(db, ctx, project_id)
     try:
@@ -296,8 +296,10 @@ def optimise_project(
     project_id: int, db: Session = Depends(get_db), ctx: Ctx = Depends(require_writer),
     _rl: None = Depends(limit_analyse),
 ) -> OptimisationResult:  # fmt: skip
+    limit_daily_runs(ctx.user_id)
     p = project_for(db, ctx, project_id)
-    out = svc.optimise_project(db, p.id, p.spec, ctx.workspace_id, ctx.user_id)
+    with analysis_slot():
+        out = svc.optimise_project(db, p.id, p.spec, ctx.workspace_id, ctx.user_id)
     audit.usage(db, "analysis", 1, workspace_id=ctx.workspace_id, user_id=ctx.user_id,
                 project_id=p.id, detail={"kind": "optimise", "evaluated": out.evaluated},
                 commit=False)  # fmt: skip
@@ -311,7 +313,7 @@ def optimise_project(
 @router.post("/projects/{project_id}/layers")
 def project_layers(
     project_id: int, config: Config | None = None, db: Session = Depends(get_db),
-    ctx: Ctx = Depends(require_ctx),
+    ctx: Ctx = Depends(require_verified), _rl: None = Depends(limit_analyse),
 ) -> dict:  # fmt: skip
     """Where the time goes, layer by layer, for a configuration (default: the current setup)."""
     from app.engine.layers import layer_profile

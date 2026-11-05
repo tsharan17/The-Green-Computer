@@ -35,6 +35,7 @@ class RooflineResult:
 
 
 _ARRAYS: dict[tuple, tuple[np.ndarray, np.ndarray, np.ndarray, int]] = {}
+_ARRAYS_MAX = 256  # uploaded models can have thousands of layers, so this must not grow for ever
 
 
 def _arrays(model: ModelProfile) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
@@ -53,6 +54,8 @@ def _arrays(model: ModelProfile) -> tuple[np.ndarray, np.ndarray, np.ndarray, in
         params = np.array([model.params_m * 1e6])
         acts = np.array([model.act_mb_fp32 * 1e6 / 4.0])
         n = model.n_layers
+    if len(_ARRAYS) >= _ARRAYS_MAX:
+        _ARRAYS.pop(next(iter(_ARRAYS)))  # oldest first
     _ARRAYS[key] = (flops, params, acts, n)
     return _ARRAYS[key]
 

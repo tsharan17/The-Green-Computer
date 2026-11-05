@@ -28,10 +28,22 @@ VIEW_OPS = {
 FUSED_ELEMENTWISE = {
     "Relu", "LeakyRelu", "Sigmoid", "Tanh", "Clip", "HardSwish", "HardSigmoid", "Add", "Sub",
     "Mul", "Div", "BatchNormalization", "PRelu", "Elu", "Gelu", "Erf", "Mish", "Neg", "Sqrt",
-    "Pow", "Min", "Max", "Where", "Softplus",
+    "Pow", "Min", "Max", "Where", "Softplus", "Softsign", "Abs", "Exp", "Log", "Sin", "Cos", "Ceil",
+    "Floor", "Round", "Sign", "Mod", "Sum", "Mean", "Equal", "Less", "LessOrEqual", "Greater",
+    "GreaterOrEqual", "And", "Or", "Not", "QuantizeLinear", "DequantizeLinear", "QLinearAdd",
+    "QLinearMul", "QLinearSigmoid", "QLinearLeakyRelu",
 }  # fmt: skip
-FLOAT_TYPES = {
-    TensorProto.FLOAT, TensorProto.FLOAT16, TensorProto.DOUBLE, TensorProto.BFLOAT16,
+# Operators with their own cost model (the branches of the layer loop below).
+COMPUTE_OPS = {
+    "Conv", "ConvTranspose", "ConvInteger", "QLinearConv", "Gemm", "MatMul", "MatMulInteger", "QLinearMatMul", "Einsum",
+    "LSTM", "GRU", "RNN", "Attention", "MultiHeadAttention", "MaxPool", "AveragePool", "GlobalAveragePool",
+    "QLinearAveragePool", "QLinearGlobalAveragePool", "ReduceMean", "ReduceSum", "ReduceMax", "ReduceMin", "ReduceProd",
+    "ReduceL1", "ReduceL2", "ArgMax", "ArgMin", "TopK", "LpPool", "GlobalMaxPool", "Softmax", "LayerNormalization", "InstanceNormalization", "GroupNormalization",
+}  # fmt: skip
+# Weights may be quantised. Scalars (scales, zero points) and int64 shapes are not weights.
+WEIGHT_TYPES = {
+    TensorProto.FLOAT, TensorProto.FLOAT16, TensorProto.DOUBLE, TensorProto.BFLOAT16, TensorProto.INT8,
+    TensorProto.UINT8, TensorProto.INT16, TensorProto.UINT16, TensorProto.INT32,
 }  # fmt: skip
 
 
@@ -67,6 +79,20 @@ def _dims(vi_type, name: str, default: int | None, first: bool) -> list[int] | N
                 "provide dynamic_dim_default"
             )
     return out
+
+
+def _einsum_macs(equation: str, shapes: list[list[int] | None]) -> float | None:
+    """One multiply per combination of index values. None if the equation cannot be read."""
+    left = equation.replace(" ", "").split("->")[0]
+    terms = left.split(",")
+    if "." in left or len(terms) != len(shapes):
+        return None
+    sizes: dict[str, int] = {}
+    for term, shape in zip(terms, shapes, strict=True):
+        if shape is None or len(term) != len(shape):
+            return None
+        sizes.update(zip(term, shape, strict=True))
+    return float(_prod(list(sizes.values())))
 
 
 def parse_onnx(
@@ -110,7 +136,7 @@ def parse_onnx(
             if dims is not None:
                 shapes[vi.name] = dims
 
-    float_init = {i.name for i in g.initializer if i.data_type in FLOAT_TYPES}
+    float_init = {i.name for i in g.initializer if i.data_type in WEIGHT_TYPES and _prod(i.dims) > 1}
     warnings: list[str] = []
     seen_init: set[str] = set()
     layers: list[Layer] = []
@@ -164,7 +190,38 @@ def parse_onnx(
                 params += elems(i)
 
         macs = 0.0
-        if op in ("Conv", "ConvTranspose"):
+        if op in ("QLinearConv", "ConvInteger"):
+            w = shapes.get(ins[3 if op == "QLinearConv" else 1]) if len(ins) > 3 or op == "ConvInteger" else None
+            if not w or len(w) < 3:
+                raise ModelParseError(f"{op} node '{node.name or idx}' has unknown weight shape")
+            macs = out_e * w[1] * _prod(w[2:])
+        elif op in ("LSTM", "GRU", "RNN") and shapes.get(ins[0]) and len(ins) > 2 and ins[1] in shapes and ins[2] in shapes:
+            # Every time step multiplies by all the input and recurrent weights.
+            layout = next((a_.i for a_ in node.attribute if a_.name == "layout"), 0)
+            x = shapes[ins[0]]
+            steps, batch = (x[1], x[0]) if layout else (x[0], x[1])
+            macs = float(steps * batch) * (_prod(shapes[ins[1]]) + _prod(shapes[ins[2]]))
+        elif op == "Einsum":
+            equation = next((a_.s.decode() for a_ in node.attribute if a_.name == "equation"), "")
+            got = _einsum_macs(equation, [shapes.get(i) for i in ins])
+            if got is None:
+                warnings.append("Einsum with a form that could not be read counted as data movement only")
+            macs = got or 0.0
+        elif op in ("Attention", "MultiHeadAttention") and shapes.get(ins[0]) and len(shapes[ins[0]]) == 3:
+            # Query, key and value projections, then the attention product (ignoring head count).
+            _, n, d = shapes[ins[0]]
+            macs = float(3 * n * d * d + n * n * d)
+        elif op in ("QLinearMatMul", "MatMulInteger"):
+            a = shapes.get(ins[0])
+            if not a:
+                raise ModelParseError(f"{op} node '{node.name or idx}' has unknown input shape")
+            macs = out_e * a[-1]
+        elif op in ("QLinearAveragePool", "QLinearGlobalAveragePool", "ReduceMax", "ReduceMin", "ReduceProd",
+                    "ReduceL2", "ReduceL1", "ArgMax", "ArgMin", "TopK", "LpPool", "GlobalMaxPool"):  # fmt: skip
+            macs = elems(ins[0]) / 2.0
+        elif op == "QLinearConcat":
+            macs = 0.0
+        elif op in ("Conv", "ConvTranspose"):
             w = shapes.get(ins[1]) if len(ins) > 1 else None
             if not w or len(w) < 3:
                 raise ModelParseError(f"{op} node '{node.name or idx}' has unknown weight shape")
@@ -192,7 +249,7 @@ def parse_onnx(
                     "Tile", "Upsample", "ScatterND", "GatherND"):  # fmt: skip
             macs = 0.0  # pure data movement
         else:
-            warnings.append(f"unsupported op '{op}' counted as data movement only")
+            warnings.append(f"unsupported op '{op}' has no cost model: counted as zero compute")
 
         layer = Layer(
             name=node.name or f"{op}_{idx}",

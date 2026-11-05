@@ -89,6 +89,7 @@ export default function ExplorePage({ res, spec, projectId }: { res: Optimisatio
           <section className="panel">
             <h2>Every option the search tried</h2>
             <ParetoChart points={res.points} baseline={res.baseline} />
+            {res.points_thinned && <p className="hint">The chart shows the best options and an even sample of the rest. The counts below cover every option tried.</p>}
             <p className="hint">
               {res.evaluated.toLocaleString()} settings: {Object.entries(res.counts).map(([k, v]) => `${v} ${k.replace("_", " ")}`).join(", ")}.
             </p>

@@ -144,6 +144,17 @@ def apply_retention(db: Session, blobs: BlobStore, ws: int, user: int | None, dr
     return out
 
 
+def sweep_retention(session_factory: Any, blobs: BlobStore) -> int:
+    """Apply every workspace's own rules. A workspace with no rules keeps everything."""
+    done = 0
+    with session_factory() as db:
+        for ws in list(db.scalars(select(WorkspaceRow.id))):
+            if any(get_retention(db, ws).values()):
+                apply_retention(db, blobs, ws, None, dry_run=False)
+                done += 1
+    return done
+
+
 # --- export ------------------------------------------------------------------------------------------
 
 

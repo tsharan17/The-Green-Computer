@@ -13,7 +13,7 @@ export default function StatusBar() {
   }, []);
   return (
     <footer className="statusbar">
-      <span><i className={`dot ${h ? "on" : ""}`} /> {h ? `Engine online · v${h.version}` : "Engine unreachable"}</span>
+      <span><i className={`dot ${h ? "on" : ""}`} /> {h ? `Service online · v${h.version}` : "Service unreachable"}</span>
       {h?.demo_mode && <span><i className="dot warn" /> Public demo mode</span>}
     </footer>
   );

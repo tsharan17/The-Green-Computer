@@ -48,7 +48,7 @@ class Ctx:
 
     @property
     def can_write(self) -> bool:
-        return self.role in ("owner", "editor")
+        return self.role in ("owner", "editor") and self.session.scope != "read"
 
 
 def _token(request: Request) -> tuple[str, str] | None:
@@ -74,6 +74,8 @@ def optional_ctx(request: Request, db: Session = Depends(get_db)) -> Ctx | None:
             ws_id = int(ws_header)
         except ValueError:
             raise HTTPException(400, "X-GC-Workspace must be a workspace id") from None
+        if not 0 < ws_id < 2**31:
+            raise HTTPException(403, "You are not a member of this workspace.")
     else:
         ws_id = auth.default_workspace_id(db, user.id) or 0
     role = auth.role_in(db, user.id, ws_id) if ws_id else None
@@ -92,11 +94,15 @@ def require_ctx(request: Request, ctx: Ctx | None = Depends(optional_ctx)) -> Ct
     return ctx
 
 
-def require_writer(ctx: Ctx = Depends(require_ctx)) -> Ctx:
-    if not ctx.can_write:
-        raise HTTPException(403, "Your role in this workspace is read-only.")
+def require_verified(ctx: Ctx = Depends(require_ctx)) -> Ctx:
     from app.auth.account_security import verification_required
 
     if verification_required() and ctx.user.email_verified_at is None:
         raise HTTPException(403, "Confirm your email address first: open the link we sent you, or send a new one from Account.")
+    return ctx
+
+
+def require_writer(ctx: Ctx = Depends(require_verified)) -> Ctx:
+    if not ctx.can_write:
+        raise HTTPException(403, "Your role in this workspace is read-only.")
     return ctx

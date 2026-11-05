@@ -15,10 +15,13 @@ import os
 import threading
 import time
 from collections import defaultdict, deque
+from collections.abc import Iterator
+from contextlib import contextmanager
+from urllib.parse import quote
 
 from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 
 def _truthy(v: str | None) -> bool:
@@ -60,11 +63,22 @@ def _int_env(name: str, demo_default: int, local_default: int = 0) -> int:
 
 
 def client_ip(request: Request) -> str:
-    """The caller's address. X-Forwarded-For is trusted only behind a known proxy."""
+    """The caller's address, used for rate limits and the audit log.
+
+    Behind a known proxy (GC_TRUST_PROXY=1) the caller can write anything into X-Forwarded-For and
+    proxies only append, so the leftmost entries prove nothing. Trust, in order: the single header the
+    proxy overwrites (GC_CLIENT_IP_HEADER, e.g. CF-Connecting-IP), then the entry added by the outermost
+    of GC_TRUSTED_PROXY_HOPS proxies, counted from the right.
+    """
     if _truthy(os.environ.get("GC_TRUST_PROXY")):
-        fwd = request.headers.get("x-forwarded-for", "")
-        if fwd:
-            return fwd.split(",")[0].strip()
+        name = os.environ.get("GC_CLIENT_IP_HEADER", "").strip()
+        value = request.headers.get(name.lower(), "").strip() if name else ""
+        if value:
+            return value
+        entries = [e.strip() for e in request.headers.get("x-forwarded-for", "").split(",") if e.strip()]
+        if entries:
+            hops = max(_int_env("GC_TRUSTED_PROXY_HOPS", 1, 1), 1)
+            return entries[-min(hops, len(entries))]
     return request.client.host if request.client else "unknown"
 
 
@@ -216,10 +230,128 @@ def max_custom_items() -> int:
     return _int_env("GC_MAX_CUSTOM_ITEMS", 50)
 
 
+def max_workspaces_per_user() -> int:
+    return _int_env("GC_MAX_WORKSPACES_PER_USER", 5)
+
+
+def max_workspace_storage_bytes() -> int:
+    """Kept file bytes per workspace. Files live in the database on the free plan, so this matters."""
+    return _int_env("GC_MAX_WORKSPACE_STORAGE_MB", 150) * 1024 * 1024
+
+
+_ANALYSES: threading.BoundedSemaphore | None = None
+_ANALYSES_LOCK = threading.Lock()
+
+
+@contextmanager
+def analysis_slot() -> Iterator[None]:
+    """On a shared server, only so many searches run at once; the next person is told to retry."""
+    global _ANALYSES
+    if not shared_server():
+        yield
+        return
+    with _ANALYSES_LOCK:
+        if _ANALYSES is None:
+            _ANALYSES = threading.BoundedSemaphore(_int_env("GC_MAX_CONCURRENT_ANALYSES", 2))
+    if not _ANALYSES.acquire(blocking=False):
+        raise HTTPException(503, "The service is busy with other analyses. Try again in a moment.",
+                            headers={"Retry-After": "15"})  # fmt: skip
+    try:
+        yield
+    finally:
+        _ANALYSES.release()
+
+
+def limit_daily_runs(user_id: int) -> None:
+    """A daily allowance per account, which changing address does not reset."""
+    wait = LIMITER.check(f"runs:u{user_id}", _int_env("GC_MAX_RUNS_PER_DAY", 300), 86400.0)
+    if wait is not None:
+        raise HTTPException(
+            429, "You have reached today's limit of analyses on this free service. Try again tomorrow.",
+            headers={"Retry-After": str(int(wait) + 1)},
+        )  # fmt: skip
+
+
+def attachment(filename: str) -> str:
+    """A Content-Disposition value that is safe for any file name (RFC 6266 and RFC 5987)."""
+    plain = "".join(c if c.isascii() and c.isprintable() and c not in '"\\;' else "_" for c in filename) or "download"
+    return f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(filename, safe='')}"
+
+
 def max_upload_bytes(default: int) -> int:
     if not shared_server():
         return default
     return min(default, _int_env("GC_MAX_UPLOAD_MB", 50 if hosted() else 10) * 1024 * 1024)
+
+
+# Routes whose body is a file; every other route takes a small JSON document.
+FILE_BODY_PATHS = ("/models/upload", "/intake/upload", "/files/inspect", "/measurements/import")
+LARGEST_UPLOAD_BYTES = 100 * 1024 * 1024
+
+
+def _body_limit(path: str) -> int:
+    """Largest request body for this path in bytes; 0 means no limit (a private local install)."""
+    if not shared_server():
+        return 0
+    if path.endswith(FILE_BODY_PATHS):
+        return max_upload_bytes(LARGEST_UPLOAD_BYTES)
+    return _int_env("GC_MAX_JSON_BODY_KB", 2048) * 1024
+
+
+def _too_large(limit: int) -> str:
+    size = f"{limit // (1024 * 1024)} MB" if limit >= 1024 * 1024 else f"{limit // 1024} KB"
+    return f"file too large (limit {size})"
+
+
+class IdBounds:
+    """A path id too long to be any real row is simply not found, whatever the database thinks of it."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http" and any(s.isdigit() and len(s) > 18 for s in scope["path"].split("/")):
+            await JSONResponse({"detail": "Not found."}, status_code=404)(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
+
+
+class BodyLimit:
+    """Refuse oversized request bodies while they arrive, so none is ever held whole in memory.
+
+    Content-Length is checked first, and the bytes are counted too because a chunked request need not
+    declare a length. Sits inside the app's error handling, so the 413 is an ordinary response.
+    """
+
+    def __init__(self, app) -> None:  # type: ignore[no-untyped-def]
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:  # type: ignore[no-untyped-def]
+        limit = _body_limit(scope["path"]) if scope["type"] == "http" else 0
+        if not limit:
+            await self.app(scope, receive, send)
+            return
+        declared = dict(scope["headers"]).get(b"content-length", b"")
+        if declared.isdigit() and int(declared) > limit:
+            await JSONResponse({"detail": _too_large(limit)}, status_code=413)(scope, receive, send)
+            return
+        seen = 0
+
+        async def counted():  # type: ignore[no-untyped-def]
+            nonlocal seen
+            message = await receive()
+            seen += len(message.get("body", b""))
+            if seen > limit:
+                raise HTTPException(413, _too_large(limit))
+            return message
+
+        await self.app(scope, counted, send)
+
+
+async def raw_body(request: Request) -> bytes:
+    """A file sent as the request body. Declared last on a route, after sign-in checks, so strangers
+    cannot make the server read; reading here lets the route itself run off the event loop."""
+    return await request.body()
 
 
 CSP = (

@@ -18,7 +18,8 @@
 .pl-done .pl-n { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .pl-stale .pl-n { border-style: dashed; border-color: var(--warn); color: var(--warn); }
 .pl-stale .pl-text small { color: var(--warn); font-weight: 600; }
-.pl-blocked { opacity: 0.72; }
+.rec-item .rec-gain { color: var(--ink); font-weight: 600; }
+.pl-blocked .pl-text > small { color: var(--ink); }
 .pl-next .pl-text small { color: var(--accent-strong); font-weight: 600; }
 .pl-note { margin: 6px 2px 0; font-size: 13px; color: var(--warn); }
 @media (max-width: 900px) {

@@ -20,6 +20,8 @@ PUBLIC = {
     ("POST", "/api/v1/auth/password/reset"), ("POST", "/api/v1/auth/signin/mfa"), ("POST", "/api/v1/auth/email/verify"),
     ("GET", "/api/v1/auth/legal"), ("GET", "/api/v1/auth/legal/{doc}"),
     ("GET", "/api/v1/try/examples"), ("GET", "/api/v1/try/examples/{case_id}"),
+    ("GET", "/api/v1/accuracy"), ("GET", "/api/v1/operators"), ("GET", "/api/v1/estimate/llm/devices"),
+    ("POST", "/api/v1/estimate/llm"),
 }  # fmt: skip
 
 
@@ -123,5 +125,5 @@ def test_device_agent_routes_ignore_browser_sessions(app):
 
 def test_public_pre_login_routes_still_need_the_csrf_header(app):
     with TestClient(app) as c:
-        for path in ("/api/v1/auth/signin/mfa", "/api/v1/auth/email/verify"):
+        for path in ("/api/v1/auth/signin/mfa", "/api/v1/auth/email/verify", "/api/v1/estimate/llm"):
             assert c.post(path, json={"mfa_token": "x", "code": "1", "token": "x"}).status_code == 403, path

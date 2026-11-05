@@ -1,0 +1,38 @@
+# Nightly encrypted database backup, kept 14 days as a workflow artifact. Encrypted because artifacts
+# of a public repository can be downloaded by others. Does nothing until both secrets are set:
+#   NEON_BACKUP_URL        the Neon connection string (postgresql://...?sslmode=require)
+#   BACKUP_PASSPHRASE      a long random value; keep a copy outside GitHub, or the backups are useless
+# Restore: openssl enc -d -aes-256-cbc -pbkdf2 -pass env:BACKUP_PASSPHRASE -in backup.dump.enc -out backup.dump
+#          pg_restore --no-owner --dbname "$TARGET_URL" backup.dump
+name: backup
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      NEON_BACKUP_URL: ${{ secrets.NEON_BACKUP_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Dump and encrypt
+        if: ${{ env.NEON_BACKUP_URL != '' && env.BACKUP_PASSPHRASE != '' }}
+        run: |
+          docker run --rm -e NEON_BACKUP_URL postgres:17-alpine \
+            sh -c 'pg_dump --format=custom --no-owner "$NEON_BACKUP_URL"' > backup.dump
+          test -s backup.dump
+          openssl enc -aes-256-cbc -pbkdf2 -pass env:BACKUP_PASSPHRASE -in backup.dump -out backup.dump.enc
+          rm backup.dump
+      - name: Keep it
+        if: ${{ env.NEON_BACKUP_URL != '' && env.BACKUP_PASSPHRASE != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ github.run_id }}
+          path: backup.dump.enc
+          retention-days: 14

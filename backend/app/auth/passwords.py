@@ -11,16 +11,26 @@ import hashlib
 import hmac
 import os
 
-LOG2_N = int(os.environ.get("GC_SCRYPT_LOG2_N", "14"))  # 16 MiB with r=8
-R, P = 8, 1
+# OWASP's lower-memory scrypt setting: 32 MiB per hash, which a small server can afford.
+LOG2_N = int(os.environ.get("GC_SCRYPT_LOG2_N", "15"))
+R, P = 8, int(os.environ.get("GC_SCRYPT_P", "3"))
 DKLEN = 32
 MIN_LENGTH = 10
 MAX_LENGTH = 256
 
-# A short list of passwords that pass the length rule but are guessed first.
+# Passwords that pass the length rule but are guessed first.
 _COMMON = {
-    "password123", "password1234", "1234567890", "qwertyuiop", "letmein123", "iloveyou12",
-    "administrator", "changeme123", "welcome123", "passw0rd123", "qwerty12345", "0987654321",
+    "1234567890", "0987654321", "12345678910", "123456789012", "1234567891", "1111111111", "0000000000",
+    "1q2w3e4r5t", "1q2w3e4r5t6y", "1qaz2wsx3edc", "qwertyuiop", "qwertyuiop123", "asdfghjkl1", "zxcvbnm123",
+    "abcdefghij", "abc1234567", "abcd123456", "administrator", "thegreencomputer", "greencomputer",
+    "aaaaaaaaaa", "password1!", "p@ssw0rd123", "p@ssword123", "passw0rd123", "correcthorsebatterystaple",
+}  # fmt: skip
+# Words that stay weak with digits or symbols on the end, such as "Welcome2026!".
+_COMMON_WORDS = {
+    "password", "passw0rd", "p@ssword", "p@ssw0rd", "qwerty", "qwertyuiop", "letmein", "iloveyou", "welcome",
+    "changeme", "admin", "administrator", "football", "baseball", "basketball", "superman", "batman", "dragon",
+    "monkey", "sunshine", "princess", "shadow", "master", "michael", "jennifer", "trustno1", "computer", "internet",
+    "greencomputer", "thegreencomputer", "summer", "winter", "spring", "autumn",
 }  # fmt: skip
 
 
@@ -60,13 +70,18 @@ def needs_rehash(stored: str) -> bool:
         return True
 
 
+def _is_common(password: str) -> bool:
+    low = password.lower()
+    return low in _COMMON or low.rstrip("0123456789!@#$%^&*.?_-+= ") in _COMMON_WORDS
+
+
 def password_problem(password: str, email: str = "") -> str | None:
     """Why a new password is not acceptable, or None."""
     if len(password) < MIN_LENGTH:
         return f"Use at least {MIN_LENGTH} characters."
     if len(password) > MAX_LENGTH:
         return f"Use at most {MAX_LENGTH} characters."
-    if password.lower() in _COMMON or len(set(password)) < 4:
+    if _is_common(password) or len(set(password)) < 4:
         return "This password is too easy to guess; choose a less common one."
     if email and password.lower() == email.lower():
         return "Do not use your email address as the password."

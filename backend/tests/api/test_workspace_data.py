@@ -91,6 +91,7 @@ def test_only_owners_manage_data_and_deletion_is_verified(app):
         assert o.post(f"{P}/workspaces/current/members", json={"email": "ed@x.io", "role": "editor"}).status_code == 201
         assert o.get(f"{P}/workspaces/current/export").status_code == 200  # the owner can
     with AuthedClient(app, email="ed@x.io") as e:
+        e.post(f"{P}/invitations/{e.get(f'{P}/invitations').json()[0]['id']}/accept")
         e.headers["X-GC-Workspace"] = str(ws)
         assert e.get(f"{P}/workspaces/current/export").status_code == 403
         assert e.put(f"{P}/workspaces/current/retention", json={"exports_days": 10}).status_code == 403

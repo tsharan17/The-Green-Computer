@@ -21,10 +21,12 @@ import InputPage from "./pages/InputPage";
 import ResultsPage from "./pages/ResultsPage";
 import StartGuide from "./pages/StartGuide";
 import SummaryPage from "./pages/SummaryPage";
+import StepVisual from "./twin/board3d/StepVisual";
 import VerifyPage from "./pages/VerifyPage";
 import WorkspacePage from "./pages/WorkspacePage";
 import { SkipLink } from "./components/PublicChrome";
 import HowPage from "./pages/HowPage";
+import LlmPage from "./pages/LlmPage";
 import LandingPage from "./pages/LandingPage";
 import InstallButton from "./components/Install";
 import LegalPage, { LegalLinks } from "./pages/LegalPage";
@@ -41,6 +43,7 @@ import { StepFooter, StepHeader, SubSteps } from "./components/StepNav";
 import MemoryPage from "./twin/MemoryPage";
 import SystemMapPage from "./twin/SystemMapPage";
 import { EnergyPage, ThermalPage } from "./twin/ThermalEnergyPages";
+import FleetPanel from "./twin/FleetPanel";
 import { TraceProvider } from "./twin/TraceBar";
 import TimelinePage from "./twin/TimelinePage";
 import type { HardwareProfile, Me, ModelProfile, OptimisationResult, ProjectOut, ProjectSpec } from "./types";
@@ -88,6 +91,7 @@ export default function App() {
   // Public pages: open to anyone, with or without an account.
   if (page === "try") return <TryPage caseId={route.parts[1] ?? null} signedIn={!!me} />;
   if (page === "how") return <HowPage signedIn={!!me} />;
+  if (page === "llm") return <LlmPage signedIn={!!me} />;
   if (me === undefined) {
     return (
       <div className="boot" aria-busy="true" aria-live="polite">
@@ -235,7 +239,7 @@ function Shell({
           </a>
           {projectId !== null && FLOW_STAGES.map((_, i) => stageGroup(i + 1))}
         </nav>
-        <a className={`cap-link ${p0 === "capabilities" ? "on" : ""}`} href="#/capabilities">What this installation can do</a>
+        <a className={`cap-link ${p0 === "capabilities" ? "on" : ""}`} href="#/capabilities">What this service can do</a>
         <StatusBar />
         <InstallButton className="side-install" />
         <LegalLinks />
@@ -485,6 +489,7 @@ function ProjectView({
       <ErrorNote error={error} onRetry={() => setError(null)} />
       {here.step && <StepHeader projectId={projectId} step={here.step} side={here.side} />}
       {here.step && <SubSteps projectId={projectId} step={here.step} side={here.side} />}
+      {here.step && <StepVisual step={here.side?.id ?? here.step.id} projectId={projectId} version={project.version} runId={runId} res={res} spec={spec} device={device} />}
 
       {area === "summary" && (res ? <SummaryPage res={res} spec={spec} projectId={projectId} runId={runId} version={project.version} /> : needsResult)}
       {area === "input" && (
@@ -557,7 +562,12 @@ function ProjectView({
           <CoolingFigures projectId={projectId} version={project.version} />
         </>
       )}
-      {area === "energy" && <EnergyPage projectId={projectId} version={project.version} hasBest={!!res?.best} res={res} spec={spec} />}
+      {area === "energy" && (
+        <>
+          <EnergyPage projectId={projectId} version={project.version} hasBest={!!res?.best} res={res} spec={spec} />
+          <FleetPanel projectId={projectId} runKey={res} />
+        </>
+      )}
       {area === "verify" && (
         <>
           {tab === "run" && <ExecutionPanel projectId={projectId} canWrite={canWrite} onMeasured={() => setVerifyKey((k) => k + 1)} />}

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.api.v1.auth import router as auth_router
+from app.api.v1.estimate import router as estimate_router
 from app.api.v1.executions import router as executions_router
 from app.api.v1.export import router as export_router
 from app.api.v1.files import router as files_router
@@ -33,11 +36,22 @@ from app.db.migrate import current_revision, head_revision, upgrade
 from app.db.session import make_engine, make_session_factory
 from app.providers.email import make_email_sender
 from app.providers.storage import default_data_dir, make_blob_store
-from app.security import OriginCheck, SecurityHeaders
+from app.security import BodyLimit, IdBounds, OriginCheck, SecurityHeaders
 from app.services import execution_service, hardware_service, measurement_service
+from app.services.workspace_data import sweep_retention
 
 STATIC_DIR = Path(__file__).parent / "static"
 log = logging.getLogger("green_computer")
+
+
+async def _retention_loop(app: FastAPI) -> None:
+    hours = float(os.environ.get("GC_RETENTION_SWEEP_HOURS", "24"))
+    while hours > 0:
+        await asyncio.sleep(hours * 3600)
+        try:
+            await asyncio.to_thread(sweep_retention, app.state.session_factory, app.state.blobs)
+        except Exception:  # noqa: BLE001 - a failed sweep is retried next time and must not stop the server
+            log.exception("retention sweep failed")
 
 
 def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAPI:
@@ -62,7 +76,9 @@ def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAP
             hardware_service.load_confirmed(db)
             measurement_service.replay_committed(db)
             execution_service.recover_stale(db)
+        sweeper = asyncio.create_task(_retention_loop(app))
         yield
+        sweeper.cancel()
 
     app = FastAPI(
         title="The Green Computer API",
@@ -80,6 +96,8 @@ def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAP
     configure_logging()
     app.state.metrics = Metrics()
     app.state.error_reporter = make_error_reporter()
+    app.add_middleware(IdBounds)
+    app.add_middleware(BodyLimit)  # innermost, so its 413 passes through the headers and logging below
     app.add_middleware(SecurityHeaders)
     app.add_middleware(OriginCheck, allowed=settings.allowed_origins)
     # Outermost: every request gets an id, a log line and a metric, and unhandled errors are reported.
@@ -102,7 +120,7 @@ def create_app(db_url: str | None = None, data_dir: str | None = None) -> FastAP
     for r in (auth_router, workspace_router, router, measurement_router,
               export_router, hardware_router, files_router, intake_router, twin_router, plans_router,
               executions_router, guide_router, system_graph_router, physics_router, remote_router, ops_router,
-              workflow_router, try_router):  # fmt: skip
+              workflow_router, try_router, estimate_router):  # fmt: skip
         app.include_router(r, prefix=settings.api_prefix)
 
     if STATIC_DIR.is_dir():

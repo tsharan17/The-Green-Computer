@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.routes import project_for
 from app.auth.deps import Ctx, get_db, require_ctx, require_writer
+from app.security import attachment
 from app.services import audit
 from app.services import export_service as ex
 from app.services import plan_service as plans
@@ -190,5 +191,5 @@ def download_export(project_id: int, export_id: int, request: Request, db: Sessi
     if row is None or row.blob_key is None:
         raise HTTPException(404, "export not found")
     return Response(request.app.state.blobs.get(row.blob_key), media_type=row.media_type,
-                    headers={"Content-Disposition": f'attachment; filename="{row.filename}"',
+                    headers={"Content-Disposition": attachment(row.filename),
                              "X-Green-Computer-Label": row.label})  # fmt: skip

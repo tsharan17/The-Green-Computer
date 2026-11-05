@@ -28,9 +28,28 @@ def evaluate_project(
         calibration=cals.get(cfg.precision),
         measured=next((m for m in meas if matches(m, hw, model.id, cfg)), None),
     )  # fmt: skip
+    if spec.runtime:
+        result.notes.append(RUNTIME_NOTE.format(spec.runtime))
     repo.save_run(db, project_id, "evaluate", result.engine_version, result.model_dump(mode="json"),
                   user_id)  # fmt: skip
     return result
+
+
+RUNTIME_NOTE = "Runtime recorded as {}. Runtime overhead is not modelled yet, so this choice changes no number here."
+MAX_STORED_POINTS = 800  # a chart cannot show more, and a stored run should stay small
+
+
+def thin_points(result: OptimisationResult) -> None:
+    """Keep the Pareto front and the best plan, and an even sample of the rest. Results are unaffected:
+    `evaluated` and `counts` still describe the whole search."""
+    points = result.points
+    if len(points) <= MAX_STORED_POINTS:
+        return
+    must = [p for p in points if p.pareto or p.best]
+    rest = [p for p in points if not (p.pareto or p.best)]
+    room = max(0, MAX_STORED_POINTS - len(must))
+    result.points = must + (rest[:: max(1, len(rest) // room)][:room] if room else [])
+    result.points_thinned = True
 
 
 def optimise_project(
@@ -46,6 +65,9 @@ def optimise_project(
         measurements=ms.measurements_for(db, hw.id, model.id, ws),
     )  # fmt: skip
     advisor_service.enrich(db, spec, model, hw, result, ws)
+    thin_points(result)
+    if spec.runtime:
+        result.baseline.notes.append(RUNTIME_NOTE.format(spec.runtime))
     repo.save_run(
         db, project_id, "optimise", result.baseline.engine_version, result.model_dump(mode="json"),
         user_id,

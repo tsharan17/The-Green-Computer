@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from fastapi import HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import Ctx
@@ -18,6 +19,7 @@ from app.engine.workload.onnx_parser import ModelParseError, ParseResult, parse_
 from app.engine.workload.onnx_report import onnx_report
 from app.providers.storage import BlobStore
 from app.schemas.model import ModelProfile
+from app.security import max_workspace_storage_bytes
 from app.services import audit
 
 CONTENT_TYPES = {
@@ -38,6 +40,18 @@ def safe_filename(name: str) -> str:
     return "".join(c for c in base if c.isprintable() and c not in '<>:"|?*')[:255] or "upload"
 
 
+def _check_storage_quota(db: Session, workspace_id: int, incoming: int) -> None:
+    cap = max_workspace_storage_bytes()
+    if not cap:
+        return
+    used = db.scalar(select(func.coalesce(func.sum(ArtifactRow.size_bytes), 0)).where(
+        ArtifactRow.workspace_id == workspace_id, ArtifactRow.blob_key.is_not(None),
+        ArtifactRow.deleted_at.is_(None))) or 0  # fmt: skip
+    if used + incoming > cap:
+        raise HTTPException(503, f"This workspace has reached its storage limit of {cap // (1024 * 1024)} MB. "
+                                 "Delete files you no longer need, then try again.")  # fmt: skip
+
+
 def store_artifact(
     blobs: BlobStore,
     db: Session,
@@ -53,6 +67,8 @@ def store_artifact(
     import hashlib
 
     fname = safe_filename(filename)
+    if keep_bytes:
+        _check_storage_quota(db, ctx.workspace_id, len(data))
     key, digest = (blobs.put(f"ws{ctx.workspace_id}", data) if keep_bytes
                    else (None, hashlib.sha256(data).hexdigest()))  # fmt: skip
     row = ArtifactRow(

@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.auth import service as auth
-from app.auth.deps import Ctx, get_db, require_ctx, require_writer
-from app.db.models import ArtifactRow, MembershipRow, UserRow, WorkspaceRow
+from app.auth.deps import Ctx, get_db, require_ctx, require_verified, require_writer
+from app.config import get_settings
+from app.db.models import ArtifactRow, InvitationRow, MembershipRow, UserRow, WorkspaceRow
+from app.security import LIMITER, _int_env, attachment, max_workspaces_per_user
 from app.services import audit, intake
 
 router = APIRouter(tags=["workspace"])
@@ -35,8 +37,13 @@ class WorkspaceIn(BaseModel):
 
 
 @router.post("/workspaces", status_code=201)
-def create_workspace(body: WorkspaceIn, ctx: Ctx = Depends(require_ctx),
+def create_workspace(body: WorkspaceIn, ctx: Ctx = Depends(require_verified),
                      db: Session = Depends(get_db)) -> dict[str, Any]:  # fmt: skip
+    cap = max_workspaces_per_user()
+    owned = db.scalar(select(func.count()).select_from(MembershipRow).where(
+        MembershipRow.user_id == ctx.user_id, MembershipRow.role == "owner")) or 0  # fmt: skip
+    if cap and owned >= cap:
+        raise HTTPException(503, f"You have reached the limit of {cap} workspaces on this service.")
     ws = auth.create_workspace(db, ctx.user, body.name.strip(), personal=False)
     db.commit()
     audit.audit(db, "workspace.created", workspace_id=ws.id, user_id=ctx.user_id,
@@ -70,10 +77,19 @@ class MemberIn(BaseModel):
     role: Literal["owner", "editor", "viewer"] = "editor"
 
 
+INVITE_DAYS = 14
+MAX_PENDING_INVITES = 50
+
+
+def _aware(t: datetime) -> datetime:
+    return t if t.tzinfo else t.replace(tzinfo=UTC)
+
+
 @router.post("/workspaces/current/members", status_code=201)
-def add_member(body: MemberIn, ctx: Ctx = Depends(require_ctx),
+def add_member(body: MemberIn, request: Request, background: BackgroundTasks, ctx: Ctx = Depends(require_verified),
                db: Session = Depends(get_db)) -> dict[str, Any]:  # fmt: skip
-    """Add an existing account to this workspace (it must already have signed up)."""
+    """Invite someone to this workspace. They join only when they accept from their own account, and
+    the answer is the same whether or not that address has an account."""
     _owner(ctx)
     ws = db.get(WorkspaceRow, ctx.workspace_id)
     if ws is not None and ws.personal:
@@ -82,16 +98,93 @@ def add_member(body: MemberIn, ctx: Ctx = Depends(require_ctx),
         email = auth.normalise_email(body.email)
     except auth.AuthError as e:
         raise HTTPException(e.status, e.message) from e
-    user = db.scalars(select(UserRow).where(UserRow.email == email)).first()
-    if user is None:
-        raise HTTPException(404, "No account uses that email. Ask them to sign up first.")
-    if auth.role_in(db, user.id, ctx.workspace_id):
+    member = db.scalars(select(UserRow).where(UserRow.email == email)).first()
+    if member is not None and auth.role_in(db, member.id, ctx.workspace_id):
         raise HTTPException(409, "Already a member.")
-    db.add(MembershipRow(workspace_id=ctx.workspace_id, user_id=user.id, role=body.role))
+    if LIMITER.check(f"invites:u{ctx.user_id}", _int_env("GC_MAX_INVITES_PER_DAY", 30), 86400.0) is not None:
+        raise HTTPException(429, "You have sent too many invitations today. Try again tomorrow.")
+    row = db.scalars(select(InvitationRow).where(
+        InvitationRow.workspace_id == ctx.workspace_id, InvitationRow.email == email)).first()  # fmt: skip
+    if row is None:
+        pending = db.scalar(select(func.count()).select_from(InvitationRow).where(
+            InvitationRow.workspace_id == ctx.workspace_id)) or 0  # fmt: skip
+        if pending >= MAX_PENDING_INVITES:
+            raise HTTPException(422, "Too many open invitations. Cancel some first.")
+        row = InvitationRow(workspace_id=ctx.workspace_id, email=email)
+        db.add(row)
+    row.role, row.invited_by = body.role, ctx.user_id
+    row.expires_at = datetime.now(UTC) + timedelta(days=INVITE_DAYS)
     db.commit()
-    audit.audit(db, "workspace.member_added", workspace_id=ctx.workspace_id, user_id=ctx.user_id,
-                target_type="user", target_id=user.id, detail={"role": body.role}, ip=ctx.ip)  # fmt: skip
-    return {"user_id": user.id, "email": user.email, "role": body.role}
+    audit.audit(db, "workspace.member_invited", workspace_id=ctx.workspace_id, user_id=ctx.user_id,
+                target_type="invitation", target_id=row.id, detail={"role": body.role}, ip=ctx.ip)  # fmt: skip
+    url = get_settings().public_url
+    background.add_task(
+        request.app.state.email_sender.send, email, "You have been invited to a team on The Green Computer",
+        f"{ctx.user.email} invited you to the workspace \"{ws.name if ws else ''}\" as {body.role}.\n\n"
+        f"Sign in or create an account with this address to accept or decline:\n{url}/#/account\n\n"
+        f"The invitation lasts {INVITE_DAYS} days. If you do not know this person, ignore this email.",
+    )  # fmt: skip
+    return {"invited": True, "id": row.id, "email": email, "role": body.role}
+
+
+def _invite_view(row: InvitationRow, ws_name: str | None = None) -> dict[str, Any]:
+    out = {"id": row.id, "email": row.email, "role": row.role, "expires_at": _aware(row.expires_at).isoformat()}
+    return {**out, "workspace": ws_name} if ws_name is not None else out
+
+
+@router.get("/workspaces/current/invitations")
+def workspace_invitations(ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> list[dict]:
+    _owner(ctx)
+    rows = db.scalars(select(InvitationRow).where(InvitationRow.workspace_id == ctx.workspace_id).order_by(InvitationRow.id))
+    return [_invite_view(r) for r in rows]
+
+
+@router.delete("/workspaces/current/invitations/{invitation_id}")
+def cancel_invitation(invitation_id: int, ctx: Ctx = Depends(require_ctx), db: Session = Depends(get_db)) -> dict[str, bool]:
+    _owner(ctx)
+    row = db.get(InvitationRow, invitation_id)
+    if row is None or row.workspace_id != ctx.workspace_id:
+        raise HTTPException(404, "invitation not found")
+    db.delete(row)
+    db.commit()
+    return {"cancelled": True}
+
+
+def _my_invitation(db: Session, ctx: Ctx, invitation_id: int) -> InvitationRow:
+    row = db.get(InvitationRow, invitation_id)
+    if row is None or row.email != ctx.user.email or _aware(row.expires_at) <= datetime.now(UTC):
+        raise HTTPException(404, "This invitation does not exist or has expired.")
+    return row
+
+
+@router.get("/invitations")
+def my_invitations(ctx: Ctx = Depends(require_verified), db: Session = Depends(get_db)) -> list[dict]:
+    """Invitations sent to the signed-in address. A confirmed address is what proves they are yours."""
+    rows = db.execute(
+        select(InvitationRow, WorkspaceRow).join(WorkspaceRow, WorkspaceRow.id == InvitationRow.workspace_id)
+        .where(InvitationRow.email == ctx.user.email).order_by(InvitationRow.id)
+    ).all()  # fmt: skip
+    return [_invite_view(i, w.name) for i, w in rows if _aware(i.expires_at) > datetime.now(UTC)]
+
+
+@router.post("/invitations/{invitation_id}/accept")
+def accept_invitation(invitation_id: int, ctx: Ctx = Depends(require_verified), db: Session = Depends(get_db)) -> dict[str, Any]:
+    row = _my_invitation(db, ctx, invitation_id)
+    ws, role = row.workspace_id, row.role
+    if not auth.role_in(db, ctx.user_id, ws):
+        db.add(MembershipRow(workspace_id=ws, user_id=ctx.user_id, role=role))
+    db.delete(row)
+    db.commit()
+    audit.audit(db, "workspace.member_added", workspace_id=ws, user_id=ctx.user_id,
+                target_type="user", target_id=ctx.user_id, detail={"role": role}, ip=ctx.ip)  # fmt: skip
+    return {"workspace_id": ws, "role": role}
+
+
+@router.post("/invitations/{invitation_id}/decline")
+def decline_invitation(invitation_id: int, ctx: Ctx = Depends(require_verified), db: Session = Depends(get_db)) -> dict[str, bool]:
+    db.delete(_my_invitation(db, ctx, invitation_id))
+    db.commit()
+    return {"declined": True}
 
 
 @router.delete("/workspaces/current/members/{user_id}")
@@ -137,7 +230,7 @@ def download_artifact(artifact_id: int, request: Request, ctx: Ctx = Depends(req
         raise HTTPException(404, "file not found (refused uploads are not stored)")
     data = request.app.state.blobs.get(row.blob_key)
     return Response(data, media_type="application/octet-stream", headers={
-        "Content-Disposition": f'attachment; filename="{row.filename}"',
+        "Content-Disposition": attachment(row.filename),
         "X-Content-Type-Options": "nosniff"})  # fmt: skip
 
 

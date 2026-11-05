@@ -1,0 +1,26 @@
+name: Green Computer check
+description: Fail a pull request when a project's setup is predicted to miss its requirements.
+inputs:
+  url:
+    description: Server address, such as https://the-green-computer.onrender.com
+    required: true
+  project-id:
+    description: The project to check
+    required: true
+  workspace-id:
+    description: The workspace it belongs to (the default workspace when empty)
+    required: false
+    default: ""
+  token:
+    description: An API token, kept in your repository secrets
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GC_URL: ${{ inputs.url }}
+        GC_PROJECT: ${{ inputs.project-id }}
+        GC_WORKSPACE: ${{ inputs.workspace-id }}
+        GC_TOKEN: ${{ inputs.token }}
+      run: python3 "$GITHUB_ACTION_PATH/check.py"

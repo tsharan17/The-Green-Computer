@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from app.engine.measure_parsers import (
     parse_tegrastats,
 )
 from app.schemas.measurement import MeasurementIn, MeasurementOut, VerifyOut
+from app.security import raw_body
 from app.services import audit
 from app.services import measurement_service as ms
 
@@ -90,8 +91,7 @@ def delete_measurement(
 
 
 @router.post("/measurements/import", response_model=IngestOut, status_code=201)
-async def import_measurements(
-    request: Request,
+def import_measurements(
     format: str = Query(..., pattern="^(bench_json|json|csv|nvidia_smi_csv|tegrastats)$"),
     device_id: str | None = None,
     model_id: str | None = None,
@@ -101,10 +101,11 @@ async def import_measurements(
     ambient_c: float | None = None,
     db: Session = Depends(get_db),
     ctx: Ctx = Depends(require_writer),
+    data: bytes = Depends(raw_body),
 ) -> IngestOut:
     """Body is the raw text. `bench_json` carries everything; the power-trace formats need the
     device/model/precision/batch (and optionally the latency) passed as query parameters."""
-    text = (await request.body()).decode("utf-8", errors="replace")
+    text = data.decode("utf-8", errors="replace")
     try:
         if format in ("bench_json", "json"):
             records = parse_bench_json(text)
